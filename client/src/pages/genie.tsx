@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Markdown from "react-markdown";
 import { api, apiClient, useFilters, useStatus } from "../api";
 import { ErrorState, PageTitle } from "../components/common";
+import { ExploreContext } from "../components/explore-context";
 import {
   Badge,
   Button,
@@ -201,6 +202,11 @@ export default function AskGenie() {
             </span>
             <Badge variant="outline">samples.nyctaxi.trips</Badge>
           </div>
+          {!turns.length && (
+            <div className="mx-5 mt-5 sm:mx-8">
+              <ExploreContext purpose="question" />
+            </div>
+          )}
           <div className="flex-1 p-5 sm:p-8">
             {!turns.length && (
               <div className="mx-auto max-w-2xl py-9 text-center">
@@ -354,6 +360,11 @@ export default function AskGenie() {
               send(draft);
             }}
           >
+            {!!turns.length && (
+              <div className="mb-3">
+                <ExploreContext purpose="question" />
+              </div>
+            )}
             <Textarea
               aria-label="Ask a question about taxi data"
               placeholder="Enter a question about NYC taxi trips…"
@@ -370,9 +381,7 @@ export default function AskGenie() {
             />
             <div className="mt-2 flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">
-                {query
-                  ? "Current date and ZIP filters included"
-                  : "Enter to send · Shift + Enter for a new line"}
+                Enter to send · Shift + Enter for a new line
               </span>
               <Button
                 type="submit"

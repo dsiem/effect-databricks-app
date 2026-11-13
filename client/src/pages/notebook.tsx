@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BookOpen,
-  CalendarDays,
-  Database,
   ExternalLink,
   Pencil,
   Pin,
@@ -14,8 +12,8 @@ import { useNavigate } from "react-router-dom";
 import type { Note, NoteInput } from "../../../src/domain";
 import { api, apiClient, useFilters } from "../api";
 import { ErrorState, Loading, PageTitle } from "../components/common";
+import { ExploreContext, FilterSummary } from "../components/explore-context";
 import {
-  Badge,
   Button,
   Card,
   Dialog,
@@ -73,7 +71,7 @@ export default function Notebook() {
     <>
       <PageTitle
         title="Analyst notebook"
-        description="Save analysis notes with date and pickup ZIP filters in a shared notebook."
+        description="Capture findings and reopen the Explore view behind each note."
         action={
           <Button
             ref={newNoteButton}
@@ -92,18 +90,8 @@ export default function Notebook() {
           </Button>
         }
       />
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-5 py-4">
-        <div className="flex items-center gap-3">
-          <Database className="size-5 text-primary" />
-          <div>
-            <p className="text-sm font-medium">Shared note storage</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Notes are stored in Lakebase PostgreSQL and persist across
-              sessions.
-            </p>
-          </div>
-        </div>
-        <Badge variant="outline">Lakebase · PostgreSQL</Badge>
+      <div className="mb-6">
+        <ExploreContext purpose="note" />
       </div>
       {notes.isPending ? (
         <Loading text="Loading saved notes…" />
@@ -116,8 +104,8 @@ export default function Notebook() {
           </span>
           <h2 className="mt-5 text-lg font-semibold">No saved notes</h2>
           <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-            Create a note to save analysis details and the current date and
-            pickup ZIP filters.
+            Create a note to save your findings and the Explore view shown
+            above.
           </p>
           <Button
             className="mt-6"
@@ -170,40 +158,31 @@ export default function Notebook() {
                   {note.body || "No additional details."}
                 </p>
                 <div className="mt-auto">
-                  <div className="mb-4 flex flex-wrap gap-1.5">
-                    {note.filters.from && (
-                      <Badge variant="secondary">
-                        <CalendarDays className="size-3" />
-                        {note.filters.from}
-                      </Badge>
-                    )}
-                    {note.filters.to && (
-                      <Badge variant="secondary">to {note.filters.to}</Badge>
-                    )}
-                    {note.filters.zip && (
-                      <Badge variant="secondary">ZIP {note.filters.zip}</Badge>
-                    )}
-                    {!Object.keys(note.filters).length && (
-                      <Badge variant="secondary">All taxi data</Badge>
-                    )}
+                  <div className="mb-4">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">
+                      Saved Explore view
+                    </p>
+                    <FilterSummary filters={note.filters} />
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="mt-3 h-auto p-0"
+                      aria-label={`Open saved view for ${note.title}`}
+                      onClick={() =>
+                        navigate(
+                          `/?${new URLSearchParams(Object.entries(note.filters))}`,
+                        )
+                      }
+                    >
+                      Open saved view
+                      <ExternalLink className="size-3.5" />
+                    </Button>
                   </div>
                   <div className="flex items-center justify-between border-t pt-4">
                     <span className="text-xs text-muted-foreground">
                       Updated {new Date(note.updated_at).toLocaleDateString()}
                     </span>
                     <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Open saved view for ${note.title}`}
-                        onClick={() =>
-                          navigate(
-                            `/?${new URLSearchParams(Object.entries(note.filters))}`,
-                          )
-                        }
-                      >
-                        <ExternalLink />
-                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -257,7 +236,7 @@ export default function Notebook() {
                 : "New note"}
             </DialogTitle>
             <DialogDescription>
-              Save analysis details and filters in the shared notebook.
+              Save your findings with a snapshot of this Explore view.
             </DialogDescription>
           </DialogHeader>
           {editing && (
@@ -296,12 +275,14 @@ export default function Notebook() {
                   placeholder="Add context, a question, or a next step…"
                 />
               </label>
-              <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-                Saved view: {editing.filters.from ?? "All dates"}
-                {editing.filters.to ? ` — ${editing.filters.to}` : ""} ·{" "}
-                {editing.filters.zip
-                  ? `ZIP ${editing.filters.zip}`
-                  : "All pickup areas"}
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <p className="mb-2 text-sm font-medium">Saved Explore view</p>
+                <FilterSummary filters={editing.filters} />
+                <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                  {notes.data?.some((n) => n.id === editing.id)
+                    ? "This note keeps its original filters, even when your Explore view changes."
+                    : "These filters are saved with your note so you can reopen this view later."}
+                </p>
               </div>
               {save.error && (
                 <p role="alert" className="text-sm text-destructive">

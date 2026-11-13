@@ -67,7 +67,10 @@ test("result retry survives navigation and reload, and follow-ups reuse the conv
     page.getByRole("button", { name: "Retry result download" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Trip explorer", exact: true }).click();
-  await page.getByRole("link", { name: /^Ask Genie/ }).click();
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("link", { name: "Ask Genie", exact: true })
+    .click();
   await page.reload();
   await expect(page.getByText("Count trips", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Retry result download" }).click();
@@ -160,7 +163,10 @@ test("submission responses are saved when navigating away before acceptance", as
       page.evaluate(() => sessionStorage.getItem("metrocab.genie.v1")),
     )
     .toContain('"messageId":"message"');
-  await page.getByRole("link", { name: /^Ask Genie/ }).click();
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("link", { name: "Ask Genie", exact: true })
+    .click();
   await expect(
     page.getByRole("cell", { name: "21932", exact: true }),
   ).toBeVisible();

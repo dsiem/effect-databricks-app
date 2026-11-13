@@ -2,7 +2,12 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "e2e",
-  testMatch: ["genie-recovery.spec.ts", "ui.spec.ts", "date-range.spec.ts"],
+  testMatch: [
+    "genie-recovery.spec.ts",
+    "ui.spec.ts",
+    "date-range.spec.ts",
+    "explore-context.spec.ts",
+  ],
   timeout: 30_000,
   use: {
     baseURL: "http://127.0.0.1:3011",
