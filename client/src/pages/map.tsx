@@ -16,6 +16,10 @@ import { Badge, Card, cn } from "../components/ui";
 import "leaflet/dist/leaflet.css";
 
 type ZipProperties = { modzcta: string; label: string; zcta: string };
+const activityColors = [20, 40, 60, 80, 100].map(
+  (amount) =>
+    `color-mix(in oklab, var(--chart-2) ${amount}%, var(--background))`,
+);
 const source =
   "https://data.cityofnewyork.us/Health/Modified-Zip-Code-Tabulation-Areas-MODZCTA-/pri4-ifjk";
 export default function PickupMap() {
@@ -51,10 +55,8 @@ export default function PickupMap() {
   );
   const color = (count: number) =>
     count === 0
-      ? "#f4f4f5"
-      : ["#dbeafe", "#93c5fd", "#60a5fa", "#2563eb", "#1e40af"][
-          Math.min(4, Math.floor(Math.sqrt(count / maximum) * 5))
-        ];
+      ? "var(--muted)"
+      : activityColors[Math.min(4, Math.floor(Math.sqrt(count / maximum) * 5))];
   const mapped =
     geography.data?.features.reduce((sum, f) => sum + featureTrips(f), 0) ?? 0;
   if (overview.isPending || geography.isPending)
@@ -91,23 +93,19 @@ export default function PickupMap() {
           </Badge>
         }
       />
-      <div className="grid gap-5 xl:grid-cols-[1fr_300px]">
-        <Card className="gap-0 overflow-hidden py-0">
-          <div className="flex items-center justify-between border-b px-5 py-4">
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <Card className="min-w-0 gap-0 overflow-hidden py-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
             <div>
               <h2 className="text-sm font-semibold">Pickup activity</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Hover for trip counts. Click an area to filter.
+                Scroll to zoom. Select an area to filter.
               </p>
             </div>
             <Badge variant="secondary">{compact(mapped)} mapped trips</Badge>
           </div>
-          <div className="map-panel h-[490px] sm:h-[570px]">
-            <MapContainer
-              center={[40.743, -73.94]}
-              zoom={11}
-              scrollWheelZoom={false}
-            >
+          <div className="map-panel h-[420px] shrink-0 sm:h-[570px]">
+            <MapContainer center={[40.743, -73.94]} zoom={11} scrollWheelZoom>
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -116,14 +114,14 @@ export default function PickupMap() {
                 key={query}
                 data={geography.data}
                 style={(feature) => ({
-                  color: "#fff",
+                  color: "var(--background)",
                   weight: 1,
                   fillColor: color(
                     featureTrips(
                       feature as Feature<GeoJSON.Geometry, ZipProperties>,
                     ),
                   ),
-                  fillOpacity: 0.8,
+                  fillOpacity: 0.85,
                 })}
                 onEachFeature={(
                   feature: Feature<GeoJSON.Geometry, ZipProperties>,
@@ -148,19 +146,17 @@ export default function PickupMap() {
               />
             </MapContainer>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 p-4 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4 text-xs text-muted-foreground">
             <span>Modified ZIP areas · geographic aggregation</span>
             <span className="flex items-center gap-1.5">
               Fewer
-              {["#dbeafe", "#93c5fd", "#60a5fa", "#2563eb", "#1e40af"].map(
-                (c) => (
-                  <span
-                    key={c}
-                    className="h-2 w-5 rounded-sm"
-                    style={{ background: c }}
-                  />
-                ),
-              )}
+              {activityColors.map((c) => (
+                <span
+                  key={c}
+                  className="h-2 w-5 rounded-sm"
+                  style={{ background: c }}
+                />
+              ))}
               More
             </span>
           </div>
@@ -171,35 +167,42 @@ export default function PickupMap() {
               title="Pickup ZIP ranking"
               subtitle="ZIP codes ranked by recorded trips"
             />
-            {zones.slice(0, 10).map((zone, index) => (
-              <button
-                type="button"
-                key={zone.zip}
-                onClick={() => setFilters({ ...filters, zip: zone.zip })}
-                className={cn(
-                  "mb-4 block w-full rounded-md text-left last:mb-0 hover:bg-muted/60",
-                  filters.zip === zone.zip && "bg-muted",
-                )}
-              >
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span>
-                    <span className="mr-2 text-xs text-muted-foreground">
-                      {String(index + 1).padStart(2, "0")}
+            <ol aria-label="Pickup ZIP ranking" className="space-y-1">
+              {zones.slice(0, 10).map((zone, index) => (
+                <li key={zone.zip}>
+                  <button
+                    type="button"
+                    aria-label={`Rank ${index + 1}, ZIP ${zone.zip}, ${number(zone.trips)} trips`}
+                    aria-pressed={filters.zip === zone.zip}
+                    onClick={() => setFilters({ ...filters, zip: zone.zip })}
+                    className={cn(
+                      "grid w-full grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                      filters.zip === zone.zip && "bg-muted",
+                    )}
+                  >
+                    <span className="flex size-7 items-center justify-center rounded-md bg-muted text-xs font-medium tabular-nums text-muted-foreground">
+                      {index + 1}
                     </span>
-                    <span className="font-medium">{zone.zip}</span>
-                  </span>
-                  <span className="tabular-nums">{number(zone.trips)}</span>
-                </div>
-                <div className="ml-5 h-1 overflow-hidden rounded bg-muted">
-                  <div
-                    className="h-1 rounded bg-chart-2"
-                    style={{
-                      width: `${(zone.trips / (zones[0]?.trips || 1)) * 100}%`,
-                    }}
-                  />
-                </div>
-              </button>
-            ))}
+                    <span className="min-w-0 space-y-2">
+                      <span className="flex items-baseline justify-between gap-2 text-sm">
+                        <span className="font-medium">{zone.zip}</span>
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {number(zone.trips)}
+                        </span>
+                      </span>
+                      <span className="block h-1 overflow-hidden rounded-full bg-muted">
+                        <span
+                          className="block h-full rounded-full bg-chart-2"
+                          style={{
+                            width: `${(zone.trips / (zones[0]?.trips || 1)) * 100}%`,
+                          }}
+                        />
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
           </Card>
           <Card className="gap-0 bg-muted/40 p-5">
             <p className="text-sm font-semibold">Geographic coverage</p>

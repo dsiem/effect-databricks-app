@@ -115,6 +115,43 @@
 }
 .map-panel .leaflet-control-attribution {
   font-size: 10px;
+  background: var(--card);
+  color: var(--muted-foreground);
+}
+.map-panel .leaflet-tile-pane {
+  filter: grayscale(1);
+}
+.map-panel .leaflet-bar {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+}
+.map-panel .leaflet-bar a {
+  background: var(--card);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+.map-panel .leaflet-bar a:hover {
+  background: var(--muted);
+}
+.map-panel .leaflet-control-attribution a {
+  color: var(--muted-foreground);
+  text-decoration: underline;
+}
+.map-panel .leaflet-tooltip {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 6px 10px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+}
+.map-panel .leaflet-tooltip-left::before {
+  border-left-color: var(--border);
+}
+.map-panel .leaflet-tooltip-right::before {
+  border-right-color: var(--border);
 }
 @media (prefers-reduced-motion: reduce) {
   *,
