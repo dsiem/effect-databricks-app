@@ -1,15 +1,17 @@
 # Data access direction
 
 The initial app implements the HTTP runtime and deployment foundation. It does not
-yet query data or authenticate to Databricks APIs. Add each integration as an
-Effect service with an explicit `Layer` in `src/main.ts`; keep transport and
+yet query data or authenticate to Databricks APIs. The reusable
+[effect-sql-databricks](../packages/sql-databricks/README.md) package implements
+Lakehouse SQL over Arrow, but is not yet wired into application routes. Add each
+integration as an Effect service with an explicit `Layer` in `src/main.ts`; keep transport and
 credentials behind the service boundary.
 
-| Service   | Access path                             | Initial integration work                                                                                                                     |
-| --------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lakebase  | PostgreSQL protocol                     | Select Autoscaling or Provisioned, add the database resource, implement a scoped connection pool and refreshing OAuth credentials.           |
-| Lakehouse | SQL warehouse / Statement Execution API | Bind an existing warehouse, grant Unity Catalog access, decode statement responses, and poll asynchronous statements with bounded schedules. |
-| Genie     | Genie conversation REST API             | Bind an existing space, start conversations, send follow-up messages, and poll message/query results.                                        |
+| Service   | Access path                             | Initial integration work                                                                                                                       |
+| --------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lakebase  | PostgreSQL protocol                     | Select Autoscaling or Provisioned, add the database resource, implement a scoped connection pool and refreshing OAuth credentials.             |
+| Lakehouse | SQL warehouse / Statement Execution API | Bind an existing warehouse, grant Unity Catalog access, provide the Databricks client layer, and add application queries using its Arrow APIs. |
+| Genie     | Genie conversation REST API             | Bind an existing space, start conversations, send follow-up messages, and poll message/query results.                                          |
 
 Use Effect `Config` for environment inputs, `Schema` for external responses,
 typed errors for expected failures, and scoped acquisition/release for connections.
@@ -58,9 +60,10 @@ for shared app access. Keep secrets in redacted configuration and server-side
 services; never return them in HTTP responses or logs. The GitHub deployer identity
 is separate from this app runtime identity.
 
-For REST calls, implement workspace OAuth M2M acquisition and expiry-aware token
-refresh behind a shared authenticated HTTP service. Do not cache a token forever
-or retry writes indiscriminately. Lakebase database authentication has its own
+For REST calls, use workspace OAuth M2M acquisition and expiry-aware token
+refresh behind a shared authenticated HTTP service. The SQL adapter includes a
+`Credentials.clientCredentials` provider for its workspace requests. Do not cache
+a token forever or retry writes indiscriminately. Lakebase database authentication has its own
 credential/token flow; a workspace REST token is not a PostgreSQL password.
 Ensure newly opened database connections obtain a valid credential throughout
 the pool's lifetime.

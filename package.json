@@ -7,16 +7,20 @@
     "node": ">=22.19 <23"
   },
   "packageManager": "npm@10.9.2",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "node --env-file-if-exists=.env --import tsx --watch src/main.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "npm run build --workspaces --if-present && tsc -p tsconfig.build.json",
     "start": "node --env-file-if-exists=.env dist/main.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "test": "node --import tsx --test test/*.test.ts",
+    "test": "npm run test --workspaces --if-present && node --import tsx --test test/*.test.ts",
     "smoke": "node scripts/smoke.mjs",
-    "check": "npm run lint && npm run typecheck && npm test && npm run build && npm run smoke",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build && npm run smoke && npm run package:check",
+    "package:check": "node scripts/check-package.mjs",
     "bundle:check": "node scripts/check-bundle.mjs",
     "bundle:validate": "databricks bundle validate --strict",
     "deploy:dev": "databricks bundle deploy -t dev && databricks bundle run app -t dev"

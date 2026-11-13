@@ -6,7 +6,9 @@ Databricks credentials, so local development and CI are independent of a workspa
 
 Lakebase, Lakehouse SQL, and Genie are the intended data services. Resource-binding
 examples and the implementation path are in [docs/data-access.md](docs/data-access.md).
-Data clients, application queries, and a UI are future work.
+The workspace includes [effect-sql-databricks](packages/sql-databricks/README.md),
+an Effect SQL warehouse adapter with Arrow tables, record batches, and IPC chunks.
+Application queries and a UI are future work.
 
 ## Local development
 
@@ -124,6 +126,7 @@ src/main.ts                 Node server layer and main runtime
 test/config.test.ts         Configuration behavior checks
 scripts/smoke.mjs           Verify the actual compiled app over both protocols
 scripts/check-bundle.mjs    Check YAML with the installed Databricks schema
+packages/sql-databricks/     Reusable Effect SQL adapter with native Arrow results
 app.yaml                    Databricks start command and runtime configuration
 databricks.yml              App resource, source sync, dev/prod targets
 examples/data-resources.yml Opt-in bindings for existing data resources
