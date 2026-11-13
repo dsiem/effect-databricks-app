@@ -26,7 +26,7 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
   await expect(
     page.getByRole("heading", { name: "Trips by pickup date", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("Pickup ZIP", { exact: true }).fill("10001");
+  await page.getByLabel("Pickup ZIP code", { exact: true }).fill("10001");
   await page.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(page).toHaveURL(/zip=10001/);
   await page.getByRole("link", { name: "Trip explorer", exact: true }).click();

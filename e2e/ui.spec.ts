@@ -132,7 +132,7 @@ test("note dialog has labelled fields, keyboard dismissal, and restores focus", 
 for (const width of [360, 390, 768, 1024, 1440]) {
   test(`workspace fits a ${width}px viewport`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("/trips?zip=10001");
+    await page.goto("/trips");
     await expect(
       page.getByRole("heading", { name: "Trip records", exact: true }),
     ).toBeVisible();

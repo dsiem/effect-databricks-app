@@ -1,7 +1,8 @@
-import { CalendarDays, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useFilters, useMetadata } from "./api";
 import { AppSidebar, navigation } from "./components/app-sidebar";
+import { DateRangeFilter } from "./components/date-range-filter";
 import { Button, Input } from "./components/ui";
 import {
   Breadcrumb,
@@ -78,7 +79,7 @@ export function Layout() {
               <form
                 key={query}
                 aria-label="Trip filters"
-                className="mb-8 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3"
+                className="mb-8 flex flex-wrap items-end gap-3 rounded-lg border bg-muted/30 p-3"
                 onSubmit={(event) => {
                   event.preventDefault();
                   const data = new FormData(event.currentTarget);
@@ -93,50 +94,32 @@ export function Layout() {
                   });
                 }}
               >
-                <SlidersHorizontal className="mx-1 hidden size-4 text-muted-foreground xl:block" />
-                <CalendarDays className="mx-1 hidden size-4 text-muted-foreground sm:block" />
-                <label className="sr-only" htmlFor="date-from">
-                  From date
-                </label>
-                <Input
-                  id="date-from"
-                  name="from"
-                  type="date"
-                  defaultValue={filters.from ?? ""}
+                <SlidersHorizontal className="mx-1 mb-2.5 hidden size-4 text-muted-foreground xl:block" />
+                <DateRangeFilter
+                  from={filters.from}
+                  to={filters.to}
                   min={metadata.data?.from}
-                  max={filters.to || metadata.data?.to}
-                  className="w-[145px] bg-background"
-                />
-                <span className="text-sm text-muted-foreground">to</span>
-                <label className="sr-only" htmlFor="date-to">
-                  To date
-                </label>
-                <Input
-                  id="date-to"
-                  name="to"
-                  type="date"
-                  defaultValue={filters.to ?? ""}
-                  min={filters.from || metadata.data?.from}
                   max={metadata.data?.to}
-                  className="w-[145px] bg-background"
                 />
                 <Separator
                   orientation="vertical"
-                  className="mx-1 hidden data-[orientation=vertical]:h-5 md:block"
+                  className="mx-1 mb-2 hidden data-[orientation=vertical]:h-5 md:block"
                 />
-                <label className="sr-only" htmlFor="pickup-zip">
-                  Pickup ZIP
-                </label>
-                <Input
-                  id="pickup-zip"
-                  name="zip"
-                  placeholder="All pickup ZIPs"
-                  defaultValue={filters.zip ?? ""}
-                  inputMode="numeric"
-                  pattern="[0-9]{5}"
-                  maxLength={5}
-                  className="w-36 bg-background"
-                />
+                <div className="flex w-full flex-col gap-1.5 sm:w-52">
+                  <label className="text-xs font-medium" htmlFor="pickup-zip">
+                    Pickup ZIP code
+                  </label>
+                  <Input
+                    id="pickup-zip"
+                    name="zip"
+                    placeholder="Enter ZIP (optional)"
+                    defaultValue={filters.zip ?? ""}
+                    inputMode="numeric"
+                    pattern="[0-9]{5}"
+                    maxLength={5}
+                    className="bg-background"
+                  />
+                </div>
                 <Button type="submit">Apply</Button>
                 {query && (
                   <Button
@@ -147,7 +130,7 @@ export function Layout() {
                     Reset
                   </Button>
                 )}
-                <span className="ml-auto hidden text-xs text-muted-foreground 2xl:block">
+                <span className="mb-2.5 ml-auto hidden text-xs text-muted-foreground 2xl:block">
                   {metadata.data
                     ? `Available: ${metadata.data.from} — ${metadata.data.to}`
                     : "Dates follow the source dataset"}
