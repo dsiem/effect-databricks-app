@@ -11,6 +11,8 @@ export interface ClientCredentialsConfig {
   readonly host: string;
   readonly clientId: string;
   readonly clientSecret: Redacted.Redacted<string>;
+  /** Defaults to sql. Shared workspace services may request all-apis. */
+  readonly scope?: string;
   readonly fetch?: typeof globalThis.fetch;
 }
 
@@ -58,7 +60,7 @@ export const clientCredentials = (
             },
             body: new URLSearchParams({
               grant_type: "client_credentials",
-              scope: "sql",
+              scope: options.scope ?? "sql",
             }),
           });
           if (!response.ok) {

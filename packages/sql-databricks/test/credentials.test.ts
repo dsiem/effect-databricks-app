@@ -85,3 +85,25 @@ test("OAuth failures remain typed and do not expose secrets or response bodies",
     assert.ok(!JSON.stringify(result.failure).includes("secret"));
   }
 });
+
+test("a shared workspace identity can request the configured OAuth scope", async () => {
+  let scope: string | null = null;
+  const token = await Effect.runPromise(
+    Credentials.clientCredentials({
+      host: "https://workspace.example",
+      clientId: "app",
+      clientSecret: Redacted.make("secret"),
+      scope: "all-apis",
+      fetch: async (_url, init) => {
+        scope = new URLSearchParams(String(init?.body)).get("scope");
+        return Response.json({
+          access_token: "token",
+          token_type: "Bearer",
+          expires_in: 3600,
+        });
+      },
+    }),
+  );
+  assert.equal(scope, "all-apis");
+  assert.equal(Redacted.value(token), "token");
+});
