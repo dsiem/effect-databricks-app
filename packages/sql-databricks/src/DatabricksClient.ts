@@ -4,16 +4,18 @@ import {
   Duration,
   Effect,
   Layer,
-  Redacted,
+  type Redacted,
   Schedule,
   Schema,
   Stream,
 } from "effect";
+import { HttpClient, HttpClientRequest } from "effect/http";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Client from "effect/sql/SqlClient";
 import type { Connection } from "effect/sql/SqlConnection";
 import { ConnectionError, SqlError } from "effect/sql/SqlError";
 import * as Statement from "effect/sql/Statement";
+import { withTransport } from "./internal/http.js";
 import {
   failure,
   httpFailure,
@@ -150,7 +152,6 @@ export const make = (
       catch: () =>
         failure("Invalid Databricks client configuration", "configure"),
     });
-    const fetch = options.fetch ?? globalThis.fetch;
     const withQueryTimeout = <A, E, R>(consumer: Effect.Effect<A, E, R>) =>
       consumer.pipe(
         Effect.timeoutOrElse({
@@ -168,40 +169,39 @@ export const make = (
         method === "GET" ? "poll/fetch metadata" : "submit/cancel";
       const request = Effect.gen(function* () {
         const token = yield* options.accessToken;
-        const response = yield* Effect.tryPromise({
-          try: async (signal) => {
-            const response = await fetch(`${config.host}${path}`, {
-              method,
-              signal,
-              credentials: "omit",
-              redirect: "error",
-              headers: {
-                Authorization: `Bearer ${Redacted.value(token)}`,
-                ...(body === undefined
-                  ? {}
-                  : { "Content-Type": "application/json" }),
-              },
-              ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-            });
-            // Do not retain untrusted response bodies, request headers, or signed URLs in errors.
-            if (!response.ok) {
-              await response.body?.cancel();
-              return { status: response.status, data: undefined };
-            }
+        const response = yield* withTransport(
+          Effect.gen(function* () {
+            const client = HttpClient.withScope(yield* HttpClient.HttpClient);
+            const request = HttpClientRequest.make(method)(
+              `${config.host}${path}`,
+            ).pipe(HttpClientRequest.bearerToken(token));
+            const response = yield* client.execute(
+              body === undefined
+                ? request
+                : yield* HttpClientRequest.bodyJson(request, body),
+            );
+            // Never retain upstream bodies, request headers, or signed URLs in errors.
             return {
               status: response.status,
-              data: (await response.json()) as unknown,
+              data:
+                response.status >= 200 && response.status < 300
+                  ? yield* response.json
+                  : undefined,
             };
-          },
-          catch: () =>
-            new SqlError({
-              reason: new ConnectionError({
-                cause: undefined,
-                message: "Databricks workspace request failed",
-                operation,
+          }),
+          options.fetch,
+        ).pipe(
+          Effect.mapError(
+            () =>
+              new SqlError({
+                reason: new ConnectionError({
+                  cause: undefined,
+                  message: "Databricks workspace request failed",
+                  operation,
+                }),
               }),
-            }),
-        });
+          ),
+        );
         if (response.status < 200 || response.status >= 300) {
           return yield* Effect.fail(httpFailure(response.status, operation));
         }
@@ -237,25 +237,25 @@ export const make = (
           try: () => parseUrl(url, options.allowDatabricksStorageProxy),
           catch: () => failure("Invalid Arrow download URL", "download"),
         });
-        const response = yield* Effect.tryPromise({
-          try: async (signal) => {
-            // This request must never inherit workspace authorization headers.
-            const response = await fetch(safeUrl, {
-              signal,
-              credentials: "omit",
-              redirect: "error",
-            });
-            if (!response.ok) {
-              await response.body?.cancel();
-              return { status: response.status, bytes: new Uint8Array() };
-            }
+        const response = yield* withTransport(
+          Effect.gen(function* () {
+            // Fresh request: signed storage URLs never inherit workspace headers.
+            const client = HttpClient.withScope(yield* HttpClient.HttpClient);
+            const response = yield* client.get(safeUrl);
             return {
               status: response.status,
-              bytes: new Uint8Array(await response.arrayBuffer()),
+              bytes:
+                response.status >= 200 && response.status < 300
+                  ? new Uint8Array(yield* response.arrayBuffer)
+                  : new Uint8Array(),
             };
-          },
-          catch: () => failure("Arrow download failed", "download"),
-        });
+          }).pipe(
+            Effect.provideService(HttpClient.TracerPropagationEnabled, false),
+          ),
+          options.fetch,
+        ).pipe(
+          Effect.mapError(() => failure("Arrow download failed", "download")),
+        );
         return response;
       }).pipe(
         Effect.timeoutOrElse({

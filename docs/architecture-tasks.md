@@ -83,11 +83,19 @@ behavioral tests for each implementation task's completion criteria.
     Contract tests round-trip every endpoint, reject invalid inputs and outputs,
     and verify declared error decoding and cancellation during response reads.
 
-11. [ ] **P3 — Consolidate outgoing HTTP transport**
+11. [x] **P3 — Consolidate outgoing HTTP transport**
 
     Adopt Effect `HttpClient` where it removes repeated transport logic. Preserve
     separate policies for authenticated workspace requests and credential-free
     signed downloads. Retain cancellation and security tests.
+
+    Workspace, SQL, OAuth, and generated browser requests now use Effect
+    `HttpClient`, with scoped response lifetimes. Signed downloads omit
+    credentials and trace propagation; upstream transports reject redirects.
+    Tests cover credential isolation, redirect rejection, interruption,
+    deadlines, token refresh recovery, and expired signed-link recovery.
+    `npm run test:architecture` runs the app and adapter tests, builds the app,
+    and checks browser recovery using the project's pinned Node 22 runtime.
 
 12. [ ] **P3 — Complete observability integration**
 

@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { Context, Effect, Layer, Redacted, Schema } from "effect";
+import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 import { Credentials } from "effect-sql-databricks";
 import {
   OperationTimeout,
@@ -31,6 +32,7 @@ export class Workspace extends Context.Service<
     Workspace,
     Effect.gen(function* () {
       const settings = yield* Settings;
+      const client = yield* HttpClient.HttpClient;
       const authError = (cause: unknown) =>
         unavailable(
           "auth",
@@ -83,33 +85,35 @@ export class Workspace extends Context.Service<
               ),
             );
           const token = yield* accessToken;
-          return yield* Effect.tryPromise({
-            try: async (signal) => {
-              const response = await fetch(
-                `${settings.host.replace(/\/$/, "")}${path}`,
-                {
-                  method,
-                  signal,
-                  redirect: "error",
-                  credentials: "omit",
-                  headers: {
-                    Authorization: `Bearer ${Redacted.value(token)}`,
-                    "Content-Type": "application/json",
-                  },
-                  ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-                },
-              );
-              if (!response.ok) {
-                await response.body?.cancel();
-                throw new UpstreamError({
+          return yield* Effect.gen(function* () {
+            const request = HttpClientRequest.make(method)(
+              `${settings.host.replace(/\/$/, "")}${path}`,
+            ).pipe(
+              HttpClientRequest.bearerToken(token),
+              HttpClientRequest.setHeader("Content-Type", "application/json"),
+            );
+            const response = yield* HttpClient.withScope(client).execute(
+              body === undefined
+                ? request
+                : yield* HttpClientRequest.bodyJson(request, body),
+            );
+            if (response.status < 200 || response.status >= 300) {
+              return yield* Effect.fail(
+                new UpstreamError({
                   service: "workspace",
                   upstreamStatus: response.status,
                   message: `Databricks returned HTTP ${response.status}. Check resource permissions and configuration.`,
-                });
-              }
-              return (await response.json()) as unknown;
-            },
-            catch: (cause) =>
+                }),
+              );
+            }
+            return yield* response.json;
+          }).pipe(
+            Effect.scoped,
+            Effect.provideService(FetchHttpClient.RequestInit, {
+              redirect: "error",
+              credentials: "omit",
+            }),
+            Effect.mapError((cause) =>
               cause instanceof UpstreamError
                 ? cause
                 : unavailable(
@@ -117,7 +121,8 @@ export class Workspace extends Context.Service<
                     "The Databricks request could not be completed.",
                     cause,
                   ),
-          });
+            ),
+          );
         }).pipe(
           Effect.timeoutOrElse({
             duration: "30 seconds",
@@ -132,5 +137,5 @@ export class Workspace extends Context.Service<
         );
       return { accessToken, request };
     }),
-  );
+  ).pipe(Layer.provide(FetchHttpClient.layer));
 }

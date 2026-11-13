@@ -172,6 +172,13 @@ networking and response decoding omit raw responses and URLs. Query execution
 failures preserve the server's SQL error message, which may contain query text;
 treat those messages accordingly.
 
+Workspace requests, signed downloads, and OAuth use Effect `HttpClient` backed
+by `FetchHttpClient`. Responses are scoped through body consumption, so
+interruption and request deadlines also abort stalled bodies. All transports
+omit cookies and reject redirects. Signed downloads use fresh requests without
+authorization or trace propagation. The optional `fetch` configuration remains
+available for custom runtimes and tests.
+
 ## Lifecycle and limits
 
 - `pollInterval` defaults to 250 milliseconds. See the deadline section above
@@ -228,6 +235,8 @@ The integration suite runs a local SQL API and separate storage HTTP server with
 real Arrow IPC payloads, without workspace credentials. Contract tests also use
 Effect's TestClock to verify submission deadlines and downstream interruption,
 and check transformer/tracing parity, dialect dispatch, and schema decoding.
+Transport tests verify redirect rejection, credential isolation, and recovery
+of OAuth refresh after interruption or a body deadline.
 The live smoke builds the package and runs a fixed, read-only SELECT to check
 BIGINT precision, NULL, DECIMAL, and parameter binding. It needs `DATABRICKS_HOST` and
 `DATABRICKS_WAREHOUSE_ID`, plus either `DATABRICKS_TOKEN` or OAuth client ID/secret.

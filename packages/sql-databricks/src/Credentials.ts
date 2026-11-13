@@ -1,5 +1,7 @@
 import { Clock, Effect, Redacted, Schema, Semaphore } from "effect";
+import { HttpClient, HttpClientRequest } from "effect/http";
 import { AuthenticationError, SqlError } from "effect/sql/SqlError";
+import { withTransport } from "./internal/http.js";
 import {
   failure,
   httpFailure,
@@ -47,40 +49,41 @@ export const clientCredentials = (
         catch: () =>
           failure("Invalid Databricks OAuth configuration", "authenticate"),
       });
-      const result = yield* Effect.tryPromise({
-        try: async (signal) => {
-          const response = await (options.fetch ?? globalThis.fetch)(url, {
-            method: "POST",
-            signal,
-            credentials: "omit",
-            redirect: "error",
-            headers: {
-              Authorization: `Basic ${Buffer.from(`${options.clientId}:${Redacted.value(options.clientSecret)}`).toString("base64")}`,
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: new URLSearchParams({
-              grant_type: "client_credentials",
-              scope: options.scope ?? "sql",
-            }),
-          });
-          if (!response.ok) {
-            await response.body?.cancel();
-            return { status: response.status, data: undefined };
-          }
+      const result = yield* withTransport(
+        Effect.gen(function* () {
+          const client = HttpClient.withScope(yield* HttpClient.HttpClient);
+          const response = yield* client.execute(
+            HttpClientRequest.post(url).pipe(
+              HttpClientRequest.basicAuth(
+                options.clientId,
+                options.clientSecret,
+              ),
+              HttpClientRequest.bodyUrlParams({
+                grant_type: "client_credentials",
+                scope: options.scope ?? "sql",
+              }),
+            ),
+          );
           return {
             status: response.status,
-            data: (await response.json()) as unknown,
+            data:
+              response.status >= 200 && response.status < 300
+                ? yield* response.json
+                : undefined,
           };
-        },
-        catch: () =>
-          new SqlError({
-            reason: new AuthenticationError({
-              cause: undefined,
-              message: "Databricks OAuth request failed",
-              operation: "authenticate",
+        }),
+        options.fetch,
+      ).pipe(
+        Effect.mapError(
+          () =>
+            new SqlError({
+              reason: new AuthenticationError({
+                cause: undefined,
+                message: "Databricks OAuth request failed",
+                operation: "authenticate",
+              }),
             }),
-          }),
-      }).pipe(
+        ),
         Effect.timeoutOrElse({
           duration: "30 seconds",
           orElse: () => Effect.fail(timeout("authenticate")),
