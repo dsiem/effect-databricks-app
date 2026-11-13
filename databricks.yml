@@ -1,0 +1,38 @@
+bundle:
+  name: databricks-effect-app
+  databricks_cli_version: ">= 1.26.0, < 2.0.0"
+
+variables:
+  app_name:
+    description: Unique app name (lowercase letters, numbers, hyphens; at most 30 characters).
+    default: effect-${workspace.current_user.domain_friendly_name}-dev
+
+resources:
+  apps:
+    app:
+      name: ${var.app_name}
+      description: Effect-based foundation for Lakebase, Lakehouse SQL, and Genie.
+      source_code_path: .
+
+# Keep the deployed source focused on the app; credentials and generated files
+# are also excluded by .gitignore. Databricks installs and builds from source.
+sync:
+  exclude:
+    - .github/**
+    - docs/**
+    - examples/**
+    - scripts/**
+    - test/**
+    - README.md
+    - biome.json
+
+targets:
+  dev:
+    default: true
+    mode: development
+  prod:
+    mode: production
+    variables:
+      app_name: databricks-effect-app
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}

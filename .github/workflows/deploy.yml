@@ -1,0 +1,75 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Bundle target and GitHub environment
+        required: true
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - uses: databricks/setup-cli@v1.26.0
+      - run: npm run bundle:check
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.target }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+      BUNDLE_VAR_app_name: ${{ vars.DATABRICKS_APP_NAME }}
+      BUNDLE_TARGET: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: databricks/setup-cli@v1.26.0
+      - name: Check environment configuration
+        run: |
+          test -n "$DATABRICKS_HOST"
+          test -n "$DATABRICKS_CLIENT_ID"
+          test -n "$BUNDLE_VAR_app_name"
+      - name: Validate
+        run: databricks bundle validate --strict -t "$BUNDLE_TARGET"
+      - name: Deploy source and resources
+        run: databricks bundle deploy -t "$BUNDLE_TARGET"
+      - name: Start app with the deployed source
+        run: databricks bundle run app -t "$BUNDLE_TARGET"
+      - name: Wait for the app to run
+        run: |
+          for attempt in $(seq 1 40); do
+            state=$(databricks apps get "$BUNDLE_VAR_app_name" -o json | jq -r '.app_status.state')
+            echo "Attempt $attempt/40: $state"
+            case "$state" in
+              RUNNING) exit 0 ;;
+              CRASHED) echo "App crashed during startup" >&2; exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "App did not reach RUNNING within 10 minutes" >&2
+          exit 1
