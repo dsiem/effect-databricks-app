@@ -23,7 +23,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarSeparator,
   useSidebar,
 } from "./ui/sidebar";
 
@@ -44,7 +43,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" variant="inset">
-      <SidebarHeader className="flex-row items-center">
+      <SidebarHeader className="h-16 shrink-0 flex-row items-center border-b">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild tooltip="NYC Taxi analytics">
@@ -72,7 +71,6 @@ export function AppSidebar() {
           <X />
         </Button>
       </SidebarHeader>
-      <SidebarSeparator />
       <SidebarContent>
         <nav id="main-navigation" aria-label="Main navigation">
           {[
