@@ -1,10 +1,31 @@
-import { Config, Context, Layer, Redacted } from "effect";
+import { Config, Context, Layer, Redacted, Schema } from "effect";
 
 const text = (name: string, fallback = "") =>
   Config.String(name).pipe(Config.withDefault(fallback));
 const config = Config.all({
   appName: text("DATABRICKS_APP_NAME"),
-  host: text("DATABRICKS_HOST").pipe(
+  host: Config.schema(
+    Schema.String.check(
+      Schema.makeFilter((host) => {
+        try {
+          const url = new URL(host.includes("://") ? host : `https://${host}`);
+          return (
+            (url.protocol === "https:" &&
+              !url.username &&
+              !url.password &&
+              url.pathname === "/" &&
+              !url.search &&
+              !url.hash) ||
+            "Expected an HTTPS workspace origin or hostname"
+          );
+        } catch {
+          return "Expected an HTTPS workspace origin or hostname";
+        }
+      }),
+    ),
+    "DATABRICKS_HOST",
+  ).pipe(
+    Config.withDefault(""),
     Config.map((host) =>
       host && !host.includes("://") ? `https://${host}` : host,
     ),
@@ -20,7 +41,7 @@ const config = Config.all({
   ),
   genieSpaceId: text("GENIE_SPACE_ID"),
   pgHost: text("PGHOST"),
-  pgPort: Config.Int("PGPORT").pipe(Config.withDefault(5432)),
+  pgPort: Config.Port("PGPORT").pipe(Config.withDefault(5432)),
   pgDatabase: text("PGDATABASE", "databricks_postgres"),
   pgUser: text("PGUSER"),
   pgPassword: Config.Redacted("PGPASSWORD").pipe(

@@ -84,15 +84,22 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
     return handlers
       .handle("health", () => Effect.succeed({ status: "ok" as const }))
       .handle("status", () =>
-        Effect.succeed({
-          dataset: "samples.nyctaxi.trips",
-          warehouse: !!settings.warehouseId,
-          genie: !!settings.genieSpaceId,
-          lakebase: !!(settings.pgHost || settings.lakebaseEndpoint),
-          auth: settings.clientId
-            ? "App service principal"
-            : "Local development identity",
-        }),
+        Effect.all({
+          warehouse: analytics.availability,
+          genie: genie.availability,
+          lakebase: notebook.availability,
+        }).pipe(
+          Effect.map((capabilities) => ({
+            dataset: "samples.nyctaxi.trips",
+            warehouse: !!settings.warehouseId,
+            genie: !!settings.genieSpaceId,
+            lakebase: !!(settings.pgHost || settings.lakebaseEndpoint),
+            capabilities,
+            auth: settings.clientId
+              ? "App service principal"
+              : "Local development identity",
+          })),
+        ),
       )
       .handle("currentUser", () =>
         Effect.flatMap(HttpServerRequest.HttpServerRequest, (request) =>

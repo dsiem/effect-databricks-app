@@ -30,6 +30,7 @@ const appFor = (
             request: () => Effect.die("Unexpected workspace request"),
           }),
           Layer.succeed(Analytics, {
+            availability: Effect.succeed("unconfigured" as const),
             metadata: effect,
             overview: () => effect,
             trips: () => effect,
@@ -37,12 +38,14 @@ const appFor = (
           Layer.succeed(
             Genie,
             genie ?? {
+              availability: Effect.succeed("unconfigured" as const),
               submit: () => effect,
               poll: () => effect,
               result: () => effect,
             },
           ),
           Layer.succeed(Notebook, {
+            availability: Effect.succeed("unconfigured" as const),
             list: effect,
             save: () => effect,
             remove: () => effect,
@@ -183,6 +186,7 @@ test("HTTP separates submission IDs from polling and result retrieval", async ()
   const operation = { conversationId: "conversation", messageId: "message" };
   const calls: unknown[] = [];
   const app = appFor(Effect.fail(unavailable("unused", "Unused")), {
+    availability: Effect.succeed("unknown" as const),
     submit: (input) =>
       Effect.sync(() => {
         calls.push(input);

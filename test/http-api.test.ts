@@ -58,6 +58,7 @@ const fixture = () => {
             request: () => Effect.die("Unexpected workspace request"),
           }),
           Layer.succeed(Analytics, {
+            availability: Effect.succeed("unconfigured" as const),
             metadata: Effect.succeed(metadata),
             overview: (input) => record("overview", input, overview),
             trips: (input) =>
@@ -69,6 +70,7 @@ const fixture = () => {
               }),
           }),
           Layer.succeed(Genie, {
+            availability: Effect.succeed("unconfigured" as const),
             submit: (input) => record("submit", input, operation),
             poll: (input) =>
               record("poll", input, {
@@ -84,6 +86,7 @@ const fixture = () => {
               }),
           }),
           Layer.succeed(Notebook, {
+            availability: Effect.succeed("unconfigured" as const),
             list: Effect.sync(() => notes),
             save: (input) =>
               Effect.sync(() => {
@@ -139,6 +142,11 @@ test("generated client round-trips every endpoint through the real HTTP contract
         warehouse: false,
         genie: false,
         lakebase: false,
+        capabilities: {
+          warehouse: "unconfigured",
+          genie: "unconfigured",
+          lakebase: "unconfigured",
+        },
         auth: "Local development identity",
       });
       assert.equal(yield* client.currentUser(), null);

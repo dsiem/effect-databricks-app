@@ -1,9 +1,18 @@
 import { PgClient } from "@effect/sql-pg";
-import { Context, Effect, Layer, Redacted, Schema } from "effect";
+import {
+  Context,
+  Effect,
+  Exit,
+  Layer,
+  Redacted,
+  Schema,
+  type Scope,
+} from "effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import type * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
-import { Note, type NoteInput } from "./domain.js";
+import { makeCapability } from "./capability.js";
+import { type CapabilityAvailability, Note, type NoteInput } from "./domain.js";
 import { NoteNotFound, type ServiceError, unavailable } from "./errors.js";
 import { pgPassword, restoreCredentialFailure } from "./pg-credentials.js";
 import { Settings } from "./settings.js";
@@ -66,6 +75,7 @@ export const makeDatabase = Effect.gen(function* () {
 export class Notebook extends Context.Service<
   Notebook,
   {
+    readonly availability: Effect.Effect<CapabilityAvailability>;
     readonly list: Effect.Effect<ReadonlyArray<Note>, ServiceError>;
     readonly save: (input: NoteInput) => Effect.Effect<Note, ServiceError>;
     readonly remove: (id: string) => Effect.Effect<void, ServiceError>;
@@ -75,6 +85,9 @@ export class Notebook extends Context.Service<
     Notebook,
     Effect.gen(function* () {
       const settings = yield* Settings;
+      const capability = makeCapability(
+        !!(settings.pgHost || settings.lakebaseEndpoint),
+      );
       const failure = unavailable(
         "lakebase",
         settings.pgHost || settings.lakebaseEndpoint
@@ -83,16 +96,41 @@ export class Notebook extends Context.Service<
       );
       if (!settings.pgHost && !settings.lakebaseEndpoint)
         return {
+          availability: capability.availability,
           list: Effect.fail(failure),
           save: () => Effect.fail(failure),
           remove: () => Effect.fail(failure),
         };
-      const sql = yield* makeDatabase.pipe(
+      const context = yield* Effect.context<
+        Settings | Workspace | Reactivity.Reactivity | Scope.Scope
+      >();
+      // Keep a single successful pool for the service lifetime. Failed or
+      // interrupted discovery is retryable and never blocks unrelated routes.
+      const database = yield* makeDatabase.pipe(
         Effect.mapError((cause) =>
           unavailable("lakebase", failure.message, cause),
         ),
+        Effect.map((sql) => makeNotebook(sql, failure.message)),
+        Effect.provide(context),
+        Effect.cachedWithTTL((exit) => (Exit.isSuccess(exit) ? Infinity : 0)),
       );
-      return makeNotebook(sql, failure.message);
+      return {
+        availability: capability.availability,
+        list: database.pipe(
+          Effect.flatMap((notebook) => notebook.list),
+          capability.track,
+        ),
+        save: (input: NoteInput) =>
+          database.pipe(
+            Effect.flatMap((notebook) => notebook.save(input)),
+            capability.track,
+          ),
+        remove: (id: string) =>
+          database.pipe(
+            Effect.flatMap((notebook) => notebook.remove(id)),
+            capability.track,
+          ),
+      };
     }).pipe(Effect.provide(Reactivity.layer)),
   );
 }

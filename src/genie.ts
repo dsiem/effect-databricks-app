@@ -1,5 +1,7 @@
 import { Context, Effect, Layer, Schema } from "effect";
+import { makeCapability } from "./capability.js";
 import {
+  type CapabilityAvailability,
   type GenieInput,
   GenieOperation,
   type GenieProgress,
@@ -70,6 +72,7 @@ const Result = Schema.Struct({
 export class Genie extends Context.Service<
   Genie,
   {
+    readonly availability: Effect.Effect<CapabilityAvailability>;
     readonly submit: (
       input: typeof GenieInput.Type,
     ) => Effect.Effect<GenieOperation, ServiceError>;
@@ -86,6 +89,9 @@ export class Genie extends Context.Service<
     Effect.gen(function* () {
       const settings = yield* Settings;
       const workspace = yield* Workspace;
+      const capability = makeCapability(
+        !!(settings.genieSpaceId && settings.host),
+      );
       const decode = <A>(schema: Schema.Decoder<A>, value: unknown) =>
         Schema.decodeUnknownEffect(schema)(value).pipe(
           Effect.mapError(
@@ -155,10 +161,11 @@ export class Genie extends Context.Service<
             conversationId: started.conversation_id,
             messageId: started.message.message_id,
           };
-        }).pipe(Effect.withSpan("genie.submit"));
+        }).pipe(capability.track, Effect.withSpan("genie.submit"));
       const poll = (operation: GenieOperation) =>
         readMessage(operation, MessageStatus).pipe(
           Effect.map(progress),
+          capability.track,
           Effect.withSpan("genie.poll"),
         );
       const result = (operation: GenieOperation) =>
@@ -227,8 +234,9 @@ export class Genie extends Context.Service<
               ),
           }),
           Effect.withSpan("genie.result"),
+          capability.track,
         );
-      return { submit, poll, result };
+      return { availability: capability.availability, submit, poll, result };
     }),
   );
 }

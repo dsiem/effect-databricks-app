@@ -126,11 +126,24 @@ export const GenieReply = Schema.Struct({
 });
 export type GenieReply = typeof GenieReply.Type;
 
+export const CapabilityAvailability = Schema.Literals([
+  "unconfigured",
+  "unknown",
+  "available",
+  "unavailable",
+]);
+export type CapabilityAvailability = typeof CapabilityAvailability.Type;
+
 export const Status = Schema.Struct({
   dataset: Schema.String,
   warehouse: Schema.Boolean,
   genie: Schema.Boolean,
   lakebase: Schema.Boolean,
+  capabilities: Schema.Struct({
+    warehouse: CapabilityAvailability,
+    genie: CapabilityAvailability,
+    lakebase: CapabilityAvailability,
+  }),
   auth: Schema.String,
 });
 

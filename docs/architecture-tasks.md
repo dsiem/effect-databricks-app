@@ -42,11 +42,17 @@ behavioral tests for each implementation task's completion criteria.
    PostgreSQL password adapter. Behavioral tests cover typed failures, diagnostic
    causes, defects, interruption, and safe HTTP error responses.
 
-5. [ ] **P2 — Isolate capability failures during startup**
+5. [x] **P2 — Isolate capability failures during startup**
 
    A temporary Lakebase discovery failure must leave analytics, the app shell,
    and health routes available. Invalid configuration must still fail clearly.
    Expose capability availability separately from configuration flags.
+
+   Lakebase initialization is lazy, shared, and retried after discovery failures.
+   Status exposes observed capability availability independently of configuration;
+   invalid settings still fail startup. Offline tests exercise the real warehouse
+   adapter during a discovery outage, and smoke checks verify shell and health
+   routes after notebook failure over both HTTP protocols.
 
 6. [ ] **P2 — Add shared warehouse admission control**
 

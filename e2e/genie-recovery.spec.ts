@@ -23,6 +23,11 @@ async function mockStatus(page: Page) {
         warehouse: false,
         genie: true,
         lakebase: false,
+        capabilities: {
+          warehouse: "unconfigured",
+          genie: "unconfigured",
+          lakebase: "unconfigured",
+        },
         auth: "Test identity",
       },
     }),

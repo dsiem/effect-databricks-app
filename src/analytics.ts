@@ -3,7 +3,9 @@ import * as Reactivity from "effect/reactivity/Reactivity";
 import { AuthenticationError, SqlError } from "effect/sql/SqlError";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import { DatabricksClient } from "effect-sql-databricks";
+import { makeCapability } from "./capability.js";
 import {
+  type CapabilityAvailability,
   Daily,
   type Filters,
   Hourly,
@@ -22,6 +24,7 @@ import { Workspace } from "./workspace.js";
 export class Analytics extends Context.Service<
   Analytics,
   {
+    readonly availability: Effect.Effect<CapabilityAvailability>;
     readonly metadata: Effect.Effect<typeof Metadata.Type, ServiceError>;
     readonly overview: (
       filters: Filters,
@@ -36,6 +39,9 @@ export class Analytics extends Context.Service<
     Effect.gen(function* () {
       const settings = yield* Settings;
       const workspace = yield* Workspace;
+      const capability = makeCapability(
+        !!(settings.warehouseId && settings.host),
+      );
       const error = unavailable(
         "warehouse",
         settings.warehouseId
@@ -88,6 +94,7 @@ export class Analytics extends Context.Service<
           Effect.mapError((cause) =>
             unavailable(error.service, error.message, cause),
           ),
+          capability.track,
         );
       const where = (filters: Filters) => sql`WHERE 1 = 1
       ${filters.from ? sql`AND tpep_pickup_datetime >= CAST(${filters.from} AS TIMESTAMP)` : sql``}
@@ -210,6 +217,7 @@ export class Analytics extends Context.Service<
         );
       };
       return {
+        availability: capability.availability,
         metadata,
         overview: (filters: Filters) =>
           Cache.get(

@@ -67,3 +67,29 @@ test("accepts a platform workspace hostname as well as a full URL", async () => 
     assert.equal(value, "https://workspace.cloud.databricks.com");
   }
 });
+
+for (const [key, value] of [
+  ["PGPORT", "-1"],
+  ["PGPORT", "65536"],
+  ["PGPORT", "invalid"],
+  ["DATABRICKS_HOST", "http://workspace.invalid"],
+  ["DATABRICKS_HOST", "https://workspace.invalid/api"],
+  ["DATABRICKS_HOST", "https://user:secret@workspace.invalid"],
+  ["DATABRICKS_HOST", "not a host"],
+] as const) {
+  test(`invalid ${key} fails service configuration instead of disabling a capability`, async () => {
+    const { Settings } = await import("../src/settings.js");
+    await assert.rejects(
+      Effect.runPromise(
+        Settings.pipe(
+          Effect.provide(Settings.layer),
+          Effect.provideService(
+            ConfigProvider.ConfigProvider,
+            ConfigProvider.fromEnvRecord({ [key]: value }),
+          ),
+        ),
+      ),
+      /ConfigError/,
+    );
+  });
+}

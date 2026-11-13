@@ -29,15 +29,23 @@ const input = {
 };
 const operations: Record<
   string,
-  (notebook: typeof Notebook.Service) => Effect.Effect<unknown, ServiceError>
+  (
+    notebook: Pick<typeof Notebook.Service, "list" | "save" | "remove">,
+  ) => Effect.Effect<unknown, ServiceError>
 > = {
-  list: (notebook: typeof Notebook.Service) => notebook.list,
-  save: (notebook: typeof Notebook.Service) => notebook.save(input),
-  remove: (notebook: typeof Notebook.Service) => notebook.remove(input.id),
+  list: (notebook: Pick<typeof Notebook.Service, "list" | "save" | "remove">) =>
+    notebook.list,
+  save: (notebook: Pick<typeof Notebook.Service, "list" | "save" | "remove">) =>
+    notebook.save(input),
+  remove: (
+    notebook: Pick<typeof Notebook.Service, "list" | "save" | "remove">,
+  ) => notebook.remove(input.id),
 };
 const runNotebook = <A, E>(
   credentials: Effect.Effect<unknown, ServiceError>,
-  use: (notebook: typeof Notebook.Service) => Effect.Effect<A, E>,
+  use: (
+    notebook: Pick<typeof Notebook.Service, "list" | "save" | "remove">,
+  ) => Effect.Effect<A, E>,
 ) =>
   Effect.runPromiseExit(
     Effect.flatMap(Notebook, use).pipe(
@@ -119,7 +127,9 @@ test("invalid Lakebase credential payload is a typed error with its schema diagn
 
 const withRows = <A, E>(
   rows: Effect.Effect<ReadonlyArray<unknown>, SqlError>,
-  use: (notebook: typeof Notebook.Service) => Effect.Effect<A, E>,
+  use: (
+    notebook: Pick<typeof Notebook.Service, "list" | "save" | "remove">,
+  ) => Effect.Effect<A, E>,
 ) =>
   Effect.runPromiseExit(
     Effect.gen(function* () {

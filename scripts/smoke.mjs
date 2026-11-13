@@ -42,7 +42,7 @@ for (const protocol of ["http1", "http2"]) {
       DATABRICKS_WAREHOUSE_ID: "",
       GENIE_SPACE_ID: "",
       PGHOST: "",
-      LAKEBASE_ENDPOINT: "",
+      LAKEBASE_ENDPOINT: "projects/offline/branches/main/endpoints/primary",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -85,6 +85,21 @@ for (const protocol of ["http1", "http2"]) {
       assert.equal((await request(path)).status, 200);
     }
     assert.equal((await request("/nyc-zips.geojson")).status, 200);
+    const initialStatus = await request("/api/status");
+    assert.equal(initialStatus.status, 200);
+    assert.equal(JSON.parse(initialStatus.body).lakebase, true);
+    assert.equal(
+      JSON.parse(initialStatus.body).capabilities.lakebase,
+      "unknown",
+    );
+    assert.equal((await request("/api/notes")).status, 503);
+    const unavailableStatus = await request("/api/status");
+    assert.equal(
+      JSON.parse(unavailableStatus.body).capabilities.lakebase,
+      "unavailable",
+    );
+    assert.equal((await request("/health")).status, 200);
+    assert.equal((await request("/")).status, 200);
     assert.equal((await request("/api/metadata")).status, 503);
     assert.equal((await request("/api/overview?zip=invalid")).status, 400);
     assert.equal((await request("/api/overview?from=2026-02-31")).status, 400);
