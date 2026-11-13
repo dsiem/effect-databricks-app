@@ -78,14 +78,68 @@ Given `const statement = sql\`SELECT ...\``:
 | `statement.raw`              | Arrow `Table`, typed as `unknown` by Effect's generic raw contract   |
 
 The layer also provides `SqlClient.SqlClient` from `effect/sql/SqlClient` for
-generic Effect SQL consumers. Native Arrow methods accept a compiled Effect
-statement and are typed on the driver service.
+generic Effect SQL consumers. Native Arrow methods accept an Effect statement
+and use Effect's statement execution boundary, including `CurrentTransformer`
+and SQL client tracing. Each execution applies the current transformer once.
 
 For a browser, relay each `ipcStream` element as a separate binary response, or
 decode Arrow chunks and re-encode one valid IPC stream. **Do not concatenate the
 independent IPC streams**. Perspective can consume Arrow directly; custom charts
 and grids can select columns or adapt only the rows needed for rendering. Keep
 warehouse access and credentials in the backend.
+
+## Deadlines and streaming consumers
+
+`queryTimeout` defaults to two minutes. It bounds source work: submission,
+polling, and result downloads. Materializing APIs (`arrow`, row queries, `raw`,
+and `values`) also apply it around collection. `requestTimeout` defaults to
+30 seconds per request, including reading its body.
+
+Apply `sql.withQueryTimeout` around the consuming Effect when the deadline must
+include downstream processing. This works with all Arrow streams and the generic
+row stream, and interrupts the consumer and releases its scoped resources:
+
+```ts
+yield* sql.arrowChunks(statement).pipe(
+  Stream.runForEach((table) => processTable(table)),
+  sql.withQueryTimeout,
+);
+```
+
+Here `Stream` is imported from `effect`, and `processTable` is your effectful
+consumer. A source stream cannot enforce a deadline on arbitrary downstream work;
+without this wrapper a slow consumer can finish after the source deadline.
+Timeouts use Effect's cooperative interruption and can include up to five seconds
+of best-effort cancellation cleanup.
+
+## Validate application data
+
+A statement's TypeScript row type is an annotation, not runtime validation.
+Use `SqlSchema` at the application boundary to encode query inputs and validate
+decoded rows, including exact numeric types:
+
+```ts
+import { Schema } from "effect";
+import * as SqlSchema from "effect/sql/SqlSchema";
+
+const findSales = SqlSchema.findAll({
+  Request: Schema.BigInt,
+  Result: Schema.Struct({
+    id: Schema.BigInt,
+    name: Schema.NullOr(Schema.String),
+  }),
+  execute: (minimumId) => sql`
+    SELECT id, name FROM ${sql("main.analytics.sales")}
+    WHERE id >= ${minimumId}
+  `,
+});
+
+const sales = yield* findSales(9007199254740993n);
+```
+
+For columnar consumers, validate the table's expected field names and Arrow
+types before using it as domain data. IPC decoding validates the Arrow payload;
+it does not prove that the result matches your application's query contract.
 
 ## Authentication
 
@@ -120,12 +174,13 @@ treat those messages accordingly.
 
 ## Lifecycle and limits
 
-- `queryTimeout` defaults to two minutes for the complete stream, including
-  downstream consumption. `requestTimeout` defaults to 30 seconds per request,
-  including reading its body. `pollInterval` defaults to 250 milliseconds.
+- `pollInterval` defaults to 250 milliseconds. See the deadline section above
+  for source and consumer timeouts.
 - Running statements are canceled when the stream fails, times out, or is
-  interrupted. Cancellation is best effort, bounded to five seconds; a submission
-  whose response is lost may have executed without returning an ID to cancel.
+  interrupted. Submission is interruptible too. Cancellation is best effort,
+  bounded to five seconds; an interrupted submission or lost response may have
+  executed without returning an ID to cancel. Never assume timeout means a write
+  did not execute.
 - Transient workspace GET failures retry twice. SQL submissions never retry
   automatically, because a lost response can leave the execution outcome unknown.
 - Streaming buffers one complete Databricks result chunk at a time. Record batches
@@ -138,10 +193,22 @@ treat those messages accordingly.
   `reserve` fail explicitly. Transactions, `updateValues`, custom fragments, and
   database-specific migration helpers are outside this adapter's scope.
 - Effect 4.1's closed compiler dialect union has no Spark entry. The compiler uses
-  its MySQL discriminator for generic helpers, with Spark backtick identifiers
-  and REST named parameters. Avoid dialect-switching helpers and write Spark SQL.
+  a MySQL discriminator internally for Spark-compatible generic helper encoding,
+  with Spark backtick identifiers and REST named parameters. Public `onDialect`
+  calls fail explicitly; `onDialectOrElse` always selects `orElse`, even when a
+  MySQL branch exists. This also applies to `safe`, `withoutTransforms()`, and
+  constructors passed to statement transformers. Use `sql.driver === "databricks"`
+  when selecting driver-specific behavior, and write Spark SQL.
 - Workspace and download URLs require HTTPS, except loopback HTTP for local
   development. External-link downloads must be enabled for the workspace.
+
+The generic SQL service supports statement execution, row/value/raw results,
+streaming, and schema decoding. Its presence does not imply support for every
+database-specific Effect SQL helper. Use the official `@databricks/sql` driver
+behind an Effect service when you need sessions, metadata operations, or its
+broader built-in authentication and network configuration. This adapter's purpose
+is direct columnar Arrow access through Effect; it does not claim a benchmarked
+performance advantage over the official driver.
 
 ## Verification
 
@@ -152,9 +219,11 @@ npm run smoke:live --workspace effect-sql-databricks
 ```
 
 The integration suite runs a local SQL API and separate storage HTTP server with
-real Arrow IPC payloads, without workspace credentials. The live smoke builds the
-package and runs a fixed, read-only SELECT to check BIGINT precision, NULL,
-DECIMAL, and parameter binding. It needs `DATABRICKS_HOST` and
+real Arrow IPC payloads, without workspace credentials. Contract tests also use
+Effect's TestClock to verify submission deadlines and downstream interruption,
+and check transformer/tracing parity, dialect dispatch, and schema decoding.
+The live smoke builds the package and runs a fixed, read-only SELECT to check
+BIGINT precision, NULL, DECIMAL, and parameter binding. It needs `DATABRICKS_HOST` and
 `DATABRICKS_WAREHOUSE_ID`, plus either `DATABRICKS_TOKEN` or OAuth client ID/secret.
 It prints no query data, tokens, or signed URLs.
 

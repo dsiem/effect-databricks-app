@@ -18,6 +18,13 @@ typed errors for expected failures, and scoped acquisition/release for connectio
 Keep domain operations independent of HTTP routing. Grant the app identity access
 before connecting; a valid token alone does not grant table access.
 
+For Lakehouse row queries, use `effect/sql/SqlSchema` to encode inputs and validate
+results before they enter domain code. For Arrow results, validate the expected
+field names and Arrow types. Wrap stream consumers with `sql.withQueryTimeout`
+when the deadline must include downstream processing. The adapter's generic SQL
+service does not provide sessions or transactions; its dialect fallback is Spark
+SQL, so branch on `sql.driver` rather than assuming MySQL compatibility.
+
 ## Bind existing resources
 
 [examples/data-resources.yml](../examples/data-resources.yml) is an opt-in example,

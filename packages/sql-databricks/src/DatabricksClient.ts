@@ -43,6 +43,10 @@ export interface DatabricksClient extends Client.Base {
   readonly ipcStream: (
     statement: Statement.Statement<unknown>,
   ) => Stream.Stream<Uint8Array, SqlError>;
+  /** Applies queryTimeout to a complete consumer, including downstream work. */
+  readonly withQueryTimeout: <A, E, R>(
+    consumer: Effect.Effect<A, E, R>,
+  ) => Effect.Effect<A, E | SqlError, R>;
   /** Bind e.g. DECIMAL(38, 2), DATE, or a typed NULL without lossy conversion. */
   readonly param: (type: string, value: string | null) => Statement.Fragment;
 }
@@ -59,7 +63,7 @@ export interface DatabricksClientConfig {
   readonly catalog?: string;
   readonly schema?: string;
   readonly pollInterval?: Duration.Input;
-  /** Total deadline, including polling, downloads, and downstream consumption. Default: 2 minutes. */
+  /** Source deadline for submission, polling, and downloads. Use withQueryTimeout for downstream work. Default: 2 minutes. */
   readonly queryTimeout?: Duration.Input;
   /** Deadline per HTTP request, including its body. Default: 30 seconds. */
   readonly requestTimeout?: Duration.Input;
@@ -85,6 +89,19 @@ export const makeCompiler = (): Statement.Compiler =>
       throw new Error("Unsupported custom SQL fragment for Databricks");
     },
   });
+
+// Spark is absent from Effect's dialect union. Never dispatch a caller's MySQL SQL.
+const sparkDialect: Pick<
+  Statement.Constructor,
+  "onDialect" | "onDialectOrElse"
+> = {
+  onDialect: () => {
+    throw new Error(
+      "Spark SQL has no Effect dialect branch; use onDialectOrElse or sql.driver",
+    );
+  },
+  onDialectOrElse: (options) => options.orElse(),
+};
 
 export const make = (
   options: DatabricksClientConfig,
@@ -132,6 +149,13 @@ export const make = (
         failure("Invalid Databricks client configuration", "configure"),
     });
     const fetch = options.fetch ?? globalThis.fetch;
+    const withQueryTimeout = <A, E, R>(consumer: Effect.Effect<A, E, R>) =>
+      consumer.pipe(
+        Effect.timeoutOrElse({
+          duration: config.query,
+          orElse: () => Effect.fail(timeout("query")),
+        }),
+      );
 
     const requestJson = (
       path: string,
@@ -283,6 +307,9 @@ export const make = (
                     ).pipe(Effect.timeoutOption("5 seconds"), Effect.ignore)
                   : Effect.void,
               ),
+            // A lost response is already an ambiguous outcome. Abort the request
+            // promptly instead of shielding submission from the caller's deadline.
+            { interruptible: true },
           );
           const path = `/api/2.0/sql/statements/${encodeURIComponent(query.current.statement_id)}`;
           while (
@@ -374,8 +401,8 @@ export const make = (
           }),
         ),
       );
-    const table = (sql: string, params: ReadonlyArray<unknown>) =>
-      chunks(sql, params).pipe(
+    const collectTable = (source: Stream.Stream<Table, SqlError>) =>
+      source.pipe(
         Stream.runCollect,
         Effect.flatMap((tables) =>
           Effect.try({
@@ -395,7 +422,10 @@ export const make = (
               ),
           }),
         ),
+        withQueryTimeout,
       );
+    const table = (sql: string, params: ReadonlyArray<unknown>) =>
+      collectTable(chunks(sql, params));
     const rows = (sql: string, params: ReadonlyArray<unknown>) =>
       chunks(sql, params).pipe(
         Stream.flatMap((table) => Stream.fromIterable(table)),
@@ -406,6 +436,7 @@ export const make = (
         rows(sql, params).pipe(
           Stream.runCollect,
           Effect.map((rows) => (transform ? transform(rows) : rows)),
+          withQueryTimeout,
         ),
       executeRaw: table,
       executeStream: (sql, params, transform) =>
@@ -418,20 +449,23 @@ export const make = (
           // Arrow's iterator follows field order; toArray goes through Object.values.
           Stream.map((row) => Array.from(row, ([, value]) => value)),
           Stream.runCollect,
+          withQueryTimeout,
         ),
       executeUnprepared: (sql, params, transform) =>
         connection.execute(sql, params, transform),
       executeValuesUnprepared: (sql, params) =>
         connection.executeValues(sql, params),
     };
+    const compiler = makeCompiler();
+    const spanAttributes: ReadonlyArray<readonly [string, unknown]> = [
+      ["db.system.name", "databricks"],
+      ["db.namespace", options.warehouseId],
+    ];
     const client = yield* Client.make({
       acquirer: Effect.succeed(connection),
-      compiler: makeCompiler(),
+      compiler,
       driver: "databricks",
-      spanAttributes: [
-        ["db.system.name", "databricks"],
-        ["db.namespace", options.warehouseId],
-      ],
+      spanAttributes,
       // Independent REST statements do not share a transaction/session.
       transactionAcquirer: Effect.fail(
         failure(
@@ -440,17 +474,44 @@ export const make = (
         ),
       ),
     });
+    // Reuse Statement's execution boundary for transformers and client spans.
+    // These connections change only the streaming result shape, not row queries
+    // that a transformer might execute with the constructor it receives.
+    const arrowSql = Object.assign(
+      Statement.make(
+        Effect.succeed({ ...connection, executeStream: chunks }),
+        compiler,
+        spanAttributes,
+        undefined,
+      ),
+      sparkDialect,
+    );
+    const ipcSql = Object.assign(
+      Statement.make(
+        Effect.succeed({ ...connection, executeStream: ipc }),
+        compiler,
+        spanAttributes,
+        undefined,
+      ),
+      sparkDialect,
+    );
+    const arrowChunks = (statement: Statement.Statement<unknown>) =>
+      arrowSql<Table>`${statement}`.stream;
     return Object.assign(client, {
+      ...sparkDialect,
+      // There are no name or row transforms to remove. Keep the driver's APIs
+      // and Spark dialect dispatch when generic consumers request this view.
+      withoutTransforms: () => client,
       arrow: (statement: Statement.Statement<unknown>) =>
-        Effect.suspend(() => table(...statement.compile())),
-      arrowChunks: (statement: Statement.Statement<unknown>) =>
-        Stream.suspend(() => chunks(...statement.compile())),
+        collectTable(arrowChunks(statement)),
+      arrowChunks,
       arrowStream: (statement: Statement.Statement<unknown>) =>
-        Stream.suspend(() => chunks(...statement.compile())).pipe(
+        arrowChunks(statement).pipe(
           Stream.flatMap((table) => Stream.fromIterable(table.batches)),
         ),
       ipcStream: (statement: Statement.Statement<unknown>) =>
-        Stream.suspend(() => ipc(...statement.compile())),
+        ipcSql<Uint8Array>`${statement}`.stream,
+      withQueryTimeout,
       param: (type: string, value: string | null) =>
         Statement.fragment([
           Statement.parameter(new TypedParameter(type, value)),
