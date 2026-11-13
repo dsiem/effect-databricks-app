@@ -113,11 +113,19 @@ export const statementFailure = (status: StatementResponse["status"]) => {
 };
 
 /** Permit HTTP only for local development; never embed credentials in URLs. */
-export const parseUrl = (value: string): URL => {
+export const parseUrl = (
+  value: string,
+  allowDatabricksStorageProxy = false,
+): URL => {
   const url = new URL(value);
   const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  const managedProxy =
+    allowDatabricksStorageProxy &&
+    url.hostname === "storage-proxy.databricks.com" &&
+    !url.port;
   if (
-    (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) ||
+    (url.protocol !== "https:" &&
+      !(url.protocol === "http:" && (loopback || managedProxy))) ||
     url.username ||
     url.password ||
     url.hash

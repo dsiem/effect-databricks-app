@@ -200,7 +200,13 @@ treat those messages accordingly.
   constructors passed to statement transformers. Use `sql.driver === "databricks"`
   when selecting driver-specific behavior, and write Spark SQL.
 - Workspace and download URLs require HTTPS, except loopback HTTP for local
-  development. External-link downloads must be enabled for the workspace.
+  development. Databricks Apps can opt in with `allowDatabricksStorageProxy: true`
+  to accept the exact `http://storage-proxy.databricks.com` managed result host
+  observed inside the app runtime. It does not allow other HTTP hosts, embedded
+  credentials, fragments, or nonstandard ports. The application enables this only
+  when the platform supplies `DATABRICKS_APP_NAME`. All downloads still omit
+  workspace authorization and cookies, and reject redirects. External-link
+  downloads must be enabled for the workspace.
 
 The generic SQL service supports statement execution, row/value/raw results,
 streaming, and schema decoding. Its presence does not imply support for every

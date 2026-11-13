@@ -659,3 +659,60 @@ test("rejects incompatible Arrow schemas across chunks", async (t) => {
   if (result._tag === "Failure")
     assert.equal(result.failure.reason.operation, "decodeArrow");
 });
+
+test("managed app storage proxy is explicitly scoped and never receives workspace credentials", async () => {
+  const ipc = tableToIPC(fixture([1n, 2n], ["first", "second"]), "stream");
+  for (const enabled of [false, true]) {
+    let downloaded = false;
+    const result = await Effect.runPromise(
+      Effect.result(
+        Effect.gen(function* () {
+          const sql = yield* DatabricksClient.DatabricksClient;
+          return yield* sql.arrow(sql`SELECT 1`);
+        }).pipe(
+          Effect.provide(
+            DatabricksClient.layer({
+              host: "https://workspace.example",
+              warehouseId: "warehouse",
+              accessToken: Effect.succeed(Redacted.make(token)),
+              allowDatabricksStorageProxy: enabled,
+              fetch: async (input, init) => {
+                if (
+                  new URL(String(input)).hostname ===
+                  "storage-proxy.databricks.com"
+                ) {
+                  downloaded = true;
+                  assert.equal(
+                    new Headers(init?.headers).get("Authorization"),
+                    null,
+                  );
+                  assert.equal(init?.credentials, "omit");
+                  assert.equal(init?.redirect, "error");
+                  return new Response(ipc);
+                }
+                return Response.json({
+                  statement_id: "statement",
+                  status: { state: "SUCCEEDED" },
+                  manifest: { format: "ARROW_STREAM", total_chunk_count: 1 },
+                  result: {
+                    external_links: [
+                      {
+                        chunk_index: 0,
+                        external_link:
+                          "http://storage-proxy.databricks.com/result?signature=signed-secret",
+                      },
+                    ],
+                  },
+                });
+              },
+            }),
+          ),
+        ),
+      ),
+    );
+    assert.equal(downloaded, enabled);
+    assert.equal(result._tag, enabled ? "Success" : "Failure");
+    if (result._tag === "Success") assert.equal(result.success.numRows, 2);
+    else assert.ok(!JSON.stringify(result.failure).includes("signed-secret"));
+  }
+});

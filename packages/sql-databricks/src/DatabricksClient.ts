@@ -70,6 +70,8 @@ export interface DatabricksClientConfig {
   /** Optional server result limit. Truncation is always reported as an error. */
   readonly byteLimit?: number;
   readonly fetch?: typeof globalThis.fetch;
+  /** Opt in only inside Databricks Apps, whose managed network rewrites signed result links to this exact internal HTTP proxy. Workspace credentials are never forwarded. */
+  readonly allowDatabricksStorageProxy?: boolean;
 }
 
 /** Spark SQL uses backticks and the REST API requires named parameter markers. */
@@ -232,7 +234,7 @@ export const make = (
     const download = (url: string) =>
       Effect.gen(function* () {
         const safeUrl = yield* Effect.try({
-          try: () => parseUrl(url),
+          try: () => parseUrl(url, options.allowDatabricksStorageProxy),
           catch: () => failure("Invalid Arrow download URL", "download"),
         });
         const response = yield* Effect.tryPromise({
