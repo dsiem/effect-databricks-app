@@ -45,11 +45,11 @@ try {
     title: "Deployed app verification",
     body: "Temporary app-identity persistence check",
     filters: { zip: "10001" },
-    pinned: false,
+    version: null,
   });
   assert.ok((await request("/api/notes")).some((note) => note.id === id));
 } finally {
-  await request(`/api/notes/${id}`, "DELETE");
+  await request(`/api/notes/${id}?version=1`, "DELETE");
 }
 const operation = await request("/api/genie", "POST", {
   content:

@@ -80,15 +80,23 @@ export const Trips = Schema.Struct({
   page: Schema.Number,
   pageSize: Schema.Number,
 });
+export const NoteVersion = Schema.Int.check(Schema.isGreaterThan(0));
 export const NoteInput = Schema.Struct({
   id: Schema.String.check(Schema.isUUID(4)),
   title: boundedText(160),
   body: Schema.String.check(Schema.isMaxLength(10000)),
   filters: Filters,
+  version: Schema.NullOr(NoteVersion),
+});
+export const NotePin = Schema.Struct({
+  version: NoteVersion,
   pinned: Schema.Boolean,
 });
+export type NotePin = typeof NotePin.Type;
 export const Note = Schema.Struct({
   ...NoteInput.fields,
+  version: NoteVersion,
+  pinned: Schema.Boolean,
   created_at: Schema.String,
   updated_at: Schema.String,
 });

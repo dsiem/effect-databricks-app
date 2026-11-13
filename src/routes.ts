@@ -26,6 +26,8 @@ const toApiError = (error: ServiceError): typeof ApiError.Type => {
   switch (error._tag) {
     case "InvalidRequest":
       return { error: { code: "invalid_request", message } };
+    case "NoteConflict":
+      return { error: { code: "note_conflict", message } };
     case "NoteNotFound":
       return { error: { code: "note_not_found", message } };
     case "ServiceUnavailable":
@@ -122,10 +124,13 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
       .handle("genieResult", ({ params }) => respond(genie.result(params)))
       .handle("notes", () => respond(notebook.list))
       .handle("saveNote", ({ payload }) => respond(notebook.save(payload)))
-      .handle("removeNote", ({ params }) =>
+      .handle("pinNote", ({ params, payload }) =>
+        respond(notebook.pin(params.id, payload)),
+      )
+      .handle("removeNote", ({ params, query }) =>
         respond(
           notebook
-            .remove(params.id)
+            .remove(params.id, query.version)
             .pipe(Effect.as({ deleted: true as const })),
         ),
       );

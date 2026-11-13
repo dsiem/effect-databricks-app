@@ -51,13 +51,31 @@ export default function Notebook() {
       setEditing(null);
       void client.invalidateQueries({ queryKey: ["notes"] });
     },
+    onError: () => void client.invalidateQueries({ queryKey: ["notes"] }),
+  });
+  const pin = useMutation({
+    mutationFn: (note: Note) =>
+      api(
+        apiClient.pinNote({
+          params: { id: note.id },
+          payload: { version: note.version, pinned: !note.pinned },
+        }),
+      ),
+    onSettled: () => void client.invalidateQueries({ queryKey: ["notes"] }),
   });
   const remove = useMutation({
-    mutationFn: (id: string) => api(apiClient.removeNote({ params: { id } })),
+    mutationFn: (note: Note) =>
+      api(
+        apiClient.removeNote({
+          params: { id: note.id },
+          query: { version: note.version },
+        }),
+      ),
     onSuccess: () => {
       setDeleting(null);
       void client.invalidateQueries({ queryKey: ["notes"] });
     },
+    onError: () => void client.invalidateQueries({ queryKey: ["notes"] }),
   });
   const open = (note: NoteInput) => {
     dialogTrigger.current =
@@ -65,7 +83,13 @@ export default function Notebook() {
         ? document.activeElement
         : null;
     save.reset();
-    setEditing(note);
+    setEditing({
+      id: note.id,
+      title: note.title,
+      body: note.body,
+      filters: note.filters,
+      version: note.version,
+    });
   };
   return (
     <>
@@ -81,7 +105,7 @@ export default function Notebook() {
                 title: "",
                 body: "",
                 filters,
-                pinned: false,
+                version: null,
               })
             }
           >
@@ -115,7 +139,7 @@ export default function Notebook() {
                 title: "",
                 body: "",
                 filters,
-                pinned: false,
+                version: null,
               })
             }
           >
@@ -144,10 +168,8 @@ export default function Notebook() {
                       note.pinned ? `Unpin ${note.title}` : `Pin ${note.title}`
                     }
                     type="button"
-                    disabled={save.isPending}
-                    onClick={() =>
-                      save.mutate({ ...note, pinned: !note.pinned })
-                    }
+                    disabled={pin.isPending}
+                    onClick={() => pin.mutate(note)}
                   >
                     <Pin
                       className={`size-4 ${note.pinned ? "fill-primary text-primary" : "text-muted-foreground"}`}
@@ -212,9 +234,9 @@ export default function Notebook() {
               </Card>
             ))}
           </div>
-          {save.error && !editing && (
+          {pin.error && (
             <p role="alert" className="mt-4 text-sm text-destructive">
-              {save.error.message}
+              {pin.error.message}
             </p>
           )}
         </>
@@ -231,9 +253,7 @@ export default function Notebook() {
         >
           <DialogHeader>
             <DialogTitle>
-              {notes.data?.some((n) => n.id === editing?.id)
-                ? "Edit note"
-                : "New note"}
+              {editing?.version !== null ? "Edit note" : "New note"}
             </DialogTitle>
             <DialogDescription>
               Save your findings with a snapshot of this Explore view.
@@ -279,7 +299,7 @@ export default function Notebook() {
                 <p className="mb-2 text-sm font-medium">Saved Explore view</p>
                 <FilterSummary filters={editing.filters} />
                 <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                  {notes.data?.some((n) => n.id === editing.id)
+                  {editing.version !== null
                     ? "This note keeps its original filters, even when your Explore view changes."
                     : "These filters are saved with your note so you can reopen this view later."}
                 </p>
@@ -337,7 +357,7 @@ export default function Notebook() {
               variant="destructive"
               disabled={remove.isPending}
               onClick={() => {
-                if (deleting) remove.mutate(deleting.id);
+                if (deleting) remove.mutate(deleting);
               }}
             >
               {remove.isPending ? "Deleting…" : "Delete note"}

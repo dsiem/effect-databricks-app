@@ -5,6 +5,7 @@ import { HttpRouter, HttpServer } from "effect/http";
 import { Analytics } from "../src/analytics.js";
 import {
   GenieFailed,
+  NoteConflict,
   NoteNotFound,
   OperationTimeout,
   type ServiceError,
@@ -48,6 +49,7 @@ const appFor = (
             availability: Effect.succeed("unconfigured" as const),
             list: effect,
             save: () => effect,
+            pin: () => effect,
             remove: () => effect,
           }),
           Settings.layer.pipe(
@@ -70,6 +72,11 @@ const cases: ReadonlyArray<{
   status: number;
   code: string;
 }> = [
+  {
+    error: new NoteConflict({ id: "id", message: "Reload the latest note" }),
+    status: 409,
+    code: "note_conflict",
+  },
   {
     error: unavailable(
       "lakebase",

@@ -38,7 +38,7 @@ test("bounds notebook writes and conversational input", () => {
     title: "A finding",
     body: "Notes",
     filters: { zip: "10001" },
-    pinned: false,
+    version: null,
   };
   assert.deepEqual(Schema.decodeUnknownSync(NoteInput)(note), note);
   assert.throws(() =>

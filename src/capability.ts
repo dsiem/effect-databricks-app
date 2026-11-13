@@ -20,6 +20,7 @@ export const makeCapability = (configured: boolean) => {
           switch (error._tag) {
             case "InvalidRequest":
               return Effect.void;
+            case "NoteConflict":
             case "NoteNotFound":
             case "GenieFailed":
               return set("available");

@@ -15,36 +15,40 @@ import * as SqlClient from "effect/sql/SqlClient";
 import type { Connection } from "effect/sql/SqlConnection";
 import { SqlError, UnknownError } from "effect/sql/SqlError";
 import { type ServiceError, UpstreamError } from "../src/errors.js";
-import { makeNotebook, Notebook } from "../src/notebook.js";
+import { makeNotebook, migrateNotebook, Notebook } from "../src/notebook.js";
 import { pgPassword, restoreCredentialFailure } from "../src/pg-credentials.js";
 import { Settings } from "../src/settings.js";
 import { Workspace } from "../src/workspace.js";
+import { notebookFixture } from "./notebook-fixture.js";
 
 const input = {
   id: "1b7f2115-e891-46a7-a3ad-c26405b2f5a2",
   title: "A note",
   body: "",
   filters: {},
-  pinned: false,
+  version: null,
 };
 const operations: Record<
   string,
   (
-    notebook: Pick<typeof Notebook.Service, "list" | "save" | "remove">,
+    notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
   ) => Effect.Effect<unknown, ServiceError>
 > = {
-  list: (notebook: Pick<typeof Notebook.Service, "list" | "save" | "remove">) =>
-    notebook.list,
-  save: (notebook: Pick<typeof Notebook.Service, "list" | "save" | "remove">) =>
-    notebook.save(input),
+  list: (
+    notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
+  ) => notebook.list,
+  save: (
+    notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
+  ) => notebook.save(input),
+  pin: (notebook) => notebook.pin(input.id, { version: 1, pinned: true }),
   remove: (
-    notebook: Pick<typeof Notebook.Service, "list" | "save" | "remove">,
-  ) => notebook.remove(input.id),
+    notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
+  ) => notebook.remove(input.id, 1),
 };
 const runNotebook = <A, E>(
   credentials: Effect.Effect<unknown, ServiceError>,
   use: (
-    notebook: Pick<typeof Notebook.Service, "list" | "save" | "remove">,
+    notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
   ) => Effect.Effect<A, E>,
 ) =>
   Effect.runPromiseExit(
@@ -128,7 +132,7 @@ test("invalid Lakebase credential payload is a typed error with its schema diagn
 const withRows = <A, E>(
   rows: Effect.Effect<ReadonlyArray<unknown>, SqlError>,
   use: (
-    notebook: Pick<typeof Notebook.Service, "list" | "save" | "remove">,
+    notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
   ) => Effect.Effect<A, E>,
 ) =>
   Effect.runPromiseExit(
@@ -189,7 +193,7 @@ test("notebook preserves row decoding diagnostics", async () => {
 
 test("removing a missing note keeps its distinct not-found error", async () => {
   const exit = await withRows(Effect.succeed([]), (notebook) =>
-    notebook.remove(input.id),
+    notebook.remove(input.id, 1),
   );
   assert.ok(Exit.isFailure(exit));
   const error = Cause.findErrorOption(exit.cause);
@@ -228,4 +232,94 @@ test("the credential adapter preserves every reason in a mixed cause", async () 
     ),
   );
   assert.deepEqual(Cause.interruptors(exit.cause), new Set([42]));
+});
+
+test("versioned notebook writes reject stale editors, pin conflicts, and deleted-note resurrection", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const { notebook, sql } = yield* notebookFixture;
+      // Migrations are repeatable and existing rows keep their content/version.
+      const created = yield* notebook.save(input);
+      yield* sql`ALTER TABLE metrocab.notes DROP COLUMN version`;
+      yield* migrateNotebook(sql);
+      yield* migrateNotebook(sql);
+      assert.equal((yield* notebook.list)[0]?.title, input.title);
+      assert.equal(created.version, 1);
+      assert.equal(created.pinned, false);
+      const duplicate = yield* Effect.result(
+        notebook.save({ ...input, title: "Duplicate" }),
+      );
+      assert.ok(
+        duplicate._tag === "Failure" &&
+          duplicate.failure._tag === "NoteConflict",
+      );
+
+      const edits = yield* Effect.all(
+        [
+          notebook
+            .save({ ...created, title: "First editor" })
+            .pipe(Effect.result),
+          notebook
+            .save({ ...created, title: "Second editor" })
+            .pipe(Effect.result),
+        ],
+        { concurrency: 2 },
+      );
+      const successes = edits.filter((edit) => edit._tag === "Success");
+      assert.equal(successes.length, 1);
+      const failure = edits.find((edit) => edit._tag === "Failure");
+      assert.ok(
+        failure?._tag === "Failure" && failure.failure._tag === "NoteConflict",
+      );
+      const current = (yield* notebook.list)[0];
+      assert.ok(current);
+      assert.equal(current.version, 2);
+      assert.equal(current.title, successes[0]?.success.title);
+
+      const stalePin = yield* Effect.result(
+        notebook.pin(created.id, { version: 1, pinned: true }),
+      );
+      assert.ok(
+        stalePin._tag === "Failure" && stalePin.failure._tag === "NoteConflict",
+      );
+      const pinned = yield* notebook.pin(current.id, {
+        version: current.version,
+        pinned: true,
+      });
+      assert.equal(pinned.title, current.title);
+      assert.equal(pinned.body, current.body);
+      assert.deepEqual(pinned.filters, current.filters);
+      assert.equal(pinned.pinned, true);
+      assert.equal(pinned.version, 3);
+
+      const staleEdit = yield* Effect.result(
+        notebook.save({ ...current, body: "Stale draft" }),
+      );
+      assert.ok(
+        staleEdit._tag === "Failure" &&
+          staleEdit.failure._tag === "NoteConflict",
+      );
+      const staleDelete = yield* Effect.result(
+        notebook.remove(current.id, current.version),
+      );
+      assert.ok(
+        staleDelete._tag === "Failure" &&
+          staleDelete.failure._tag === "NoteConflict",
+      );
+      const updated = yield* notebook.save({ ...pinned, body: "Latest draft" });
+      assert.equal(updated.pinned, true);
+      yield* notebook.remove(updated.id, updated.version);
+      for (const operation of [
+        notebook.save({ ...updated, body: "Deleted draft" }),
+        notebook.pin(updated.id, { version: updated.version, pinned: false }),
+        notebook.remove(updated.id, updated.version),
+      ]) {
+        const result = yield* Effect.result(operation);
+        assert.ok(
+          result._tag === "Failure" && result.failure._tag === "NoteNotFound",
+        );
+      }
+      assert.deepEqual(yield* notebook.list, []);
+    }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
+  );
 });

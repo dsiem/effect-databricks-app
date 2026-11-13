@@ -134,7 +134,9 @@ The server is an Effect application, including HTTP routing and lifetime:
   Writes and conversation submissions are not automatically retried.
 - `@effect/sql-pg` owns a scoped PostgreSQL pool, TLS, per-connection fresh Lakebase
   OAuth credentials, statement/acquisition deadlines, and shutdown. Notebook saves
-  are UUID-keyed upserts; migration uses a transaction and advisory lock.
+  use explicit create/update versions and return conflicts for stale writes.
+  Pinning updates only its own field. Migration uses a transaction and advisory
+  lock; run `npm run db:migrate` to add versions to existing notebooks.
 - `NodeRuntime` manages graceful signal shutdown for HTTP/1.1 locally and HTTP/2
   as an optional transport. The verified workspace deployment uses HTTP/1.1; its proxy returned 502 for an HTTP/2-only listener.
 

@@ -53,9 +53,9 @@ await Effect.runPromise(
           title: "Live verification",
           body: "Temporary integration check",
           filters: { zip },
-          pinned: false,
+          version: null,
         }),
-        () =>
+        (created) =>
           Effect.gen(function* () {
             assert.ok((yield* notebook.list).some((note) => note.id === id));
             const updated = yield* notebook.save({
@@ -63,12 +63,25 @@ await Effect.runPromise(
               title: "Updated verification",
               body: "Round trip verified",
               filters: { zip },
+              version: created.version,
+            });
+            const pinned = yield* notebook.pin(id, {
+              version: updated.version,
               pinned: true,
             });
-            assert.equal(updated.pinned, true);
+            assert.equal(pinned.pinned, true);
             assert.equal(updated.filters.zip, zip);
           }),
-        () => notebook.remove(id).pipe(Effect.orDie),
+        () =>
+          notebook.list.pipe(
+            Effect.flatMap((notes) => {
+              const current = notes.find((note) => note.id === id);
+              return current
+                ? notebook.remove(id, current.version)
+                : Effect.void;
+            }),
+            Effect.orDie,
+          ),
       );
       assert.ok(!(yield* notebook.list).some((note) => note.id === id));
       console.log(

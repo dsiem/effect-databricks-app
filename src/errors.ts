@@ -10,6 +10,11 @@ export class NoteNotFound extends Data.TaggedError("NoteNotFound")<{
   readonly message: string;
 }> {}
 
+export class NoteConflict extends Data.TaggedError("NoteConflict")<{
+  readonly id: string;
+  readonly message: string;
+}> {}
+
 export class ServiceUnavailable extends Data.TaggedError("ServiceUnavailable")<{
   readonly service: string;
   readonly message: string;
@@ -36,6 +41,7 @@ export class GenieFailed extends Data.TaggedError("GenieFailed")<{
 export type ServiceError =
   | InvalidRequest
   | NoteNotFound
+  | NoteConflict
   | ServiceUnavailable
   | UpstreamError
   | OperationTimeout

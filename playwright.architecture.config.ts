@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: "e2e",
   testMatch: [
     "genie-recovery.spec.ts",
+    "notebook-conflicts.spec.ts",
     "ui.spec.ts",
     "date-range.spec.ts",
     "explore-context.spec.ts",

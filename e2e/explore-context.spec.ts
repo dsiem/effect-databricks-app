@@ -9,6 +9,7 @@ const savedNote: Note = {
   body: "Compare this view with the next week.",
   filters: { to: "2016-02-20", zip: "11430" },
   pinned: false,
+  version: 1,
   created_at: "2026-11-13T10:00:00Z",
   updated_at: "2026-11-13T10:00:00Z",
 };
@@ -88,7 +89,7 @@ test("Explore hands the applied view to Notebook, and a new note saves that snap
       return route.fulfill({ json: [savedNote] });
     saved = route.request().postDataJSON() as NoteInput;
     return route.fulfill({
-      json: { ...savedNote, ...saved },
+      json: { ...savedNote, ...saved, version: 1 },
     });
   });
   await dialog.getByRole("button", { name: "Save note", exact: true }).click();

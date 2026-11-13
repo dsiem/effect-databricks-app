@@ -16,6 +16,7 @@ import {
   Metadata,
   Note,
   NoteInput,
+  NotePin,
   Notes,
   Overview,
   Status,
@@ -33,6 +34,7 @@ export const InvalidRequestBody = errorBody(
   400,
 );
 const NotFoundBody = errorBody(Schema.Literal("note_not_found"), 404);
+const NoteConflictBody = errorBody(Schema.Literal("note_conflict"), 409);
 const GenieFailedBody = errorBody(
   Schema.Literal("genie_message_unavailable"),
   409,
@@ -52,6 +54,7 @@ const TimeoutBody = errorBody(
 const errors = [
   InvalidRequestBody,
   NotFoundBody,
+  NoteConflictBody,
   GenieFailedBody,
   UnavailableBody,
   UpstreamBody,
@@ -118,8 +121,19 @@ export const AppApi = HttpApi.make("taxi").add(
         payload: NoteInput,
         success: Note,
       }),
+      HttpApiEndpoint.patch("pinNote", "/api/notes/:id/pin", {
+        params: { id: NoteInput.fields.id },
+        payload: NotePin,
+        success: Note,
+      }),
       HttpApiEndpoint.delete("removeNote", "/api/notes/:id", {
         params: { id: NoteInput.fields.id },
+        query: {
+          version: Schema.NumberFromString.check(
+            Schema.isInt(),
+            Schema.isGreaterThan(0),
+          ),
+        },
         success: Schema.Struct({ deleted: Schema.Literal(true) }),
       }),
     )

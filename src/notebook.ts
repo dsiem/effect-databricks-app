@@ -11,9 +11,20 @@ import {
 import * as Reactivity from "effect/reactivity/Reactivity";
 import type * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
+import type { Statement } from "effect/sql/Statement";
 import { makeCapability } from "./capability.js";
-import { type CapabilityAvailability, Note, type NoteInput } from "./domain.js";
-import { NoteNotFound, type ServiceError, unavailable } from "./errors.js";
+import {
+  type CapabilityAvailability,
+  Note,
+  type NoteInput,
+  type NotePin,
+} from "./domain.js";
+import {
+  NoteConflict,
+  NoteNotFound,
+  type ServiceError,
+  unavailable,
+} from "./errors.js";
 import { pgPassword, restoreCredentialFailure } from "./pg-credentials.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
@@ -78,7 +89,14 @@ export class Notebook extends Context.Service<
     readonly availability: Effect.Effect<CapabilityAvailability>;
     readonly list: Effect.Effect<ReadonlyArray<Note>, ServiceError>;
     readonly save: (input: NoteInput) => Effect.Effect<Note, ServiceError>;
-    readonly remove: (id: string) => Effect.Effect<void, ServiceError>;
+    readonly pin: (
+      id: string,
+      input: NotePin,
+    ) => Effect.Effect<Note, ServiceError>;
+    readonly remove: (
+      id: string,
+      version: number,
+    ) => Effect.Effect<void, ServiceError>;
   }
 >()("app/Notebook") {
   static readonly layer = Layer.effect(
@@ -99,6 +117,7 @@ export class Notebook extends Context.Service<
           availability: capability.availability,
           list: Effect.fail(failure),
           save: () => Effect.fail(failure),
+          pin: () => Effect.fail(failure),
           remove: () => Effect.fail(failure),
         };
       const context = yield* Effect.context<
@@ -125,9 +144,14 @@ export class Notebook extends Context.Service<
             Effect.flatMap((notebook) => notebook.save(input)),
             capability.track,
           ),
-        remove: (id: string) =>
+        pin: (id: string, input: NotePin) =>
           database.pipe(
-            Effect.flatMap((notebook) => notebook.remove(id)),
+            Effect.flatMap((notebook) => notebook.pin(id, input)),
+            capability.track,
+          ),
+        remove: (id: string, version: number) =>
+          database.pipe(
+            Effect.flatMap((notebook) => notebook.remove(id, version)),
             capability.track,
           ),
       };
@@ -141,7 +165,7 @@ export const makeNotebook = (
 ) => {
   const databaseError = (cause: unknown) =>
     unavailable("lakebase", message, cause);
-  const columns = sql`id::text AS id, title, body, filters, pinned,
+  const columns = sql`id::text AS id, title, body, filters, pinned, version,
       to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
       to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at`;
   const list = SqlSchema.findAll({
@@ -150,43 +174,70 @@ export const makeNotebook = (
     execute: () =>
       sql`SELECT ${columns} FROM metrocab.notes ORDER BY pinned DESC, updated_at DESC LIMIT 200`,
   })(undefined).pipe(Effect.mapError(databaseError), restoreCredentialFailure);
-  const save = (input: NoteInput) =>
-    SqlSchema.findOne({
-      Request: Schema.Void,
-      Result: Note,
-      execute:
-        () => sql`INSERT INTO metrocab.notes (id,title,body,filters,pinned)
-        VALUES (${input.id}::uuid,${input.title},${input.body},${sql.json(input.filters)},${input.pinned})
-        ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title, body=EXCLUDED.body,
-          filters=EXCLUDED.filters, pinned=EXCLUDED.pinned, updated_at=now()
-        RETURNING ${columns}`,
-    })(undefined).pipe(
-      Effect.mapError(databaseError),
-      restoreCredentialFailure,
-      Effect.withSpan("notebook.save"),
-    );
-  const remove = (id: string) =>
-    sql`DELETE FROM metrocab.notes WHERE id = ${id}::uuid RETURNING id`.pipe(
+  const conflict = (id: string) =>
+    new NoteConflict({
+      id,
+      message:
+        "This note changed since you opened it. Close and reopen it to load the latest version before trying again.",
+    });
+  const notFound = (id: string) =>
+    new NoteNotFound({
+      id,
+      message: "This note has been removed. Your draft has not been saved.",
+    });
+  const missingWrite = (id: string) =>
+    sql`SELECT id FROM metrocab.notes WHERE id = ${id}::uuid`.pipe(
       Effect.mapError(databaseError),
       restoreCredentialFailure,
       Effect.flatMap((rows) =>
-        rows.length
-          ? Effect.void
-          : Effect.fail(
-              new NoteNotFound({
-                id,
-                message: "This note has already been removed.",
-              }),
-            ),
+        Effect.fail(rows.length ? conflict(id) : notFound(id)),
       ),
     );
-  return { list, save, remove };
+  const write = (id: string, execute: () => Statement<unknown>) =>
+    SqlSchema.findAll({
+      Request: Schema.Void,
+      Result: Note,
+      execute,
+    })(undefined).pipe(
+      Effect.mapError(databaseError),
+      restoreCredentialFailure,
+      Effect.flatMap((rows) =>
+        rows[0] ? Effect.succeed(rows[0]) : missingWrite(id),
+      ),
+    );
+  const save = (input: NoteInput) =>
+    write(input.id, () =>
+      input.version === null
+        ? sql`INSERT INTO metrocab.notes (id,title,body,filters)
+          VALUES (${input.id}::uuid,${input.title},${input.body},${sql.json(input.filters)})
+          ON CONFLICT (id) DO NOTHING RETURNING ${columns}`
+        : sql`UPDATE metrocab.notes SET title=${input.title}, body=${input.body},
+          filters=${sql.json(input.filters)}, version=version+1, updated_at=now()
+          WHERE id=${input.id}::uuid AND version=${input.version}
+          RETURNING ${columns}`,
+    ).pipe(Effect.withSpan("notebook.save"));
+  const pin = (id: string, input: NotePin) =>
+    write(
+      id,
+      () => sql`UPDATE metrocab.notes SET pinned=${input.pinned},
+      version=version+1, updated_at=now()
+      WHERE id=${id}::uuid AND version=${input.version} RETURNING ${columns}`,
+    ).pipe(Effect.withSpan("notebook.pin"));
+  const remove = (id: string, version: number) =>
+    sql`DELETE FROM metrocab.notes WHERE id = ${id}::uuid AND version=${version} RETURNING id`.pipe(
+      Effect.mapError(databaseError),
+      restoreCredentialFailure,
+      Effect.flatMap((rows) => (rows.length ? Effect.void : missingWrite(id))),
+    );
+  return { list, save, pin, remove };
 };
 
 // Explicit setup command only. App startup never changes database schemas.
-export const migrate = Effect.gen(function* () {
-  const sql = yield* makeDatabase;
-  yield* sql.withTransaction(
+export const migrateNotebook = (
+  sql: SqlClient.SqlClient,
+  appPrincipal?: string,
+) =>
+  sql.withTransaction(
     Effect.gen(function* () {
       yield* sql`SELECT pg_advisory_xact_lock(58302611)`;
       yield* sql`CREATE SCHEMA IF NOT EXISTS metrocab`;
@@ -199,11 +250,15 @@ export const migrate = Effect.gen(function* () {
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     )`;
-      const appPrincipal = process.env.APP_SERVICE_PRINCIPAL_ID;
+      yield* sql`ALTER TABLE metrocab.notes ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1 CHECK (version > 0)`;
       if (appPrincipal) {
         yield* sql`GRANT USAGE ON SCHEMA metrocab TO ${sql(appPrincipal)}`;
         yield* sql`GRANT SELECT, INSERT, UPDATE, DELETE ON metrocab.notes TO ${sql(appPrincipal)}`;
       }
     }),
   );
+
+export const migrate = Effect.gen(function* () {
+  const sql = yield* makeDatabase;
+  yield* migrateNotebook(sql, process.env.APP_SERVICE_PRINCIPAL_ID);
 }).pipe(restoreCredentialFailure, Effect.provide(Reactivity.layer));

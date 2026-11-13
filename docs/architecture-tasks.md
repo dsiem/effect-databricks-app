@@ -7,11 +7,17 @@ next, followed by P2 hardening and P3 improvements.
 Keep the current service topology and SQL adapter package boundary. Include
 behavioral tests for each implementation task's completion criteria.
 
-1. [ ] **P1 — Prevent conflicting notebook writes**
+1. [x] **P1 — Prevent conflicting notebook writes**
 
    Add version-checked updates and explicit conflict responses. Make pinning a
    field-specific operation. Stale edits must not overwrite newer content or
    recreate deleted notes.
+
+   Notebook creates and updates now use explicit versions; stale edits, pins,
+   and deletes return conflicts, and updates to deleted notes return not found.
+   Pinning changes only its own field. Repeatable PostgreSQL migrations add the
+   version to existing notes. Offline PostgreSQL and browser tests cover
+   concurrent editors, deleted notes, pin isolation, and preserved drafts.
 
 2. [ ] **P1 — Make filter semantics consistent**
 

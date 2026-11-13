@@ -24,7 +24,7 @@ const note: NoteInput = {
   title: "Finding",
   body: "Fare analysis",
   filters: { from: "2016-01-01", zip: "10001" },
-  pinned: false,
+  version: null,
 };
 const metadata = { from: "2016-01-01", to: "2016-12-31", trips: 10 };
 const overview = {
@@ -93,12 +93,26 @@ const fixture = () => {
                 calls.push(["save", input]);
                 const saved = {
                   ...input,
+                  version: (input.version ?? 0) + 1,
+                  pinned: false,
                   created_at: "2026-11-13",
                   updated_at: "2026-11-13",
                 };
                 notes = [saved];
                 return saved;
               }),
+            pin: (id, input) =>
+              record(
+                "pin",
+                { id, ...input },
+                {
+                  ...note,
+                  version: input.version + 1,
+                  pinned: input.pinned,
+                  created_at: "2026-11-13",
+                  updated_at: "2026-11-13",
+                },
+              ),
             remove: (id) =>
               Effect.sync(() => {
                 calls.push(["remove", id]);
@@ -180,13 +194,27 @@ test("generated client round-trips every endpoint through the real HTTP contract
       const saved = yield* client.saveNote({ payload: note });
       assert.deepEqual(saved, {
         ...note,
+        version: 1,
+        pinned: false,
         created_at: "2026-11-13",
         updated_at: "2026-11-13",
       });
       assert.deepEqual(yield* client.notes(), [saved]);
-      assert.deepEqual(yield* client.removeNote({ params: { id: note.id } }), {
-        deleted: true,
+      const pinned = yield* client.pinNote({
+        params: { id: note.id },
+        payload: { version: saved.version, pinned: true },
       });
+      assert.equal(pinned.pinned, true);
+      assert.equal(pinned.version, 2);
+      assert.deepEqual(
+        yield* client.removeNote({
+          params: { id: note.id },
+          query: { version: pinned.version },
+        }),
+        {
+          deleted: true,
+        },
+      );
       assert.deepEqual(yield* client.notes(), []);
     }),
   );
@@ -197,6 +225,7 @@ test("generated client round-trips every endpoint through the real HTTP contract
     ["poll", operation],
     ["result", operation],
     ["save", note],
+    ["pin", { id: note.id, version: 1, pinned: true }],
     ["remove", note.id],
   ]);
 });
@@ -211,6 +240,16 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
     ["/api/trips?sort=unsafe", undefined],
     ["/api/genie/bad%20id/messages/message", undefined],
     ["/api/notes/bad-id", { method: "DELETE" }],
+    [`/api/notes/${note.id}`, { method: "DELETE" }],
+    [`/api/notes/${note.id}?version=0`, { method: "DELETE" }],
+    [
+      `/api/notes/${note.id}/pin`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned: true }),
+      },
+    ],
     [
       "/api/genie",
       {
@@ -232,7 +271,7 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...note, pinned: "yes" }),
+        body: JSON.stringify({ ...note, version: 0 }),
       },
     ],
   ] as const) {
