@@ -133,3 +133,9 @@ export const Status = Schema.Struct({
   lakebase: Schema.Boolean,
   auth: Schema.String,
 });
+
+export const CurrentUser = Schema.Struct({
+  name: Schema.NonEmptyString,
+  email: Schema.NullOr(Schema.NonEmptyString),
+});
+export type CurrentUser = typeof CurrentUser.Type;

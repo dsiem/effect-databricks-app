@@ -14,6 +14,7 @@ import {
   AppApi,
   invalidRequestBody,
 } from "./api.js";
+import { makeCurrentUser } from "./current-user.js";
 import type { Filters } from "./domain.js";
 import { InvalidRequest, type ServiceError } from "./errors.js";
 import { Genie } from "./genie.js";
@@ -79,6 +80,7 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
     const genie = yield* Genie;
     const notebook = yield* Notebook;
     const settings = yield* Settings;
+    const currentUser = yield* makeCurrentUser;
     return handlers
       .handle("health", () => Effect.succeed({ status: "ok" as const }))
       .handle("status", () =>
@@ -91,6 +93,11 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
             ? "App service principal"
             : "Local development identity",
         }),
+      )
+      .handle("currentUser", () =>
+        Effect.flatMap(HttpServerRequest.HttpServerRequest, (request) =>
+          currentUser(request.headers),
+        ),
       )
       .handle("metadata", () => respond(analytics.metadata))
       .handle("overview", ({ query }) =>

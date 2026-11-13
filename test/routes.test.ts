@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ConfigProvider, Effect, Layer } from "effect";
+import { ConfigProvider, Effect, Layer, Redacted } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
 import { Analytics } from "../src/analytics.js";
 import {
@@ -15,6 +15,7 @@ import { Genie } from "../src/genie.js";
 import { Notebook } from "../src/notebook.js";
 import { Routes } from "../src/routes.js";
 import { Settings } from "../src/settings.js";
+import { Workspace } from "../src/workspace.js";
 
 const appFor = (
   effect: Effect.Effect<never, ServiceError>,
@@ -24,6 +25,10 @@ const appFor = (
     Routes.pipe(
       Layer.provide(
         Layer.mergeAll(
+          Layer.succeed(Workspace, {
+            accessToken: Effect.succeed(Redacted.make("unused")),
+            request: () => Effect.die("Unexpected workspace request"),
+          }),
           Layer.succeed(Analytics, {
             metadata: effect,
             overview: () => effect,
@@ -224,6 +229,32 @@ test("HTTP separates submission IDs from polling and result retrieval", async ()
       queries: [],
     });
     assert.deepEqual(calls, [{ content: "Count trips" }, operation, operation]);
+  } finally {
+    await app.dispose();
+  }
+});
+
+test("current-user endpoint returns only each viewer's name/email and prevents caching", async () => {
+  const app = appFor(Effect.fail(unavailable("unused", "Unused")));
+  try {
+    for (const name of ["Avery Morgan", "Sam Rivera"]) {
+      const response = await app.handler(
+        new Request("http://localhost/api/me", {
+          headers: {
+            "X-Forwarded-Preferred-Username": name,
+            "X-Forwarded-Email": "viewer@example.com",
+            "X-Forwarded-User": "opaque-id",
+            "X-Forwarded-Access-Token": "private-token",
+          },
+        }),
+      );
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.deepEqual(await response.json(), {
+        name,
+        email: "viewer@example.com",
+      });
+    }
   } finally {
     await app.dispose();
   }

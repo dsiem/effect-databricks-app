@@ -7,6 +7,7 @@ import {
   HttpApiSchema,
 } from "effect/http-api";
 import {
+  CurrentUser,
   Filters,
   GenieInput,
   GenieOperation,
@@ -80,6 +81,9 @@ export const AppApi = HttpApi.make("taxi").add(
         success: Schema.Struct({ status: Schema.Literal("ok") }),
       }),
       HttpApiEndpoint.get("status", "/api/status", { success: Status }),
+      HttpApiEndpoint.get("currentUser", "/api/me", {
+        success: Schema.NullOr(CurrentUser),
+      }),
       HttpApiEndpoint.get("metadata", "/api/metadata", { success: Metadata }),
       HttpApiEndpoint.get("overview", "/api/overview", {
         query: Filters,

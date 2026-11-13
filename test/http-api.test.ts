@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ConfigProvider, Effect, Layer, Schema } from "effect";
+import { ConfigProvider, Effect, Layer, Redacted, Schema } from "effect";
 import {
   FetchHttpClient,
   HttpClient,
@@ -16,6 +16,7 @@ import { Genie } from "../src/genie.js";
 import { Notebook } from "../src/notebook.js";
 import { Routes } from "../src/routes.js";
 import { Settings } from "../src/settings.js";
+import { Workspace } from "../src/workspace.js";
 
 const operation = { conversationId: "conversation-1", messageId: "message-1" };
 const note: NoteInput = {
@@ -52,6 +53,10 @@ const fixture = () => {
     Routes.pipe(
       Layer.provide(
         Layer.mergeAll(
+          Layer.succeed(Workspace, {
+            accessToken: Effect.succeed(Redacted.make("unused")),
+            request: () => Effect.die("Unexpected workspace request"),
+          }),
           Layer.succeed(Analytics, {
             metadata: Effect.succeed(metadata),
             overview: (input) => record("overview", input, overview),
@@ -136,6 +141,7 @@ test("generated client round-trips every endpoint through the real HTTP contract
         lakebase: false,
         auth: "Local development identity",
       });
+      assert.equal(yield* client.currentUser(), null);
       assert.deepEqual(yield* client.metadata(), metadata);
       assert.deepEqual(yield* client.overview({ query: filters }), overview);
       assert.deepEqual(
