@@ -12,10 +12,18 @@ export function useFilters() {
     Object.fromEntries(params),
   );
   const filters: Filters = parsed._tag === "Some" ? parsed.value : {};
-  const query = new URLSearchParams(Object.entries(filters)).toString();
+  // Keep invalid URLs visible across navigation until the user corrects them.
+  const query =
+    parsed._tag === "Some"
+      ? new URLSearchParams(Object.entries(filters)).toString()
+      : params.toString();
   return {
     filters,
     query,
+    filterError:
+      parsed._tag === "Some"
+        ? null
+        : "Check the dates and five-digit ZIP code. The start date must be on or before the end date.",
     setFilters: (next: Filters) =>
       setParams(
         Object.fromEntries(Object.entries(next).filter(([, value]) => value)),

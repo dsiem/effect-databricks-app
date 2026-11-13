@@ -121,9 +121,9 @@ test("Genie shows the actual view beside the composer and sends it with the ques
   page,
 }) => {
   const operation = { conversationId: "conversation", messageId: "message" };
-  let submitted = "";
+  let submitted: unknown;
   await page.route("**/api/genie", (route) => {
-    submitted = route.request().postDataJSON().content;
+    submitted = route.request().postDataJSON();
     return route.fulfill({ json: operation });
   });
   await page.route("**/api/genie/conversation/messages/message", (route) =>
@@ -164,7 +164,7 @@ test("Genie shows the actual view beside the composer and sends it with the ques
   await expect(
     page.getByText("Filtered trip count", { exact: true }),
   ).toBeVisible();
-  expect(submitted).toContain(JSON.stringify(filters));
+  expect(submitted).toEqual({ content: "Count trips", filters });
   await context.getByRole("link", { name: "Change in Explore" }).click();
   await expect(page).toHaveURL(`/trips?${query}`);
 });

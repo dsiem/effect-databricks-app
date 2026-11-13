@@ -5,6 +5,7 @@ export default defineConfig({
   testMatch: [
     "genie-recovery.spec.ts",
     "notebook-conflicts.spec.ts",
+    "filter-validation.spec.ts",
     "ui.spec.ts",
     "date-range.spec.ts",
     "explore-context.spec.ts",

@@ -11,11 +11,18 @@ export const Day = Schema.String.check(
       new Date(s).toISOString().slice(0, 10) === s,
   ),
 );
+const dateOrder = Schema.makeFilter(
+  (filters: { readonly from?: string; readonly to?: string }) =>
+    !filters.from ||
+    !filters.to ||
+    filters.from <= filters.to ||
+    "The start date must be on or before the end date.",
+);
 export const Filters = Schema.Struct({
   from: Schema.optionalKey(Day),
   to: Schema.optionalKey(Day),
   zip: Schema.optionalKey(Zip),
-});
+}).check(dateOrder);
 export type Filters = typeof Filters.Type;
 export const TripSearch = Schema.Struct({
   ...Filters.fields,
@@ -26,7 +33,7 @@ export const TripSearch = Schema.Struct({
     ),
   ),
   sort: Schema.optionalKey(Schema.Literals(["newest", "fare", "distance"])),
-});
+}).check(dateOrder);
 export type TripSearch = typeof TripSearch.Type;
 
 export const Summary = Schema.Struct({
@@ -106,6 +113,7 @@ export const Notes = Schema.Array(Note);
 const GenieId = Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9-]{1,100}$/));
 export const GenieInput = Schema.Struct({
   content: boundedText(4000),
+  filters: Schema.optionalKey(Filters),
   conversationId: Schema.optionalKey(GenieId),
 });
 export const GenieOperation = Schema.Struct({

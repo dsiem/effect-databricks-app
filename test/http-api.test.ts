@@ -235,6 +235,34 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
   t.after(app.dispose);
   for (const [path, init] of [
     ["/api/overview?zip=invalid", undefined],
+    ["/api/overview?from=2016-02-01&to=2016-01-01", undefined],
+    ["/api/trips?from=2016-02-01&to=2016-01-01", undefined],
+    [
+      "/api/notes",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...note,
+          filters: { from: "2016-02-01", to: "2016-01-01" },
+        }),
+      },
+    ],
+    ...[
+      { from: "2016-02-01", to: "2016-01-01" },
+      { zip: "bad" },
+      { to: "2016-02-30" },
+    ].map(
+      (filters) =>
+        [
+          "/api/genie",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: "Count", filters }),
+          },
+        ] as const,
+    ),
     ["/api/overview?from=2016-02-31", undefined],
     ["/api/trips?page=0", undefined],
     ["/api/trips?sort=unsafe", undefined],
@@ -290,12 +318,36 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
   assert.deepEqual(calls, []);
 });
 
-test("generated client decodes declared validation errors and the UI exposes their message", async (t) => {
-  const { app, client } = fixture();
+test("generated client rejects reversed dates before sending a request", async (t) => {
+  const { app, client, calls } = fixture();
   t.after(app.dispose);
-  const request = client.overview({
-    query: { from: "2016-02-01", to: "2016-01-01" },
-  });
+  const result = await Effect.runPromise(
+    Effect.result(
+      client.overview({
+        query: { from: "2016-02-01", to: "2016-01-01" },
+      }),
+    ),
+  );
+  assert.ok(result._tag === "Failure" && Schema.isSchemaError(result.failure));
+  assert.deepEqual(calls, []);
+});
+
+test("generated client decodes declared server validation errors and the UI exposes their message", async (t) => {
+  const { app } = fixture();
+  t.after(app.dispose);
+  const response = await app.handler(
+    new Request("http://localhost/api/overview?from=2016-02-01&to=2016-01-01"),
+  );
+  assert.equal(response.status, 400);
+  const client = Effect.runSync(
+    HttpApiClient.make(AppApi, { baseUrl: "http://localhost" }).pipe(
+      Effect.provide(FetchHttpClient.layer),
+      Effect.provideService(FetchHttpClient.Fetch, async () =>
+        response.clone(),
+      ),
+    ),
+  ).app;
+  const request = client.overview({ query: {} });
   const result = await Effect.runPromise(Effect.result(request));
   assert.equal(result._tag, "Failure");
   if (result._tag === "Failure")

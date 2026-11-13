@@ -19,12 +19,18 @@ behavioral tests for each implementation task's completion criteria.
    version to existing notes. Offline PostgreSQL and browser tests cover
    concurrent editors, deleted notes, pin isolation, and preserved drafts.
 
-2. [ ] **P1 — Make filter semantics consistent**
+2. [x] **P1 — Make filter semantics consistent**
 
    Enforce date ordering in the shared domain schema, including saved notes.
    Invalid URL filters must produce visible validation errors rather than an
    unfiltered query. Accept structured filters in Genie requests and assemble
    prompt context server-side.
+
+   Shared date ordering now validates analytics queries, notebook inputs and
+   saved notes, and structured Genie filters. Invalid URL filters visibly block
+   page queries until corrected or cleared. Genie assembles inclusive date/ZIP
+   context on the server for every question, including unfiltered follow-ups.
+   Domain, HTTP, service, and browser tests cover these invariants.
 
 3. [x] **P1 — Make Genie operations recoverable**
 

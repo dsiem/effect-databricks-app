@@ -44,7 +44,7 @@ export default function AskGenie() {
     genieSnapshot,
   );
   const [draft, setDraft] = useState("");
-  const { filters, query } = useFilters();
+  const { filters } = useFilters();
   const status = useStatus();
   const bottom = useRef<HTMLDivElement>(null);
   const busy = turns.some((turn) =>
@@ -133,13 +133,11 @@ export default function AskGenie() {
     const previousConversation = conversationId();
     saveTurns([...turns, { id, question: content, state: "submitting" }]);
     setDraft("");
-    const context = query
-      ? `\n\nApply these filters to tpep_pickup_datetime and pickup_zip: ${JSON.stringify(filters)}. The to date is inclusive.`
-      : "";
     void api(
       apiClient.submitGenie({
         payload: {
-          content: content + context,
+          content,
+          filters,
           ...(previousConversation
             ? { conversationId: previousConversation }
             : {}),

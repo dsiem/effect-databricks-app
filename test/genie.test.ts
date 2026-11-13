@@ -273,3 +273,95 @@ test("accepted submission IDs and status polling do not depend on result attachm
   const error = Cause.findErrorOption(result.downloaded.cause);
   assert.ok(error._tag === "Some" && error.value._tag === "UpstreamError");
 });
+
+test("Genie builds structured filter context server-side for initial and follow-up questions", async () => {
+  const requests: { path: string; body: unknown }[] = [];
+  const filters = { from: "2016-01-10", to: "2016-01-20", zip: "10001" };
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const genie = yield* Genie;
+      yield* genie.submit({ content: "Count trips", filters });
+      yield* genie.submit({
+        content: "Count all trips",
+        conversationId: "conversation",
+        filters: {},
+      });
+      yield* genie.submit({
+        content: "One day",
+        conversationId: "conversation",
+        filters: { from: "2016-01-10", to: "2016-01-10" },
+      });
+      yield* genie.submit({
+        content: "From this date",
+        filters: { from: "2016-01-10" },
+      });
+      yield* genie.submit({
+        content: "Through this date",
+        filters: { to: "2016-01-20" },
+      });
+    }).pipe(
+      Effect.provide(
+        Genie.layer.pipe(
+          Layer.provide(
+            Layer.succeed(Workspace, {
+              accessToken: Effect.succeed(Redacted.make("unused")),
+              request: (path, _method, body) =>
+                Effect.sync(() => {
+                  requests.push({ path, body });
+                  return path.endsWith("start-conversation")
+                    ? {
+                        conversation_id: "conversation",
+                        message: { message_id: "message" },
+                      }
+                    : {
+                        conversation_id: "conversation",
+                        message_id: "message",
+                      };
+                }),
+            }),
+          ),
+          Layer.provide(Settings.layer),
+        ),
+      ),
+      Effect.provideService(
+        ConfigProvider.ConfigProvider,
+        ConfigProvider.fromEnvRecord({ GENIE_SPACE_ID: "space" }),
+      ),
+    ),
+  );
+  assert.equal(requests.length, 5);
+  const first = requests[0];
+  assert.ok(
+    first?.body && typeof first.body === "object" && "content" in first.body,
+  );
+  assert.equal(first.path.endsWith("start-conversation"), true);
+  assert.equal(typeof first.body.content, "string");
+  const content = String(first.body.content);
+  assert.ok(content.startsWith("Count trips\n"));
+  assert.ok(content.includes(JSON.stringify(filters)));
+  assert.match(content, /tpep_pickup_datetime/);
+  assert.match(content, /pickup_zip/);
+  assert.match(content, /to includes the entire day/);
+  assert.match(content, /Omitted bounds or ZIP mean unrestricted/);
+  const followup = requests[1];
+  assert.ok(
+    followup?.body &&
+      typeof followup.body === "object" &&
+      "content" in followup.body,
+  );
+  assert.ok(followup.path.endsWith("/conversations/conversation/messages"));
+  assert.match(String(followup.body.content), /\n\{\}\n/);
+  assert.match(
+    String(followup.body.content),
+    /instead of inheriting earlier Explore filters/,
+  );
+  for (const [index, filters] of [
+    [2, { from: "2016-01-10", to: "2016-01-10" }],
+    [3, { from: "2016-01-10" }],
+    [4, { to: "2016-01-20" }],
+  ] as const) {
+    const body = requests[index]?.body;
+    assert.ok(body && typeof body === "object" && "content" in body);
+    assert.ok(String(body.content).includes(JSON.stringify(filters)));
+  }
+});

@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { useFilters, useMetadata } from "./api";
 import { AppSidebar, navigation } from "./components/app-sidebar";
 import { DateRangeFilter } from "./components/date-range-filter";
-import { Button, Input } from "./components/ui";
+import { Button, Card, Input } from "./components/ui";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -64,7 +64,7 @@ function WorkspaceHeader() {
 
 export function Layout() {
   const location = useLocation();
-  const { filters, query, setFilters } = useFilters();
+  const { filters, query, filterError, setFilters } = useFilters();
   const metadata = useMetadata();
   return (
     <SidebarProvider
@@ -149,7 +149,21 @@ export function Layout() {
                 </div>
               </form>
             )}
-          <Outlet />
+          {filterError ? (
+            <Card role="alert" className="gap-3 p-8">
+              <h1 className="text-lg font-semibold">Invalid Explore filters</h1>
+              <p className="text-sm text-muted-foreground">{filterError}</p>
+              <Button
+                className="w-fit"
+                variant="outline"
+                onClick={() => setFilters({})}
+              >
+                Clear invalid filters
+              </Button>
+            </Card>
+          ) : (
+            <Outlet />
+          )}
         </div>
       </SidebarInset>
     </SidebarProvider>

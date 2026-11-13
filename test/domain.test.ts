@@ -6,6 +6,7 @@ import {
   Day,
   Filters,
   GenieInput,
+  Note,
   NoteInput,
   TripSearch,
 } from "../src/domain.js";
@@ -73,4 +74,52 @@ test("bundled map boundaries have unique ZIP memberships, avoiding double-counte
       memberships.add(zip);
     }
   }
+});
+
+test("date order is shared by analytics, trips, saved notes, and Genie requests", () => {
+  const note = {
+    id: "f9ca0a62-e2bc-4bc6-b27a-8c37cdd7d784",
+    title: "Finding",
+    body: "",
+    version: null,
+  };
+  for (const filters of [
+    {},
+    { from: "2016-01-10" },
+    { to: "2016-01-10" },
+    { from: "2016-01-10", to: "2016-01-10" },
+    { from: "2016-01-10", to: "2016-01-20", zip: "10001" },
+  ]) {
+    assert.deepEqual(Schema.decodeUnknownSync(Filters)(filters), filters);
+    assert.deepEqual(Schema.decodeUnknownSync(TripSearch)(filters), filters);
+    assert.deepEqual(
+      Schema.decodeUnknownSync(NoteInput)({ ...note, filters }).filters,
+      filters,
+    );
+    assert.deepEqual(
+      Schema.decodeUnknownSync(GenieInput)({ content: "Count", filters })
+        .filters,
+      filters,
+    );
+  }
+  const reversed = { from: "2016-01-20", to: "2016-01-10" };
+  assert.throws(() => Schema.decodeUnknownSync(Filters)(reversed));
+  assert.throws(() => Schema.decodeUnknownSync(TripSearch)(reversed));
+  assert.throws(() =>
+    Schema.decodeUnknownSync(NoteInput)({ ...note, filters: reversed }),
+  );
+  assert.throws(() =>
+    Schema.decodeUnknownSync(Note)({
+      ...note,
+      version: 1,
+      pinned: false,
+      filters: reversed,
+      created_at: "2026-11-13",
+      updated_at: "2026-11-13",
+    }),
+  );
+  for (const filters of [reversed, { zip: "bad" }, { from: "2016-02-30" }])
+    assert.throws(() =>
+      Schema.decodeUnknownSync(GenieInput)({ content: "Count", filters }),
+    );
 });

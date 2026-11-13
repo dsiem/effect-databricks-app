@@ -15,8 +15,7 @@ import {
   invalidRequestBody,
 } from "./api.js";
 import { makeCurrentUser } from "./current-user.js";
-import type { Filters } from "./domain.js";
-import { InvalidRequest, type ServiceError } from "./errors.js";
+import type { ServiceError } from "./errors.js";
 import { Genie } from "./genie.js";
 import { Notebook } from "./notebook.js";
 import { Settings } from "./settings.js";
@@ -45,12 +44,6 @@ const respond = <A, R>(effect: Effect.Effect<A, ServiceError, R>) =>
     Effect.tapCause((cause) => Effect.logError("API operation failed", cause)),
     Effect.mapError(toApiError),
   );
-const validateDates = (filters: Filters) =>
-  filters.from && filters.to && filters.from > filters.to
-    ? Effect.fail(
-        new InvalidRequest({ message: invalidRequestBody().error.message }),
-      )
-    : Effect.void;
 
 const BoundaryLive = Layer.succeed(ApiBoundary, (effect) =>
   Effect.gen(function* () {
@@ -109,16 +102,8 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
         ),
       )
       .handle("metadata", () => respond(analytics.metadata))
-      .handle("overview", ({ query }) =>
-        respond(
-          validateDates(query).pipe(Effect.andThen(analytics.overview(query))),
-        ),
-      )
-      .handle("trips", ({ query }) =>
-        respond(
-          validateDates(query).pipe(Effect.andThen(analytics.trips(query))),
-        ),
-      )
+      .handle("overview", ({ query }) => respond(analytics.overview(query)))
+      .handle("trips", ({ query }) => respond(analytics.trips(query)))
       .handle("submitGenie", ({ payload }) => respond(genie.submit(payload)))
       .handle("pollGenie", ({ params }) => respond(genie.poll(params)))
       .handle("genieResult", ({ params }) => respond(genie.result(params)))

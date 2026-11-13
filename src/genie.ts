@@ -18,6 +18,9 @@ import {
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
 
+const prompt = (input: typeof GenieInput.Type) =>
+  `${input.content}\n\nExplore filter context for this question on samples.nyctaxi.trips:\n${JSON.stringify(input.filters ?? {})}\nApply from and to to tpep_pickup_datetime: from is inclusive; to includes the entire day (before midnight of the next day). Apply zip to pickup_zip. Omitted bounds or ZIP mean unrestricted. Use this context for this question instead of inheriting earlier Explore filters.`;
+
 const SubmittedMessage = Schema.Struct({
   message_id: GenieOperation.fields.messageId,
   conversation_id: GenieOperation.fields.conversationId,
@@ -150,7 +153,7 @@ export class Genie extends Context.Service<
               .request(
                 `${space}/conversations/${encodeURIComponent(input.conversationId)}/messages`,
                 "POST",
-                { content: input.content },
+                { content: prompt(input) },
               )
               .pipe(Effect.flatMap((data) => decode(SubmittedMessage, data)));
             return {
@@ -160,7 +163,7 @@ export class Genie extends Context.Service<
           }
           const started = yield* workspace
             .request(`${space}/start-conversation`, "POST", {
-              content: input.content,
+              content: prompt(input),
             })
             .pipe(Effect.flatMap((data) => decode(Started, data)));
           return {
