@@ -8,8 +8,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Markdown from "react-markdown";
-import { GenieOperation, GenieProgress, GenieReply } from "../../../src/domain";
-import { api, useFilters, useStatus } from "../api";
+import { api, apiClient, useFilters, useStatus } from "../api";
 import { ErrorState, PageTitle } from "../components/common";
 import { Badge, Button, Card, Textarea } from "../components/ui";
 
@@ -51,16 +50,13 @@ export default function AskGenie() {
     const { operation, id } = active;
     let stage: "waiting" | "retrieving" =
       active.state === "retrieving" ? "retrieving" : "waiting";
-    const path = `/api/genie/${encodeURIComponent(operation.conversationId)}/messages/${encodeURIComponent(operation.messageId)}`;
     void (async () => {
       try {
         if (stage === "waiting") {
           const deadline = Date.now() + 180_000;
           while (true) {
             const progress = await api(
-              path,
-              GenieProgress,
-              {},
+              apiClient.pollGenie({ params: operation }),
               controller.signal,
             );
             if (progress.state === "failed") {
@@ -91,9 +87,7 @@ export default function AskGenie() {
           }));
         }
         const reply = await api(
-          `${path}/result`,
-          GenieReply,
-          {},
+          apiClient.genieResult({ params: operation }),
           controller.signal,
         );
         updateTurn(id, (turn) => ({
@@ -130,15 +124,16 @@ export default function AskGenie() {
     const context = query
       ? `\n\nApply these filters to tpep_pickup_datetime and pickup_zip: ${JSON.stringify(filters)}. The to date is inclusive.`
       : "";
-    void api("/api/genie", GenieOperation, {
-      method: "POST",
-      body: JSON.stringify({
-        content: content + context,
-        ...(previousConversation
-          ? { conversationId: previousConversation }
-          : {}),
+    void api(
+      apiClient.submitGenie({
+        payload: {
+          content: content + context,
+          ...(previousConversation
+            ? { conversationId: previousConversation }
+            : {}),
+        },
       }),
-    }).then(
+    ).then(
       (operation) =>
         updateTurn(id, (turn) => ({
           id,

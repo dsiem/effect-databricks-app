@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Schema } from "effect";
 import {
   BookOpen,
   CalendarDays,
@@ -12,8 +11,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Note, type NoteInput, Notes } from "../../../src/domain";
-import { api, useFilters } from "../api";
+import type { Note, NoteInput } from "../../../src/domain";
+import { api, apiClient, useFilters } from "../api";
 import { ErrorState, Loading, PageTitle } from "../components/common";
 import { Badge, Button, Card, Dialog, Input, Textarea } from "../components/ui";
 export default function Notebook() {
@@ -22,24 +21,20 @@ export default function Notebook() {
   const navigate = useNavigate();
   const notes = useQuery({
     queryKey: ["notes"],
-    queryFn: ({ signal }) => api("/api/notes", Notes, {}, signal),
+    queryFn: ({ signal }) => api(apiClient.notes(), signal),
     staleTime: 0,
   });
   const [editing, setEditing] = useState<NoteInput | null>(null);
   const [deleting, setDeleting] = useState<Note | null>(null);
   const save = useMutation({
-    mutationFn: (note: NoteInput) =>
-      api("/api/notes", Note, { method: "PUT", body: JSON.stringify(note) }),
+    mutationFn: (note: NoteInput) => api(apiClient.saveNote({ payload: note })),
     onSuccess: () => {
       setEditing(null);
       void client.invalidateQueries({ queryKey: ["notes"] });
     },
   });
   const remove = useMutation({
-    mutationFn: (id: string) =>
-      api(`/api/notes/${id}`, Schema.Struct({ deleted: Schema.Boolean }), {
-        method: "DELETE",
-      }),
+    mutationFn: (id: string) => api(apiClient.removeNote({ params: { id } })),
     onSuccess: () => {
       setDeleting(null);
       void client.invalidateQueries({ queryKey: ["notes"] });

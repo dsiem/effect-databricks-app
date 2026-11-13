@@ -72,11 +72,16 @@ behavioral tests for each implementation task's completion criteria.
    and result provenance. Let users preserve a Genie finding in the notebook and
    reopen its analysis context.
 
-10. [ ] **P3 — Unify the HTTP contract**
+10. [x] **P3 — Unify the HTTP contract**
 
     Declare endpoints, inputs, outputs, and errors with `HttpApi`, and derive the
     client with `HttpApiClient`. Remove duplicated route and client definitions
     as endpoints migrate.
+
+    All JSON endpoints, including health, now share `src/api.ts`. The server
+    uses `HttpApiBuilder` and every browser API call uses `HttpApiClient`.
+    Contract tests round-trip every endpoint, reject invalid inputs and outputs,
+    and verify declared error decoding and cancellation during response reads.
 
 11. [ ] **P3 — Consolidate outgoing HTTP transport**
 

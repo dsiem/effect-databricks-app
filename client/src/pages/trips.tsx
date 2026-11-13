@@ -1,26 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Download, MapPin } from "lucide-react";
 import { useState } from "react";
-import { Trips } from "../../../src/domain";
-import { api, money, number, useFilters } from "../api";
+import type { TripSearch } from "../../../src/domain";
+import { api, apiClient, money, number, useFilters } from "../api";
 import { ErrorState, Loading, PageTitle } from "../components/common";
 import { Badge, Button, Card } from "../components/ui";
 export default function TripExplorer() {
-  const { query } = useFilters();
-  return <TripTable key={query} filterQuery={query} />;
+  const { filters, query } = useFilters();
+  return <TripTable key={query} filters={filters} filterQuery={query} />;
 }
-function TripTable({ filterQuery }: { filterQuery: string }) {
+function TripTable({
+  filters,
+  filterQuery,
+}: {
+  filters: TripSearch;
+  filterQuery: string;
+}) {
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState("newest");
+  const [sort, setSort] = useState<NonNullable<TripSearch["sort"]>>("newest");
   const trips = useQuery({
     queryKey: ["trips", filterQuery, page, sort],
     queryFn: ({ signal }) =>
-      api(
-        `/api/trips?${filterQuery}&page=${page}&sort=${sort}`,
-        Trips,
-        {},
-        signal,
-      ),
+      api(apiClient.trips({ query: { ...filters, page, sort } }), signal),
     staleTime: 60_000,
   });
   const exportCsv = () => {
@@ -84,7 +85,13 @@ function TripTable({ filterQuery }: { filterQuery: string }) {
                 aria-label="Sort trips"
                 value={sort}
                 onChange={(e) => {
-                  setSort(e.target.value);
+                  const value = e.target.value;
+                  if (
+                    value === "newest" ||
+                    value === "fare" ||
+                    value === "distance"
+                  )
+                    setSort(value);
                   setPage(1);
                 }}
                 className="h-8 rounded-md border bg-card px-2 text-xs text-foreground"

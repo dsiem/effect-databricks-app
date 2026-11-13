@@ -1,174 +1,125 @@
 import { resolve, sep } from "node:path";
-import { Effect, Schema } from "effect";
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
+import { Effect, Layer, type Types } from "effect";
+import {
+  HttpEffect,
+  HttpRouter,
+  HttpServerRequest,
+  HttpServerResponse,
+} from "effect/http";
+import { HttpApiBuilder, HttpApiError } from "effect/http-api";
 import { Analytics } from "./analytics.js";
 import {
-  Filters,
-  GenieInput,
-  GenieOperation,
-  NoteInput,
-  TripSearch,
-} from "./domain.js";
+  ApiBoundary,
+  type ApiError,
+  AppApi,
+  invalidRequestBody,
+} from "./api.js";
+import type { Filters } from "./domain.js";
 import { InvalidRequest, type ServiceError } from "./errors.js";
 import { Genie } from "./genie.js";
 import { Notebook } from "./notebook.js";
 import { Settings } from "./settings.js";
 
-const badRequest = (cause?: unknown) =>
-  new InvalidRequest({
-    message: "Check the request fields, dates, and ZIP code.",
-    cause,
-  });
-const httpError = (error: ServiceError) => {
+const toApiError = (error: ServiceError): typeof ApiError.Type => {
+  const message = error.message;
   switch (error._tag) {
     case "InvalidRequest":
-      return { status: 400, code: "invalid_request" };
+      return { error: { code: "invalid_request", message } };
     case "NoteNotFound":
-      return { status: 404, code: "note_not_found" };
+      return { error: { code: "note_not_found", message } };
     case "ServiceUnavailable":
-      return { status: 503, code: `${error.service}_unavailable` };
+      return { error: { code: `${error.service}_unavailable`, message } };
     case "UpstreamError":
-      return { status: 502, code: `${error.service}_request_failed` };
+      return { error: { code: `${error.service}_request_failed`, message } };
     case "OperationTimeout":
-      return { status: 504, code: `${error.service}_timeout` };
+      return { error: { code: `${error.service}_timeout`, message } };
     case "GenieFailed":
-      return { status: 409, code: "genie_message_unavailable" };
+      return { error: { code: "genie_message_unavailable", message } };
   }
 };
 const respond = <A, R>(effect: Effect.Effect<A, ServiceError, R>) =>
   effect.pipe(
     Effect.tapCause((cause) => Effect.logError("API operation failed", cause)),
-    Effect.map((data) =>
-      HttpServerResponse.jsonUnsafe(data, {
-        headers: { "Cache-Control": "no-store" },
-      }),
-    ),
-    Effect.catch((error) =>
-      Effect.succeed(
-        HttpServerResponse.jsonUnsafe(
-          { error: { code: httpError(error).code, message: error.message } },
-          {
-            status: httpError(error).status,
-            headers: { "Cache-Control": "no-store" },
-          },
-        ),
-      ),
-    ),
+    Effect.mapError(toApiError),
   );
-const readFilters = HttpRouter.schemaParams(Filters).pipe(
-  Effect.mapError(badRequest),
-  Effect.flatMap((filters) =>
-    filters.from && filters.to && filters.from > filters.to
-      ? Effect.fail(badRequest())
-      : Effect.succeed(filters),
-  ),
+const validateDates = (filters: Filters) =>
+  filters.from && filters.to && filters.from > filters.to
+    ? Effect.fail(
+        new InvalidRequest({ message: invalidRequestBody().error.message }),
+      )
+    : Effect.void;
+
+const BoundaryLive = Layer.succeed(ApiBoundary, (effect) =>
+  Effect.gen(function* () {
+    yield* HttpEffect.appendPreResponseHandler((_request, response) =>
+      Effect.succeed(
+        HttpServerResponse.setHeader(response, "Cache-Control", "no-store"),
+      ),
+    );
+    return yield* effect.pipe(
+      Effect.catch(
+        (
+          error,
+        ): Effect.Effect<never, Types.unhandled | typeof ApiError.Type> => {
+          if (!HttpApiError.HttpApiSchemaError.is(error))
+            return Effect.fail(error);
+          // Invalid service output is a defect, never a client validation error.
+          return ["Params", "Query", "Headers", "Payload"].includes(error.kind)
+            ? Effect.fail(invalidRequestBody())
+            : Effect.die(error);
+        },
+      ),
+    );
+  }),
 );
 
-export const Routes = HttpRouter.use((router) =>
+const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
   Effect.gen(function* () {
     const analytics = yield* Analytics;
     const genie = yield* Genie;
     const notebook = yield* Notebook;
     const settings = yield* Settings;
-    yield* router.add(
-      "GET",
-      "/health",
-      HttpServerResponse.jsonUnsafe({ status: "ok" }),
-    );
-    yield* router.add(
-      "GET",
-      "/api/status",
-      HttpServerResponse.jsonUnsafe({
-        dataset: "samples.nyctaxi.trips",
-        warehouse: !!settings.warehouseId,
-        genie: !!settings.genieSpaceId,
-        lakebase: !!(settings.pgHost || settings.lakebaseEndpoint),
-        auth: settings.clientId
-          ? "App service principal"
-          : "Local development identity",
-      }),
-    );
-    yield* router.add("GET", "/api/metadata", respond(analytics.metadata));
-    yield* router.add(
-      "GET",
-      "/api/overview",
-      respond(Effect.flatMap(readFilters, analytics.overview)),
-    );
-    yield* router.add(
-      "GET",
-      "/api/trips",
-      respond(
-        Effect.gen(function* () {
-          yield* readFilters;
-          const search = yield* HttpRouter.schemaParams(TripSearch).pipe(
-            Effect.mapError(badRequest),
-          );
-          return yield* analytics.trips(search);
+    return handlers
+      .handle("health", () => Effect.succeed({ status: "ok" as const }))
+      .handle("status", () =>
+        Effect.succeed({
+          dataset: "samples.nyctaxi.trips",
+          warehouse: !!settings.warehouseId,
+          genie: !!settings.genieSpaceId,
+          lakebase: !!(settings.pgHost || settings.lakebaseEndpoint),
+          auth: settings.clientId
+            ? "App service principal"
+            : "Local development identity",
         }),
-      ),
-    );
-    yield* router.add(
-      "POST",
-      "/api/genie",
-      respond(
-        Effect.flatMap(
-          HttpServerRequest.schemaBodyJson(GenieInput).pipe(
-            Effect.mapError(badRequest),
-          ),
-          genie.submit,
+      )
+      .handle("metadata", () => respond(analytics.metadata))
+      .handle("overview", ({ query }) =>
+        respond(
+          validateDates(query).pipe(Effect.andThen(analytics.overview(query))),
         ),
-      ),
-    );
-    yield* router.add(
-      "GET",
-      "/api/genie/:conversationId/messages/:messageId",
-      respond(
-        Effect.flatMap(
-          HttpRouter.schemaParams(GenieOperation).pipe(
-            Effect.mapError(badRequest),
-          ),
-          genie.poll,
+      )
+      .handle("trips", ({ query }) =>
+        respond(
+          validateDates(query).pipe(Effect.andThen(analytics.trips(query))),
         ),
-      ),
-    );
-    yield* router.add(
-      "GET",
-      "/api/genie/:conversationId/messages/:messageId/result",
-      respond(
-        Effect.flatMap(
-          HttpRouter.schemaParams(GenieOperation).pipe(
-            Effect.mapError(badRequest),
-          ),
-          genie.result,
+      )
+      .handle("submitGenie", ({ payload }) => respond(genie.submit(payload)))
+      .handle("pollGenie", ({ params }) => respond(genie.poll(params)))
+      .handle("genieResult", ({ params }) => respond(genie.result(params)))
+      .handle("notes", () => respond(notebook.list))
+      .handle("saveNote", ({ payload }) => respond(notebook.save(payload)))
+      .handle("removeNote", ({ params }) =>
+        respond(
+          notebook
+            .remove(params.id)
+            .pipe(Effect.as({ deleted: true as const })),
         ),
-      ),
-    );
-    yield* router.add("GET", "/api/notes", respond(notebook.list));
-    yield* router.add(
-      "PUT",
-      "/api/notes",
-      respond(
-        Effect.flatMap(
-          HttpServerRequest.schemaBodyJson(NoteInput).pipe(
-            Effect.mapError(badRequest),
-          ),
-          notebook.save,
-        ),
-      ),
-    );
-    yield* router.add(
-      "DELETE",
-      "/api/notes/:id",
-      respond(
-        Effect.gen(function* () {
-          const { id } = yield* HttpRouter.schemaParams(
-            Schema.Struct({ id: NoteInput.fields.id }),
-          ).pipe(Effect.mapError(badRequest));
-          yield* notebook.remove(id);
-          return { deleted: true };
-        }),
-      ),
-    );
+      );
+  }),
+).pipe(Layer.provide(BoundaryLive));
+
+const StaticRoutes = HttpRouter.use((router) =>
+  Effect.gen(function* () {
     const webRoot = resolve("client/dist");
     const serveFile = (path: string) =>
       HttpServerResponse.file(path).pipe(
@@ -204,4 +155,9 @@ export const Routes = HttpRouter.use((router) =>
       yield* router.add("GET", path, serveFile(resolve(webRoot, "index.html")));
     }
   }),
+);
+
+export const Routes = Layer.merge(
+  HttpApiBuilder.layer(AppApi).pipe(Layer.provide(ApiLive)),
+  StaticRoutes,
 );
