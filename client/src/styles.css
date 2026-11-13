@@ -1,0 +1,83 @@
+@import "tailwindcss";
+@theme inline {
+  --color-background: #f6f7f4;
+  --color-foreground: #20312e;
+  --color-card: #ffffff;
+  --color-card-foreground: #20312e;
+  --color-primary: #1d5547;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5d764;
+  --color-secondary-foreground: #26352e;
+  --color-muted: #f0f3ef;
+  --color-muted-foreground: #78817c;
+  --color-border: #e3e8e1;
+  --color-input: #dce3da;
+  --color-ring: #337a65;
+  --color-destructive: #b44e42;
+  --font-sans:
+    "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    margin: 0;
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:not(:disabled),
+  select {
+    cursor: pointer;
+  }
+  ::selection {
+    background: #f4dc83;
+  }
+}
+.recharts-cartesian-axis-tick-value {
+  fill: #8a938c;
+  font-size: 10px;
+}
+.recharts-tooltip-wrapper {
+  outline: none;
+}
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: #e8eee7;
+  z-index: 0;
+  font-family: inherit;
+}
+.map-panel .leaflet-control-attribution {
+  font-size: 9px;
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.page-enter {
+  animation: enter 0.3s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms;
+    transition-duration: 0.01ms;
+  }
+}

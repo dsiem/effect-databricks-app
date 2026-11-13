@@ -38,6 +38,11 @@ for (const protocol of ["http1", "http2"]) {
       DATABRICKS_APP_PORT: "0",
       APP_HTTP_PROTOCOL: protocol,
       NO_COLOR: "1",
+      DATABRICKS_HOST: "",
+      DATABRICKS_WAREHOUSE_ID: "",
+      GENIE_SPACE_ID: "",
+      PGHOST: "",
+      LAKEBASE_ENDPOINT: "",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -72,7 +77,23 @@ for (const protocol of ["http1", "http2"]) {
     assert.deepEqual(JSON.parse(health.body), { status: "ok" });
     const root = await request("/");
     assert.equal(root.status, 200);
-    assert.equal(JSON.parse(root.body).name, "databricks-effect-app");
+    assert.match(root.body, /Metrocab/);
+    const asset = root.body.match(/src="([^"]+\.js)"/);
+    assert.ok(asset, "Built HTML references its JavaScript bundle");
+    assert.equal((await request(asset[1])).status, 200);
+    for (const path of ["/trips", "/map", "/genie", "/notebook"]) {
+      assert.equal((await request(path)).status, 200);
+    }
+    assert.equal((await request("/nyc-zips.geojson")).status, 200);
+    assert.equal((await request("/api/metadata")).status, 503);
+    assert.equal((await request("/api/overview?zip=invalid")).status, 400);
+    assert.equal((await request("/api/overview?from=2026-02-31")).status, 400);
+    assert.equal(
+      (await request("/api/overview?from=2026-03-01&to=2026-01-01")).status,
+      400,
+    );
+    assert.equal((await request("/api/trips?page=0")).status, 400);
+    assert.equal((await request("/api/trips?sort=unsafe")).status, 400);
     assert.equal((await request("/missing")).status, 404);
 
     app.kill("SIGTERM");

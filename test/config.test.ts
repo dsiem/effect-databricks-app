@@ -40,3 +40,30 @@ for (const port of ["-1", "65536", "1.5", "invalid"]) {
 test("rejects unsupported protocols", async () => {
   await assert.rejects(readConfig({ APP_HTTP_PROTOCOL: "https" }));
 });
+
+test("accepts a platform workspace hostname as well as a full URL", async () => {
+  const { Settings } = await import("../src/settings.js");
+  const { Layer } = await import("effect");
+  for (const host of [
+    "workspace.cloud.databricks.com",
+    "https://workspace.cloud.databricks.com",
+  ]) {
+    const value = await Effect.runPromise(
+      Effect.gen(function* () {
+        return (yield* Settings).host;
+      }).pipe(
+        Effect.provide(
+          Settings.layer.pipe(
+            Layer.provide(
+              Layer.succeed(
+                ConfigProvider.ConfigProvider,
+                ConfigProvider.fromEnvRecord({ DATABRICKS_HOST: host }),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    assert.equal(value, "https://workspace.cloud.databricks.com");
+  }
+});
