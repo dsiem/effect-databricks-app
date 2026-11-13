@@ -23,7 +23,7 @@ createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={client}>
       <BrowserRouter>
-        <Suspense fallback={<Loading text="Opening Metrocab…" />}>
+        <Suspense fallback={<Loading text="Loading…" />}>
           <Routes>
             <Route element={<Layout />}>
               <Route index element={<Overview />} />

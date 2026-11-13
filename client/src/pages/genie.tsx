@@ -191,7 +191,7 @@ export default function AskGenie() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-6 py-4">
             <span className="flex items-center gap-2 text-xs font-medium">
               <Sparkles className="size-4 text-primary" />
-              Metrocab Genie
+              Ask Genie
             </span>
             <Badge className="bg-[#edf3e8] text-primary">
               samples.nyctaxi.trips

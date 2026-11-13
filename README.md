@@ -1,4 +1,4 @@
-# Metrocab — a Databricks app composed with Effect
+# Databricks Apps + Effect
 
 A working NYC taxi analytics workspace with React, Tailwind CSS 4, shadcn/ui and
 Radix UI components, Recharts, and Leaflet. The data is the real

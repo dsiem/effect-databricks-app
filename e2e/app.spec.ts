@@ -25,9 +25,7 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
   });
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export this page" }).click();
-  expect((await download).suggestedFilename()).toBe(
-    "metrocab-trips-page-2.csv",
-  );
+  expect((await download).suggestedFilename()).toBe("taxi-trips-page-2.csv");
   await page.getByRole("link", { name: "Pickup map", exact: true }).click();
   await expect(page.locator(".leaflet-overlay-pane path").first()).toBeVisible({
     timeout: 120_000,

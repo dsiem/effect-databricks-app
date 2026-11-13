@@ -47,7 +47,7 @@ function TripTable({ filterQuery }: { filterQuery: string }) {
     );
     const a = document.createElement("a");
     a.href = url;
-    a.download = `metrocab-trips-page-${page}.csv`;
+    a.download = `taxi-trips-page-${page}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
