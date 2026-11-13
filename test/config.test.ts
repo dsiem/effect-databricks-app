@@ -72,6 +72,11 @@ for (const [key, value] of [
   ["PGPORT", "-1"],
   ["PGPORT", "65536"],
   ["PGPORT", "invalid"],
+  ["WAREHOUSE_MAX_CONCURRENCY", "0"],
+  ["WAREHOUSE_MAX_CONCURRENCY", "-1"],
+  ["WAREHOUSE_MAX_CONCURRENCY", "1.5"],
+  ["GENIE_MAX_CONCURRENCY", "0"],
+  ["GENIE_MAX_CONCURRENCY", "invalid"],
   ["DATABRICKS_HOST", "http://workspace.invalid"],
   ["DATABRICKS_HOST", "https://workspace.invalid/api"],
   ["DATABRICKS_HOST", "https://user:secret@workspace.invalid"],
@@ -93,3 +98,25 @@ for (const [key, value] of [
     );
   });
 }
+
+test("admission settings have independent defaults and accept positive overrides", async () => {
+  const { Settings } = await import("../src/settings.js");
+  for (const [env, expected] of [
+    [{}, [4, 2]],
+    [{ WAREHOUSE_MAX_CONCURRENCY: "1", GENIE_MAX_CONCURRENCY: "3" }, [1, 3]],
+  ] as const) {
+    const actual = await Effect.runPromise(
+      Effect.gen(function* () {
+        const settings = yield* Settings;
+        return [settings.warehouseConcurrency, settings.genieConcurrency];
+      }).pipe(
+        Effect.provide(Settings.layer),
+        Effect.provideService(
+          ConfigProvider.ConfigProvider,
+          ConfigProvider.fromEnvRecord(env),
+        ),
+      ),
+    );
+    assert.deepEqual(actual, expected);
+  }
+});

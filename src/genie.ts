@@ -1,4 +1,5 @@
 import { Context, Effect, Layer, Schema } from "effect";
+import { makeAdmission } from "./admission.js";
 import { makeCapability } from "./capability.js";
 import {
   type CapabilityAvailability,
@@ -92,6 +93,11 @@ export class Genie extends Context.Service<
       const capability = makeCapability(
         !!(settings.genieSpaceId && settings.host),
       );
+      const admitSubmission = makeAdmission({
+        service: "genie",
+        concurrency: settings.genieConcurrency,
+        timeout: "30 seconds",
+      });
       const decode = <A>(schema: Schema.Decoder<A>, value: unknown) =>
         Schema.decodeUnknownEffect(schema)(value).pipe(
           Effect.mapError(
@@ -161,7 +167,11 @@ export class Genie extends Context.Service<
             conversationId: started.conversation_id,
             messageId: started.message.message_id,
           };
-        }).pipe(capability.track, Effect.withSpan("genie.submit"));
+        }).pipe(
+          admitSubmission,
+          capability.track,
+          Effect.withSpan("genie.submit"),
+        );
       const poll = (operation: GenieOperation) =>
         readMessage(operation, MessageStatus).pipe(
           Effect.map(progress),

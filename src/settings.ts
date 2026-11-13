@@ -2,6 +2,10 @@ import { Config, Context, Layer, Redacted, Schema } from "effect";
 
 const text = (name: string, fallback = "") =>
   Config.String(name).pipe(Config.withDefault(fallback));
+const concurrency = (name: string, fallback: number) =>
+  Config.schema(Schema.Int.check(Schema.isGreaterThan(0)), name).pipe(
+    Config.withDefault(fallback),
+  );
 const config = Config.all({
   appName: text("DATABRICKS_APP_NAME"),
   host: Config.schema(
@@ -31,6 +35,8 @@ const config = Config.all({
     ),
   ),
   warehouseId: text("DATABRICKS_WAREHOUSE_ID"),
+  warehouseConcurrency: concurrency("WAREHOUSE_MAX_CONCURRENCY", 4),
+  genieConcurrency: concurrency("GENIE_MAX_CONCURRENCY", 2),
   profile: text("DATABRICKS_CONFIG_PROFILE"),
   token: Config.Redacted("DATABRICKS_TOKEN").pipe(
     Config.withDefault(Redacted.make("")),

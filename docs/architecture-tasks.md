@@ -54,11 +54,17 @@ behavioral tests for each implementation task's completion criteria.
    adapter during a discovery outage, and smoke checks verify shell and health
    routes after notebook failure over both HTTP protocols.
 
-6. [ ] **P2 — Add shared warehouse admission control**
+6. [x] **P2 — Add shared warehouse admission control**
 
    Bound warehouse work across distinct overview and trip requests. Queued work
    must respect cancellation and deadlines. Add a separate limit for concurrent
    Genie submissions.
+
+   All metadata, overview, and trip statements share one per-process admission
+   limit; Genie submissions use an independent limit. Deadlines include queue
+   time, cancelled/expired waiters never start, and capacity is released after
+   failures, defects, interruption, and cleanup. Offline behavioral tests cover
+   distinct requests, queued cancellation, deadlines, and independent Genie reads.
 
 7. [ ] **P2 — Make notebook listing complete and bounded**
 

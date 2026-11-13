@@ -103,6 +103,14 @@ const cases: ReadonlyArray<{
     code: "note_not_found",
   },
   {
+    error: new OperationTimeout({
+      service: "warehouse",
+      message: "Admission deadline expired",
+    }),
+    status: 504,
+    code: "warehouse_timeout",
+  },
+  {
     error: new GenieFailed({ status: "FAILED", message: "Question failed" }),
     status: 409,
     code: "genie_message_unavailable",

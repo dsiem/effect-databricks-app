@@ -3,6 +3,7 @@ import * as Reactivity from "effect/reactivity/Reactivity";
 import { AuthenticationError, SqlError } from "effect/sql/SqlError";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import { DatabricksClient } from "effect-sql-databricks";
+import { makeAdmission } from "./admission.js";
 import { makeCapability } from "./capability.js";
 import {
   type CapabilityAvailability,
@@ -17,7 +18,7 @@ import {
   type Trips,
   Zone,
 } from "./domain.js";
-import { type ServiceError, unavailable } from "./errors.js";
+import { OperationTimeout, type ServiceError, unavailable } from "./errors.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
 
@@ -42,6 +43,11 @@ export class Analytics extends Context.Service<
       const capability = makeCapability(
         !!(settings.warehouseId && settings.host),
       );
+      const admit = makeAdmission({
+        service: "warehouse",
+        concurrency: settings.warehouseConcurrency,
+        timeout: "90 seconds",
+      });
       const error = unavailable(
         "warehouse",
         settings.warehouseId
@@ -85,14 +91,16 @@ export class Analytics extends Context.Service<
               Request: Schema.Void,
               Result: schema,
               execute: () => statement,
-            })(undefined)
+            })(undefined).pipe(admit)
           : Effect.fail(error)
         ).pipe(
           Effect.tapError((cause) =>
             Effect.logError("Warehouse operation failed", cause),
           ),
           Effect.mapError((cause) =>
-            unavailable(error.service, error.message, cause),
+            cause instanceof OperationTimeout
+              ? cause
+              : unavailable(error.service, error.message, cause),
           ),
           capability.track,
         );

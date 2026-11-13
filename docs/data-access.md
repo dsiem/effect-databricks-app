@@ -41,6 +41,14 @@ run with concurrency three. Metadata is cached for five minutes. Trip pages have
 25 rows and include the exact matching row count. Ordering includes the source
 columns for stable pagination; identical duplicate source rows remain identical.
 
+All metadata, overview, and trip statements share one per-process admission pool,
+including distinct cache keys and trip pages. `WAREHOUSE_MAX_CONCURRENCY` defaults
+to four. A permit covers submission, polling, result download, and decoding; cache
+hits use no permit. The 90-second admission deadline includes queue time.
+Cancelled or expired waiters never submit SQL, and permits remain held through
+interruption cleanup. These limits apply to each app process, not other apps or
+external warehouse clients.
+
 The SQL adapter cancels in-progress statements on interruption/deadline and scopes
 all Arrow downloads. Internal SQL errors are logged on the server; client errors
 contain safe operational guidance. No credentials or signed download URLs are
@@ -75,6 +83,13 @@ waiting for an answer. Status polling (`GET
 /api/genie/:conversationId/messages/:messageId/result`) are independent reads.
 The frontend bounds each polling attempt to three minutes; result retrieval also
 has a three-minute server deadline. A timed-out attempt can be resumed by ID.
+
+`GENIE_MAX_CONCURRENCY` independently limits concurrent submission requests to two
+by default. The 30-second submission deadline includes admission waiting. Polling
+and result retrieval do not consume submission permits, and a permit is released
+when submission returns IDs rather than when the conversation finishes. Neither
+initial questions nor follow-ups are automatically replayed after a timeout.
+Both concurrency settings must be positive integers; invalid values fail startup.
 
 The frontend saves the question, IDs, recovery stage, and completed answers in
 `sessionStorage`, validates that history on reload, and resumes outstanding reads
