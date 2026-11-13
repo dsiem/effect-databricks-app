@@ -1,17 +1,4 @@
-import { Data, Schema } from "effect";
-
-export class AppError extends Data.TaggedError("AppError")<{
-  readonly status: number;
-  readonly code: string;
-  readonly message: string;
-}> {}
-
-export const unavailable = (service: string, detail: string) =>
-  new AppError({
-    status: 503,
-    code: `${service}_unavailable`,
-    message: detail,
-  });
+import { Schema } from "effect";
 
 const boundedText = (max: number) =>
   Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(max));
@@ -108,15 +95,24 @@ export const Note = Schema.Struct({
 export type Note = typeof Note.Type;
 export type NoteInput = typeof NoteInput.Type;
 export const Notes = Schema.Array(Note);
+const GenieId = Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9-]{1,100}$/));
 export const GenieInput = Schema.Struct({
   content: boundedText(4000),
-  conversationId: Schema.optionalKey(
-    Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9-]{1,100}$/)),
-  ),
+  conversationId: Schema.optionalKey(GenieId),
 });
+export const GenieOperation = Schema.Struct({
+  conversationId: GenieId,
+  messageId: GenieId,
+});
+export type GenieOperation = typeof GenieOperation.Type;
+export const GenieProgress = Schema.Struct({
+  ...GenieOperation.fields,
+  state: Schema.Literals(["pending", "completed", "failed"]),
+  status: Schema.String,
+});
+export type GenieProgress = typeof GenieProgress.Type;
 export const GenieReply = Schema.Struct({
-  conversationId: Schema.String,
-  messageId: Schema.String,
+  ...GenieOperation.fields,
   text: Schema.String,
   queries: Schema.Array(
     Schema.Struct({

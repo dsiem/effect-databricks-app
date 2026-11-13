@@ -77,7 +77,18 @@ await Effect.runPromise(
     }
     if (settings.genieSpaceId) {
       const genie = yield* Genie;
-      const reply = yield* genie.ask({
+      const answer = (input: Parameters<typeof genie.submit>[0]) =>
+        Effect.gen(function* () {
+          const operation = yield* genie.submit(input);
+          let progress = yield* genie.poll(operation);
+          while (progress.state === "pending") {
+            yield* Effect.sleep("1 second");
+            progress = yield* genie.poll(operation);
+          }
+          assert.equal(progress.state, "completed");
+          return yield* genie.result(operation);
+        }).pipe(Effect.timeout("3 minutes"));
+      const reply = yield* answer({
         content:
           "How many trips are in samples.nyctaxi.trips? Return a single total_trips column.",
       });
@@ -90,7 +101,7 @@ await Effect.runPromise(
           ),
         ),
       );
-      const followup = yield* genie.ask({
+      const followup = yield* answer({
         content: "Now show the top 3 pickup ZIP codes by trip count.",
         conversationId: reply.conversationId,
       });

@@ -119,9 +119,11 @@ The server is an Effect application, including HTTP routing and lifetime:
 - `Cache` shares concurrent overview requests, caches successful results for a
   minute, bounds cache size, and immediately expires failures. `Effect.all` bounds
   warehouse concurrency; tracing spans identify domain operations.
-- Genie polling is interruptible, deadline-bound, and preserves conversation IDs.
-  The UI shows at most 100 result rows and labels partial previews. Writes and
-  conversation submissions are not automatically retried.
+- Genie submission returns conversation/message IDs immediately. Status polling
+  and result downloads are separate, interruptible reads; browser-session
+  recovery survives navigation and reload. Failed downloads can be retried using
+  the same IDs. The UI shows at most 100 result rows and labels partial previews.
+  Writes and conversation submissions are not automatically retried.
 - `@effect/sql-pg` owns a scoped PostgreSQL pool, TLS, per-connection fresh Lakebase
   OAuth credentials, statement/acquisition deadlines, and shutdown. Notebook saves
   are UUID-keyed upserts; migration uses a transaction and advisory lock.
@@ -135,6 +137,7 @@ edit the shared notebook; per-viewer row-level authorization is not implemented.
 
 ```sh
 npm run check          # lint, types, tests, build, both HTTP protocols, packed SQL adapter
+npm run test:architecture # offline Genie recovery browser tests and service error checks
 npm run bundle:check   # deployment schema validation without credentials
 npm run data:check     # live SQL reconciliation, Lakebase CRUD, Genie + follow-up
 node scripts/check-deployed.mjs dev  # verify actual hosted APIs and app-identity access

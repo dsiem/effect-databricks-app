@@ -1,0 +1,230 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { ConfigProvider, Effect, Layer } from "effect";
+import { HttpRouter, HttpServer } from "effect/http";
+import { Analytics } from "../src/analytics.js";
+import {
+  GenieFailed,
+  NoteNotFound,
+  OperationTimeout,
+  type ServiceError,
+  UpstreamError,
+  unavailable,
+} from "../src/errors.js";
+import { Genie } from "../src/genie.js";
+import { Notebook } from "../src/notebook.js";
+import { Routes } from "../src/routes.js";
+import { Settings } from "../src/settings.js";
+
+const appFor = (
+  effect: Effect.Effect<never, ServiceError>,
+  genie?: typeof Genie.Service,
+) =>
+  HttpRouter.toWebHandler(
+    Routes.pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          Layer.succeed(Analytics, {
+            metadata: effect,
+            overview: () => effect,
+            trips: () => effect,
+          }),
+          Layer.succeed(
+            Genie,
+            genie ?? {
+              submit: () => effect,
+              poll: () => effect,
+              result: () => effect,
+            },
+          ),
+          Layer.succeed(Notebook, {
+            list: effect,
+            save: () => effect,
+            remove: () => effect,
+          }),
+          Settings.layer.pipe(
+            Layer.provide(
+              Layer.succeed(
+                ConfigProvider.ConfigProvider,
+                ConfigProvider.fromEnvRecord({}),
+              ),
+            ),
+          ),
+        ),
+      ),
+      Layer.provideMerge(HttpServer.layerServices),
+    ),
+    { disableLogger: true },
+  );
+
+const cases: ReadonlyArray<{
+  error: ServiceError;
+  status: number;
+  code: string;
+}> = [
+  {
+    error: unavailable(
+      "lakebase",
+      "Lakebase unavailable",
+      new Error("private diagnostic"),
+    ),
+    status: 503,
+    code: "lakebase_unavailable",
+  },
+  {
+    error: new UpstreamError({
+      service: "workspace",
+      upstreamStatus: 403,
+      message: "Permission denied",
+      cause: new Error("private diagnostic"),
+    }),
+    status: 502,
+    code: "workspace_request_failed",
+  },
+  {
+    error: new OperationTimeout({
+      service: "genie",
+      message: "Resume this answer",
+    }),
+    status: 504,
+    code: "genie_timeout",
+  },
+  {
+    error: new NoteNotFound({ id: "id", message: "Already removed" }),
+    status: 404,
+    code: "note_not_found",
+  },
+  {
+    error: new GenieFailed({ status: "FAILED", message: "Question failed" }),
+    status: 409,
+    code: "genie_message_unavailable",
+  },
+];
+for (const { error, status, code } of cases) {
+  test(`HTTP boundary maps ${error._tag} and keeps diagnostics off the wire`, async () => {
+    const app = appFor(Effect.fail(error));
+    try {
+      const response = await app.handler(
+        new Request("http://localhost/api/notes"),
+      );
+      assert.equal(response.status, status);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.deepEqual(await response.json(), {
+        error: { code, message: error.message },
+      });
+    } finally {
+      await app.dispose();
+    }
+  });
+}
+
+test("Genie recovery endpoints validate operation IDs before calling the service", async () => {
+  let calls = 0;
+  const app = appFor(
+    Effect.suspend(() => {
+      calls++;
+      return Effect.fail(unavailable("genie", "Unavailable"));
+    }),
+  );
+  try {
+    for (const path of [
+      "/api/genie/bad%20id/messages/message",
+      "/api/genie/conversation/messages/bad%20id/result",
+    ]) {
+      const response = await app.handler(
+        new Request(`http://localhost${path}`),
+      );
+      assert.equal(response.status, 400);
+      assert.deepEqual(await response.json(), {
+        error: {
+          code: "invalid_request",
+          message: "Check the request fields, dates, and ZIP code.",
+        },
+      });
+    }
+    assert.equal(calls, 0);
+    for (const path of [
+      "/api/genie/conversation/messages/message",
+      "/api/genie/conversation/messages/message/result",
+    ]) {
+      assert.equal(
+        (await app.handler(new Request(`http://localhost${path}`))).status,
+        503,
+      );
+    }
+    assert.equal(calls, 2);
+  } finally {
+    await app.dispose();
+  }
+});
+
+test("unexpected defects are HTTP 500 instead of dependency failures", async () => {
+  const app = appFor(Effect.die(new Error("private programming error")));
+  try {
+    const response = await app.handler(
+      new Request("http://localhost/api/notes"),
+    );
+    assert.equal(response.status, 500);
+    assert.doesNotMatch(
+      await response.text(),
+      /private programming error|lakebase_unavailable/,
+    );
+  } finally {
+    await app.dispose();
+  }
+});
+
+test("HTTP separates submission IDs from polling and result retrieval", async () => {
+  const operation = { conversationId: "conversation", messageId: "message" };
+  const calls: unknown[] = [];
+  const app = appFor(Effect.fail(unavailable("unused", "Unused")), {
+    submit: (input) =>
+      Effect.sync(() => {
+        calls.push(input);
+        return operation;
+      }),
+    poll: (input) =>
+      Effect.sync(() => {
+        calls.push(input);
+        return { ...input, state: "completed" as const, status: "COMPLETED" };
+      }),
+    result: (input) =>
+      Effect.sync(() => {
+        calls.push(input);
+        return { ...input, text: "Answer", queries: [] };
+      }),
+  });
+  try {
+    const submitted = await app.handler(
+      new Request("http://localhost/api/genie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: "Count trips" }),
+      }),
+    );
+    assert.equal(submitted.status, 200);
+    assert.deepEqual(await submitted.json(), operation);
+    assert.deepEqual(calls, [{ content: "Count trips" }]);
+    const progress = await app.handler(
+      new Request("http://localhost/api/genie/conversation/messages/message"),
+    );
+    assert.deepEqual(await progress.json(), {
+      ...operation,
+      state: "completed",
+      status: "COMPLETED",
+    });
+    const result = await app.handler(
+      new Request(
+        "http://localhost/api/genie/conversation/messages/message/result",
+      ),
+    );
+    assert.deepEqual(await result.json(), {
+      ...operation,
+      text: "Answer",
+      queries: [],
+    });
+    assert.deepEqual(calls, [{ content: "Count trips" }, operation, operation]);
+  } finally {
+    await app.dispose();
+  }
+});

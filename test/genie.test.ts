@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ConfigProvider, Effect, Layer, Redacted } from "effect";
+import { Cause, ConfigProvider, Effect, Exit, Layer, Redacted } from "effect";
+import { unavailable } from "../src/errors.js";
 import { Genie } from "../src/genie.js";
 import { Settings } from "../src/settings.js";
 import { Workspace } from "../src/workspace.js";
@@ -49,11 +50,23 @@ test("Genie accepts ID-less text and visualization attachments and retains follo
   const result = await Effect.runPromise(
     Effect.gen(function* () {
       const genie = yield* Genie;
-      const first = yield* genie.ask({ content: "Count trips" });
-      const second = yield* genie.ask({
+      const operation = yield* genie.submit({ content: "Count trips" });
+      assert.deepEqual(operation, {
+        conversationId: "conversation",
+        messageId: "message",
+      });
+      assert.equal(
+        calls.length,
+        1,
+        "submission returns before polling or downloading results",
+      );
+      assert.equal((yield* genie.poll(operation)).state, "completed");
+      const first = yield* genie.result(operation);
+      const followup = yield* genie.submit({
         content: "Count again",
         conversationId: first.conversationId,
       });
+      const second = yield* genie.result(followup);
       return { first, second };
     }).pipe(
       Effect.provide(
@@ -82,4 +95,181 @@ test("Genie accepts ID-less text and visualization attachments and retains follo
         call.method === "POST",
     ),
   );
+});
+
+const operation = { conversationId: "conversation", messageId: "message" };
+const message = {
+  conversation_id: operation.conversationId,
+  message_id: operation.messageId,
+  status: "COMPLETED",
+  attachments: [
+    {
+      attachment_id: "query",
+      query: { query: "SELECT 1", description: "One" },
+    },
+  ],
+};
+const provideGenie = (request: typeof Workspace.Service.request) =>
+  Genie.layer.pipe(
+    Layer.provide(
+      Layer.succeed(Workspace, {
+        accessToken: Effect.succeed(Redacted.make("unused")),
+        request,
+      }),
+    ),
+    Layer.provide(Settings.layer),
+    Layer.provide(
+      Layer.succeed(
+        ConfigProvider.ConfigProvider,
+        ConfigProvider.fromEnvRecord({ GENIE_SPACE_ID: "space" }),
+      ),
+    ),
+  );
+
+test("a failed result download can be retried with the same IDs without another submission", async () => {
+  let submissions = 0;
+  let downloads = 0;
+  const diagnostic = new Error("download failed");
+  const layer = provideGenie((path, method = "GET") => {
+    if (method === "POST") {
+      submissions++;
+      return Effect.succeed({ conversation_id: "conversation", message });
+    }
+    if (path.endsWith("query-result")) {
+      downloads++;
+      return downloads === 1
+        ? Effect.fail(unavailable("workspace", "Download failed", diagnostic))
+        : Effect.succeed({
+            statement_response: {
+              manifest: {
+                schema: { columns: [{ name: "one" }] },
+                total_row_count: 150,
+              },
+              result: { data_array: Array.from({ length: 125 }, () => ["1"]) },
+            },
+          });
+    }
+    return Effect.succeed(message);
+  });
+  const reply = await Effect.runPromise(
+    Effect.gen(function* () {
+      const genie = yield* Genie;
+      const submitted = yield* genie.submit({ content: "One" });
+      const failed = yield* genie.result(submitted).pipe(Effect.exit);
+      assert.ok(Exit.isFailure(failed));
+      const error = Cause.findErrorOption(failed.cause);
+      assert.ok(
+        error._tag === "Some" && error.value._tag === "ServiceUnavailable",
+      );
+      assert.equal(error.value.cause, diagnostic);
+      return yield* genie.result(submitted);
+    }).pipe(Effect.provide(layer)),
+  );
+  assert.equal(submissions, 1);
+  assert.equal(downloads, 2);
+  assert.equal(reply.messageId, "message");
+  assert.equal(reply.queries[0]?.rows.length, 100);
+  assert.equal(reply.queries[0]?.truncated, true);
+});
+
+for (const status of [
+  "EXECUTING_QUERY",
+  "FAILED",
+  "CANCELLED",
+  "QUERY_RESULT_EXPIRED",
+]) {
+  test(`Genie polling exposes ${status} without submitting or downloading`, async () => {
+    const calls: string[] = [];
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const genie = yield* Genie;
+        const progress = yield* genie.poll(operation);
+        const reply = yield* genie.result(operation).pipe(Effect.exit);
+        return { progress, reply };
+      }).pipe(
+        Effect.provide(
+          provideGenie((path, method = "GET") => {
+            assert.equal(method, "GET");
+            calls.push(path);
+            return Effect.succeed({ ...message, status });
+          }),
+        ),
+      ),
+    );
+    assert.equal(
+      result.progress.state,
+      status === "EXECUTING_QUERY" ? "pending" : "failed",
+    );
+    assert.equal(result.progress.status, status);
+    assert.ok(Exit.isFailure(result.reply));
+    const error = Cause.findErrorOption(result.reply.cause);
+    assert.ok(error._tag === "Some" && error.value._tag === "GenieFailed");
+    assert.equal(error.value.status, status);
+    assert.equal(calls.length, 2);
+    assert.ok(calls.every((path) => path.endsWith("/messages/message")));
+  });
+}
+
+test("Genie preserves invalid upstream response diagnostics", async () => {
+  const exit = await Effect.runPromiseExit(
+    Effect.flatMap(Genie, (genie) => genie.poll(operation)).pipe(
+      Effect.provide(provideGenie(() => Effect.succeed({ unexpected: true }))),
+    ),
+  );
+  assert.ok(Exit.isFailure(exit));
+  const error = Cause.findErrorOption(exit.cause);
+  assert.ok(error._tag === "Some" && error.value._tag === "UpstreamError");
+  assert.ok(error.value.cause && typeof error.value.cause === "object");
+  assert.equal(Reflect.get(error.value.cause, "_tag"), "SchemaError");
+});
+
+test("interrupted Genie reads remain interrupted and the same operation can be resumed", async () => {
+  let reads = 0;
+  const layer = provideGenie(() =>
+    ++reads === 1 ? Effect.interrupt : Effect.succeed(message),
+  );
+  const progress = await Effect.runPromise(
+    Effect.gen(function* () {
+      const genie = yield* Genie;
+      const interrupted = yield* genie.poll(operation).pipe(Effect.exit);
+      assert.ok(Exit.isFailure(interrupted));
+      assert.ok(Cause.hasInterruptsOnly(interrupted.cause));
+      return yield* genie.poll(operation);
+    }).pipe(Effect.provide(layer)),
+  );
+  assert.equal(progress.state, "completed");
+  assert.equal(progress.messageId, operation.messageId);
+});
+
+test("accepted submission IDs and status polling do not depend on result attachment decoding", async () => {
+  const payload = { ...message, attachments: [{ future_attachment: {} }] };
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const genie = yield* Genie;
+      const accepted = yield* genie.submit({ content: "Question" });
+      const followup = yield* genie.submit({
+        content: "Follow-up",
+        conversationId: accepted.conversationId,
+      });
+      const progress = yield* genie.poll(accepted);
+      const downloaded = yield* genie.result(accepted).pipe(Effect.exit);
+      return { accepted, followup, progress, downloaded };
+    }).pipe(
+      Effect.provide(
+        provideGenie((path) =>
+          Effect.succeed(
+            path.endsWith("start-conversation")
+              ? { conversation_id: "conversation", message: payload }
+              : payload,
+          ),
+        ),
+      ),
+    ),
+  );
+  assert.deepEqual(result.accepted, operation);
+  assert.deepEqual(result.followup, operation);
+  assert.equal(result.progress.state, "completed");
+  assert.ok(Exit.isFailure(result.downloaded));
+  const error = Cause.findErrorOption(result.downloaded.cause);
+  assert.ok(error._tag === "Some" && error.value._tag === "UpstreamError");
 });

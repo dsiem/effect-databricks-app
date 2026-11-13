@@ -1,8 +1,11 @@
 import { PgClient } from "@effect/sql-pg";
 import { Context, Effect, Layer, Redacted, Schema } from "effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
+import type * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
-import { AppError, Note, type NoteInput, unavailable } from "./domain.js";
+import { Note, type NoteInput } from "./domain.js";
+import { NoteNotFound, type ServiceError, unavailable } from "./errors.js";
+import { pgPassword, restoreCredentialFailure } from "./pg-credentials.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
 
@@ -25,15 +28,23 @@ export const makeDatabase = Effect.gen(function* () {
       ));
   const password = Redacted.value(settings.pgPassword)
     ? Effect.succeed(settings.pgPassword)
-    : workspace
-        .request("/api/2.0/postgres/credentials", "POST", {
-          endpoint: settings.lakebaseEndpoint,
-        })
-        .pipe(
-          Effect.flatMap(Schema.decodeUnknownEffect(Credential)),
-          Effect.map((credential) => Redacted.make(credential.token)),
-          Effect.orDie,
-        );
+    : pgPassword(
+        workspace
+          .request("/api/2.0/postgres/credentials", "POST", {
+            endpoint: settings.lakebaseEndpoint,
+          })
+          .pipe(
+            Effect.flatMap(Schema.decodeUnknownEffect(Credential)),
+            Effect.map((credential) => Redacted.make(credential.token)),
+            Effect.mapError((cause) =>
+              unavailable(
+                "lakebase",
+                "Lakebase credentials could not be refreshed. Check workspace authentication and endpoint permissions.",
+                cause,
+              ),
+            ),
+          ),
+      );
   return yield* PgClient.make({
     host,
     port: settings.pgPort,
@@ -55,9 +66,9 @@ export const makeDatabase = Effect.gen(function* () {
 export class Notebook extends Context.Service<
   Notebook,
   {
-    readonly list: Effect.Effect<ReadonlyArray<Note>, AppError>;
-    readonly save: (input: NoteInput) => Effect.Effect<Note, AppError>;
-    readonly remove: (id: string) => Effect.Effect<void, AppError>;
+    readonly list: Effect.Effect<ReadonlyArray<Note>, ServiceError>;
+    readonly save: (input: NoteInput) => Effect.Effect<Note, ServiceError>;
+    readonly remove: (id: string) => Effect.Effect<void, ServiceError>;
   }
 >()("app/Notebook") {
   static readonly layer = Layer.effect(
@@ -76,51 +87,63 @@ export class Notebook extends Context.Service<
           save: () => Effect.fail(failure),
           remove: () => Effect.fail(failure),
         };
-      const sql = yield* makeDatabase.pipe(Effect.mapError(() => failure));
-      const columns = sql`id::text AS id, title, body, filters, pinned,
+      const sql = yield* makeDatabase.pipe(
+        Effect.mapError((cause) =>
+          unavailable("lakebase", failure.message, cause),
+        ),
+      );
+      return makeNotebook(sql, failure.message);
+    }).pipe(Effect.provide(Reactivity.layer)),
+  );
+}
+
+export const makeNotebook = (
+  sql: SqlClient.SqlClient & Pick<PgClient.PgClient, "json">,
+  message: string,
+) => {
+  const databaseError = (cause: unknown) =>
+    unavailable("lakebase", message, cause);
+  const columns = sql`id::text AS id, title, body, filters, pinned,
       to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
       to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at`;
-      const list = SqlSchema.findAll({
-        Request: Schema.Void,
-        Result: Note,
-        execute: () =>
-          sql`SELECT ${columns} FROM metrocab.notes ORDER BY pinned DESC, updated_at DESC LIMIT 200`,
-      })(undefined).pipe(Effect.catchCause(() => Effect.fail(failure)));
-      const save = (input: NoteInput) =>
-        SqlSchema.findOne({
-          Request: Schema.Void,
-          Result: Note,
-          execute:
-            () => sql`INSERT INTO metrocab.notes (id,title,body,filters,pinned)
+  const list = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: Note,
+    execute: () =>
+      sql`SELECT ${columns} FROM metrocab.notes ORDER BY pinned DESC, updated_at DESC LIMIT 200`,
+  })(undefined).pipe(Effect.mapError(databaseError), restoreCredentialFailure);
+  const save = (input: NoteInput) =>
+    SqlSchema.findOne({
+      Request: Schema.Void,
+      Result: Note,
+      execute:
+        () => sql`INSERT INTO metrocab.notes (id,title,body,filters,pinned)
         VALUES (${input.id}::uuid,${input.title},${input.body},${sql.json(input.filters)},${input.pinned})
         ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title, body=EXCLUDED.body,
           filters=EXCLUDED.filters, pinned=EXCLUDED.pinned, updated_at=now()
         RETURNING ${columns}`,
-        })(undefined).pipe(
-          Effect.catchCause(() => Effect.fail(failure)),
-          Effect.withSpan("notebook.save"),
-        );
-      const remove = (id: string) =>
-        sql`DELETE FROM metrocab.notes WHERE id = ${id}::uuid RETURNING id`.pipe(
-          Effect.flatMap((rows) =>
-            rows.length
-              ? Effect.void
-              : Effect.fail(
-                  new AppError({
-                    status: 404,
-                    code: "note_not_found",
-                    message: "This note has already been removed.",
-                  }),
-                ),
-          ),
-          Effect.catch((error) =>
-            Effect.fail(error instanceof AppError ? error : failure),
-          ),
-        );
-      return { list, save, remove };
-    }).pipe(Effect.provide(Reactivity.layer)),
-  );
-}
+    })(undefined).pipe(
+      Effect.mapError(databaseError),
+      restoreCredentialFailure,
+      Effect.withSpan("notebook.save"),
+    );
+  const remove = (id: string) =>
+    sql`DELETE FROM metrocab.notes WHERE id = ${id}::uuid RETURNING id`.pipe(
+      Effect.mapError(databaseError),
+      restoreCredentialFailure,
+      Effect.flatMap((rows) =>
+        rows.length
+          ? Effect.void
+          : Effect.fail(
+              new NoteNotFound({
+                id,
+                message: "This note has already been removed.",
+              }),
+            ),
+      ),
+    );
+  return { list, save, remove };
+};
 
 // Explicit setup command only. App startup never changes database schemas.
 export const migrate = Effect.gen(function* () {
@@ -145,4 +168,4 @@ export const migrate = Effect.gen(function* () {
       }
     }),
   );
-}).pipe(Effect.provide(Reactivity.layer));
+}).pipe(restoreCredentialFailure, Effect.provide(Reactivity.layer));

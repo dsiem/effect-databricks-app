@@ -1,17 +1,30 @@
 import { Context, Effect, Layer, Schema } from "effect";
 import {
-  type AppError,
   type GenieInput,
+  GenieOperation,
+  type GenieProgress,
   type GenieReply,
-  unavailable,
 } from "./domain.js";
+import {
+  GenieFailed,
+  OperationTimeout,
+  type ServiceError,
+  UpstreamError,
+  unavailable,
+} from "./errors.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
 
-const Message = Schema.Struct({
-  message_id: Schema.String,
-  conversation_id: Schema.String,
+const SubmittedMessage = Schema.Struct({
+  message_id: GenieOperation.fields.messageId,
+  conversation_id: GenieOperation.fields.conversationId,
+});
+const MessageStatus = Schema.Struct({
+  ...SubmittedMessage.fields,
   status: Schema.String,
+});
+const Message = Schema.Struct({
+  ...MessageStatus.fields,
   attachments: Schema.optionalKey(
     Schema.Array(
       Schema.Union([
@@ -30,8 +43,8 @@ const Message = Schema.Struct({
   ),
 });
 const Started = Schema.Struct({
-  conversation_id: Schema.String,
-  message: Message,
+  conversation_id: GenieOperation.fields.conversationId,
+  message: Schema.Struct({ message_id: GenieOperation.fields.messageId }),
 });
 const Result = Schema.Struct({
   statement_response: Schema.Struct({
@@ -57,9 +70,15 @@ const Result = Schema.Struct({
 export class Genie extends Context.Service<
   Genie,
   {
-    readonly ask: (
+    readonly submit: (
       input: typeof GenieInput.Type,
-    ) => Effect.Effect<GenieReply, AppError>;
+    ) => Effect.Effect<GenieOperation, ServiceError>;
+    readonly poll: (
+      operation: GenieOperation,
+    ) => Effect.Effect<GenieProgress, ServiceError>;
+    readonly result: (
+      operation: GenieOperation,
+    ) => Effect.Effect<GenieReply, ServiceError>;
   }
 >()("app/Genie") {
   static readonly layer = Layer.effect(
@@ -67,54 +86,94 @@ export class Genie extends Context.Service<
     Effect.gen(function* () {
       const settings = yield* Settings;
       const workspace = yield* Workspace;
-      const failure = unavailable(
-        "genie",
-        "Genie could not complete this question. Check the space configuration and permissions, then retry.",
-      );
       const decode = <A>(schema: Schema.Decoder<A>, value: unknown) =>
         Schema.decodeUnknownEffect(schema)(value).pipe(
-          Effect.mapError(() => failure),
+          Effect.mapError(
+            (cause) =>
+              new UpstreamError({
+                service: "genie",
+                message:
+                  "Genie returned an unexpected response. Retry retrieving this answer.",
+                cause,
+              }),
+          ),
         );
+      const configured = settings.genieSpaceId
+        ? Effect.void
+        : Effect.fail(
+            unavailable(
+              "genie",
+              "Set GENIE_SPACE_ID to a Genie space over samples.nyctaxi.trips.",
+            ),
+          );
       const space = `/api/2.0/genie/spaces/${encodeURIComponent(settings.genieSpaceId)}`;
-      const ask = (input: typeof GenieInput.Type) =>
+      const path = (operation: GenieOperation) =>
+        `${space}/conversations/${encodeURIComponent(operation.conversationId)}/messages/${encodeURIComponent(operation.messageId)}`;
+      const progress = (message: typeof MessageStatus.Type): GenieProgress => ({
+        conversationId: message.conversation_id,
+        messageId: message.message_id,
+        status: message.status,
+        state:
+          message.status === "COMPLETED"
+            ? "completed"
+            : ["FAILED", "CANCELLED", "QUERY_RESULT_EXPIRED"].includes(
+                  message.status,
+                )
+              ? "failed"
+              : "pending",
+      });
+      const readMessage = <A>(
+        operation: GenieOperation,
+        schema: Schema.Decoder<A>,
+      ) =>
+        configured.pipe(
+          Effect.andThen(workspace.request(path(operation))),
+          Effect.flatMap((data) => decode(schema, data)),
+        );
+      const submit = (input: typeof GenieInput.Type) =>
         Effect.gen(function* () {
-          if (!settings.genieSpaceId)
-            return yield* Effect.fail(
-              unavailable(
-                "genie",
-                "Set GENIE_SPACE_ID to a Genie space over samples.nyctaxi.trips.",
-              ),
-            );
-          let message: typeof Message.Type;
+          yield* configured;
           if (input.conversationId) {
-            message = yield* workspace
+            const message = yield* workspace
               .request(
                 `${space}/conversations/${encodeURIComponent(input.conversationId)}/messages`,
                 "POST",
                 { content: input.content },
               )
-              .pipe(Effect.flatMap((data) => decode(Message, data)));
-          } else {
-            const started = yield* workspace
-              .request(`${space}/start-conversation`, "POST", {
-                content: input.content,
-              })
-              .pipe(Effect.flatMap((data) => decode(Started, data)));
-            message = started.message;
+              .pipe(Effect.flatMap((data) => decode(SubmittedMessage, data)));
+            return {
+              conversationId: message.conversation_id,
+              messageId: message.message_id,
+            };
           }
-          const path = `${space}/conversations/${encodeURIComponent(message.conversation_id)}/messages/${encodeURIComponent(message.message_id)}`;
-          while (message.status !== "COMPLETED") {
-            if (
-              ["FAILED", "CANCELLED", "QUERY_RESULT_EXPIRED"].includes(
-                message.status,
-              )
-            )
-              return yield* Effect.fail(failure);
-            yield* Effect.sleep("1 second");
-            message = yield* workspace
-              .request(path)
-              .pipe(Effect.flatMap((data) => decode(Message, data)));
-          }
+          const started = yield* workspace
+            .request(`${space}/start-conversation`, "POST", {
+              content: input.content,
+            })
+            .pipe(Effect.flatMap((data) => decode(Started, data)));
+          return {
+            conversationId: started.conversation_id,
+            messageId: started.message.message_id,
+          };
+        }).pipe(Effect.withSpan("genie.submit"));
+      const poll = (operation: GenieOperation) =>
+        readMessage(operation, MessageStatus).pipe(
+          Effect.map(progress),
+          Effect.withSpan("genie.poll"),
+        );
+      const result = (operation: GenieOperation) =>
+        Effect.gen(function* () {
+          const message = yield* readMessage(operation, Message);
+          if (message.status !== "COMPLETED")
+            return yield* Effect.fail(
+              new GenieFailed({
+                status: message.status,
+                message:
+                  progress(message).state === "failed"
+                    ? `Genie could not complete this question (${message.status}).`
+                    : "This answer is still processing. Resume waiting for it.",
+              }),
+            );
           const queries = yield* Effect.forEach(
             (message.attachments ?? []).filter(
               (attachment) => "query" in attachment,
@@ -123,7 +182,7 @@ export class Genie extends Context.Service<
               Effect.gen(function* () {
                 const result = yield* workspace
                   .request(
-                    `${path}/attachments/${encodeURIComponent(attachment.attachment_id)}/query-result`,
+                    `${path(operation)}/attachments/${encodeURIComponent(attachment.attachment_id)}/query-result`,
                   )
                   .pipe(Effect.flatMap((data) => decode(Result, data)));
                 const statement = result.statement_response;
@@ -147,8 +206,7 @@ export class Genie extends Context.Service<
             { concurrency: 2 },
           );
           return {
-            conversationId: message.conversation_id,
-            messageId: message.message_id,
+            ...operation,
             text: (message.attachments ?? [])
               .flatMap((attachment) =>
                 "text" in attachment ? [attachment.text.content] : [],
@@ -161,15 +219,16 @@ export class Genie extends Context.Service<
             duration: "3 minutes",
             orElse: () =>
               Effect.fail(
-                unavailable(
-                  "genie",
-                  "Genie is taking longer than expected. Start a new conversation and try again.",
-                ),
+                new OperationTimeout({
+                  service: "genie",
+                  message:
+                    "Downloading the answer timed out. Retry retrieving this answer.",
+                }),
               ),
           }),
-          Effect.withSpan("genie.ask"),
+          Effect.withSpan("genie.result"),
         );
-      return { ask };
+      return { submit, poll, result };
     }),
   );
 }

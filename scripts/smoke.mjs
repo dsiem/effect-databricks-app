@@ -77,7 +77,7 @@ for (const protocol of ["http1", "http2"]) {
     assert.deepEqual(JSON.parse(health.body), { status: "ok" });
     const root = await request("/");
     assert.equal(root.status, 200);
-    assert.match(root.body, /Metrocab/);
+    assert.match(root.body, /<div id="root"><\/div>/);
     const asset = root.body.match(/src="([^"]+\.js)"/);
     assert.ok(asset, "Built HTML references its JavaScript bundle");
     assert.equal((await request(asset[1])).status, 200);

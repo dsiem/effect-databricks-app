@@ -3,23 +3,41 @@ import { Effect, Schema } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { Analytics } from "./analytics.js";
 import {
-  AppError,
   Filters,
   GenieInput,
+  GenieOperation,
   NoteInput,
   TripSearch,
 } from "./domain.js";
+import { InvalidRequest, type ServiceError } from "./errors.js";
 import { Genie } from "./genie.js";
 import { Notebook } from "./notebook.js";
 import { Settings } from "./settings.js";
 
-const badRequest = new AppError({
-  status: 400,
-  code: "invalid_request",
-  message: "Check the request fields, dates, and ZIP code.",
-});
-const respond = <A, R>(effect: Effect.Effect<A, AppError, R>) =>
+const badRequest = (cause?: unknown) =>
+  new InvalidRequest({
+    message: "Check the request fields, dates, and ZIP code.",
+    cause,
+  });
+const httpError = (error: ServiceError) => {
+  switch (error._tag) {
+    case "InvalidRequest":
+      return { status: 400, code: "invalid_request" };
+    case "NoteNotFound":
+      return { status: 404, code: "note_not_found" };
+    case "ServiceUnavailable":
+      return { status: 503, code: `${error.service}_unavailable` };
+    case "UpstreamError":
+      return { status: 502, code: `${error.service}_request_failed` };
+    case "OperationTimeout":
+      return { status: 504, code: `${error.service}_timeout` };
+    case "GenieFailed":
+      return { status: 409, code: "genie_message_unavailable" };
+  }
+};
+const respond = <A, R>(effect: Effect.Effect<A, ServiceError, R>) =>
   effect.pipe(
+    Effect.tapCause((cause) => Effect.logError("API operation failed", cause)),
     Effect.map((data) =>
       HttpServerResponse.jsonUnsafe(data, {
         headers: { "Cache-Control": "no-store" },
@@ -28,17 +46,20 @@ const respond = <A, R>(effect: Effect.Effect<A, AppError, R>) =>
     Effect.catch((error) =>
       Effect.succeed(
         HttpServerResponse.jsonUnsafe(
-          { error: { code: error.code, message: error.message } },
-          { status: error.status },
+          { error: { code: httpError(error).code, message: error.message } },
+          {
+            status: httpError(error).status,
+            headers: { "Cache-Control": "no-store" },
+          },
         ),
       ),
     ),
   );
 const readFilters = HttpRouter.schemaParams(Filters).pipe(
-  Effect.mapError(() => badRequest),
+  Effect.mapError(badRequest),
   Effect.flatMap((filters) =>
     filters.from && filters.to && filters.from > filters.to
-      ? Effect.fail(badRequest)
+      ? Effect.fail(badRequest())
       : Effect.succeed(filters),
   ),
 );
@@ -80,7 +101,7 @@ export const Routes = HttpRouter.use((router) =>
         Effect.gen(function* () {
           yield* readFilters;
           const search = yield* HttpRouter.schemaParams(TripSearch).pipe(
-            Effect.mapError(() => badRequest),
+            Effect.mapError(badRequest),
           );
           return yield* analytics.trips(search);
         }),
@@ -92,9 +113,33 @@ export const Routes = HttpRouter.use((router) =>
       respond(
         Effect.flatMap(
           HttpServerRequest.schemaBodyJson(GenieInput).pipe(
-            Effect.mapError(() => badRequest),
+            Effect.mapError(badRequest),
           ),
-          genie.ask,
+          genie.submit,
+        ),
+      ),
+    );
+    yield* router.add(
+      "GET",
+      "/api/genie/:conversationId/messages/:messageId",
+      respond(
+        Effect.flatMap(
+          HttpRouter.schemaParams(GenieOperation).pipe(
+            Effect.mapError(badRequest),
+          ),
+          genie.poll,
+        ),
+      ),
+    );
+    yield* router.add(
+      "GET",
+      "/api/genie/:conversationId/messages/:messageId/result",
+      respond(
+        Effect.flatMap(
+          HttpRouter.schemaParams(GenieOperation).pipe(
+            Effect.mapError(badRequest),
+          ),
+          genie.result,
         ),
       ),
     );
@@ -105,7 +150,7 @@ export const Routes = HttpRouter.use((router) =>
       respond(
         Effect.flatMap(
           HttpServerRequest.schemaBodyJson(NoteInput).pipe(
-            Effect.mapError(() => badRequest),
+            Effect.mapError(badRequest),
           ),
           notebook.save,
         ),
@@ -118,7 +163,7 @@ export const Routes = HttpRouter.use((router) =>
         Effect.gen(function* () {
           const { id } = yield* HttpRouter.schemaParams(
             Schema.Struct({ id: NoteInput.fields.id }),
-          ).pipe(Effect.mapError(() => badRequest));
+          ).pipe(Effect.mapError(badRequest));
           yield* notebook.remove(id);
           return { deleted: true };
         }),

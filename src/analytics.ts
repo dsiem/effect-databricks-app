@@ -4,7 +4,6 @@ import { AuthenticationError, SqlError } from "effect/sql/SqlError";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import { DatabricksClient } from "effect-sql-databricks";
 import {
-  type AppError,
   Daily,
   type Filters,
   Hourly,
@@ -14,20 +13,22 @@ import {
   Trip,
   type TripSearch,
   type Trips,
-  unavailable,
   Zone,
 } from "./domain.js";
+import { type ServiceError, unavailable } from "./errors.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
 
 export class Analytics extends Context.Service<
   Analytics,
   {
-    readonly metadata: Effect.Effect<typeof Metadata.Type, AppError>;
-    readonly overview: (filters: Filters) => Effect.Effect<Overview, AppError>;
+    readonly metadata: Effect.Effect<typeof Metadata.Type, ServiceError>;
+    readonly overview: (
+      filters: Filters,
+    ) => Effect.Effect<Overview, ServiceError>;
     readonly trips: (
       search: TripSearch,
-    ) => Effect.Effect<typeof Trips.Type, AppError>;
+    ) => Effect.Effect<typeof Trips.Type, ServiceError>;
   }
 >()("app/Analytics") {
   static readonly layer = Layer.effect(
@@ -46,10 +47,10 @@ export class Analytics extends Context.Service<
         warehouseId: settings.warehouseId || "unconfigured",
         accessToken: workspace.accessToken.pipe(
           Effect.mapError(
-            () =>
+            (cause) =>
               new SqlError({
                 reason: new AuthenticationError({
-                  cause: undefined,
+                  cause,
                   message: "Authentication unavailable",
                   operation: "authenticate",
                 }),
@@ -65,7 +66,9 @@ export class Analytics extends Context.Service<
             warehouseConfigured: !!settings.warehouseId,
           }),
         ),
-        Effect.mapError(() => error),
+        Effect.mapError((cause) =>
+          unavailable(error.service, error.message, cause),
+        ),
       );
       const read = <A>(
         schema: Schema.Decoder<A>,
@@ -82,7 +85,9 @@ export class Analytics extends Context.Service<
           Effect.tapError((cause) =>
             Effect.logError("Warehouse operation failed", cause),
           ),
-          Effect.mapError(() => error),
+          Effect.mapError((cause) =>
+            unavailable(error.service, error.message, cause),
+          ),
         );
       const where = (filters: Filters) => sql`WHERE 1 = 1
       ${filters.from ? sql`AND tpep_pickup_datetime >= CAST(${filters.from} AS TIMESTAMP)` : sql``}

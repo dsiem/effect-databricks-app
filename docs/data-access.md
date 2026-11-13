@@ -60,10 +60,40 @@ is a separate extension; the current notebook is intentionally shared.
 
 The bundle creates a classic conversational Genie space from
 `config/taxi.geniespace.json`. The service starts conversations, posts follow-ups,
-polls messages with a three-minute deadline, and fetches query attachment results.
-The frontend keeps the conversation ID while its page is open, renders bounded
-result previews, and exposes the generated SQL. Date/ZIP filters are appended
-explicitly to each question. A new conversation clears the local history.
+exposes message status, and fetches query attachment results.
+Submission (`POST /api/genie`) returns conversation and message IDs without
+waiting for an answer. Status polling (`GET
+/api/genie/:conversationId/messages/:messageId`) and result retrieval (`GET
+/api/genie/:conversationId/messages/:messageId/result`) are independent reads.
+The frontend bounds each polling attempt to three minutes; result retrieval also
+has a three-minute server deadline. A timed-out attempt can be resumed by ID.
+
+The frontend saves the question, IDs, recovery stage, and completed answers in
+`sessionStorage`, validates that history on reload, and resumes outstanding reads
+after navigation. A failed result download exposes a download retry that never
+submits the question again. Submission responses continue to be saved while
+navigating within the app. A reload that loses a submission response explicitly
+reports an uncertain submission and never automatically resubmits it. Recovery
+lasts for the current browser tab's session; closing the tab discards it.
+
+The frontend renders bounded result previews and exposes the generated SQL.
+Date/ZIP filters are appended explicitly to each question. A new conversation
+clears the saved history.
+
+## Service errors
+
+Services return a discriminated `ServiceError` union. The HTTP boundary alone
+maps validation, missing notes, dependency failures, timeouts, upstream response
+errors, and unavailable Genie messages to status codes and safe error bodies.
+Original causes stay on server-side errors and are logged at the boundary.
+Unexpected defects remain defects and are handled as internal server errors;
+interruption remains interruption.
+
+The PostgreSQL password callback must be infallible. `src/pg-credentials.ts`
+bridges that constraint using a private, recognizable defect and restores only
+that credential failure to the typed channel at notebook and migration
+boundaries. SQL and row-decoding errors retain their diagnostics. Unrelated
+defects and interruption, including mixed causes, pass through the adapter.
 
 ## Lakebase
 

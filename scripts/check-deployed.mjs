@@ -51,10 +51,25 @@ try {
 } finally {
   await request(`/api/notes/${id}`, "DELETE");
 }
-const reply = await request("/api/genie", "POST", {
+const operation = await request("/api/genie", "POST", {
   content:
     "How many trips are in samples.nyctaxi.trips? Return a single total_trips column.",
 });
+assert.ok(operation.conversationId);
+assert.ok(operation.messageId);
+const messagePath = `/api/genie/${encodeURIComponent(operation.conversationId)}/messages/${encodeURIComponent(operation.messageId)}`;
+const deadline = Date.now() + 180000;
+let progress = await request(messagePath);
+while (progress.state === "pending") {
+  assert.ok(
+    Date.now() < deadline,
+    "Genie answer timed out; retain operation IDs to recover it",
+  );
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  progress = await request(messagePath);
+}
+assert.equal(progress.state, "completed");
+const reply = await request(`${messagePath}/result`);
 assert.ok(
   reply.queries.some((query) =>
     query.rows.some((row) =>

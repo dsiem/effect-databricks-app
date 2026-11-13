@@ -29,7 +29,8 @@
     "test:e2e": "playwright test",
     "data:check": "node --env-file-if-exists=.env --import tsx scripts/check-live.ts",
     "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
-    "workspace:setup": "node scripts/setup-workspace.mjs"
+    "workspace:setup": "node scripts/setup-workspace.mjs",
+    "test:architecture": "node --import tsx --test test/genie.test.ts test/notebook.test.ts test/routes.test.ts && npm run build && playwright test --config playwright.architecture.config.ts"
   },
   "dependencies": {
     "@effect/platform-node": "4.1.4",

@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { Effect } from "effect";
 import {
   ArrowUp,
   Check,
@@ -6,19 +6,21 @@ import {
   MessageSquarePlus,
   Sparkles,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Markdown from "react-markdown";
-import { GenieReply } from "../../../src/domain";
+import { GenieOperation, GenieProgress, GenieReply } from "../../../src/domain";
 import { api, useFilters, useStatus } from "../api";
 import { ErrorState, PageTitle } from "../components/common";
 import { Badge, Button, Card, Textarea } from "../components/ui";
 
-type Turn = {
-  id: string;
-  question: string;
-  reply?: GenieReply;
-  error?: string;
-};
+import {
+  conversationId,
+  genieSnapshot,
+  saveTurns,
+  subscribeGenie,
+  updateTurn,
+} from "../lib/genie-session";
+
 const questions = [
   "Which pickup ZIP codes have the most trips?",
   "How does the average fare change by hour of day?",
@@ -26,59 +28,137 @@ const questions = [
   "What are the longest trips in the dataset?",
 ];
 export default function AskGenie() {
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const { turns, persistenceError } = useSyncExternalStore(
+    subscribeGenie,
+    genieSnapshot,
+  );
   const [draft, setDraft] = useState("");
-  const [conversationId, setConversationId] = useState<string>();
   const { filters, query } = useFilters();
   const status = useStatus();
   const bottom = useRef<HTMLDivElement>(null);
-  const controller = useRef<AbortController | null>(null);
-  useEffect(() => () => controller.current?.abort(), []);
-  const ask = useMutation({
-    mutationFn: (content: string) => {
-      controller.current = new AbortController();
-      const context = query
-        ? `\n\nApply these filters to tpep_pickup_datetime and pickup_zip: ${JSON.stringify(filters)}. The to date is inclusive.`
-        : "";
-      return api(
-        "/api/genie",
-        GenieReply,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            content: content + context,
-            ...(conversationId ? { conversationId } : {}),
-          }),
-        },
-        controller.current.signal,
-      );
-    },
-    onSuccess: (reply) => {
-      setConversationId(reply.conversationId);
-      setTurns((ts) =>
-        ts.map((t, i) => (i === ts.length - 1 ? { ...t, reply } : t)),
-      );
-    },
-    onError: (error) =>
-      setTurns((ts) =>
-        ts.map((t, i) =>
-          i === ts.length - 1 ? { ...t, error: error.message } : t,
-        ),
-      ),
-  });
+  const busy = turns.some((turn) =>
+    ["submitting", "waiting", "retrieving"].includes(turn.state),
+  );
+  const activeId = turns.find(
+    (turn) => turn.state === "waiting" || turn.state === "retrieving",
+  )?.id;
+  // Submission continues across route navigation so its response can be saved.
+  // Reads are cancelled on navigation and resume from the persisted operation.
+  useEffect(() => {
+    const active = genieSnapshot().turns.find((turn) => turn.id === activeId);
+    if (!active || !("operation" in active)) return;
+    const controller = new AbortController();
+    const { operation, id } = active;
+    let stage: "waiting" | "retrieving" =
+      active.state === "retrieving" ? "retrieving" : "waiting";
+    const path = `/api/genie/${encodeURIComponent(operation.conversationId)}/messages/${encodeURIComponent(operation.messageId)}`;
+    void (async () => {
+      try {
+        if (stage === "waiting") {
+          const deadline = Date.now() + 180_000;
+          while (true) {
+            const progress = await api(
+              path,
+              GenieProgress,
+              {},
+              controller.signal,
+            );
+            if (progress.state === "failed") {
+              updateTurn(id, (turn) => ({
+                id,
+                question: turn.question,
+                operation,
+                state: "failed",
+                error: `Genie could not complete this question (${progress.status}).`,
+              }));
+              return;
+            }
+            if (progress.state === "completed") break;
+            if (Date.now() >= deadline)
+              throw new Error(
+                "Genie is taking longer than expected. Resume waiting for this answer.",
+              );
+            await Effect.runPromise(Effect.sleep("1 second"), {
+              signal: controller.signal,
+            });
+          }
+          stage = "retrieving";
+          updateTurn(id, (turn) => ({
+            id,
+            question: turn.question,
+            operation,
+            state: "retrieving",
+          }));
+        }
+        const reply = await api(
+          `${path}/result`,
+          GenieReply,
+          {},
+          controller.signal,
+        );
+        updateTurn(id, (turn) => ({
+          id,
+          question: turn.question,
+          state: "complete",
+          reply,
+        }));
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        updateTurn(id, (turn) => ({
+          id,
+          question: turn.question,
+          operation,
+          state: "paused",
+          stage,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Unable to retrieve this answer.",
+        }));
+      }
+    })();
+    return () => controller.abort();
+    // A stage transition keeps the same recovery operation running.
+  }, [activeId]);
   const send = (question: string) => {
-    if (!question.trim() || ask.isPending) return;
-    setTurns((ts) => [
-      ...ts,
-      { id: crypto.randomUUID(), question: question.trim() },
-    ]);
+    if (!question.trim() || busy) return;
+    const id = crypto.randomUUID();
+    const content = question.trim();
+    const previousConversation = conversationId();
+    saveTurns([...turns, { id, question: content, state: "submitting" }]);
     setDraft("");
-    ask.mutate(question.trim());
+    const context = query
+      ? `\n\nApply these filters to tpep_pickup_datetime and pickup_zip: ${JSON.stringify(filters)}. The to date is inclusive.`
+      : "";
+    void api("/api/genie", GenieOperation, {
+      method: "POST",
+      body: JSON.stringify({
+        content: content + context,
+        ...(previousConversation
+          ? { conversationId: previousConversation }
+          : {}),
+      }),
+    }).then(
+      (operation) =>
+        updateTurn(id, (turn) => ({
+          id,
+          question: turn.question,
+          state: "waiting",
+          operation,
+        })),
+      (error: unknown) =>
+        updateTurn(id, (turn) => ({
+          id,
+          question: turn.question,
+          state: "submission-unknown",
+          error: `${error instanceof Error ? error.message : "The submission response was lost."} The question may have been accepted. Check Genie before submitting it again.`,
+        })),
+    );
   };
   useEffect(() => {
-    if (turns.length || ask.isPending)
+    if (turns.length || busy)
       bottom.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [turns.length, ask.isPending]);
+  }, [turns.length, busy]);
   return (
     <>
       <PageTitle
@@ -87,11 +167,9 @@ export default function AskGenie() {
         action={
           <Button
             variant="outline"
-            disabled={ask.isPending || !turns.length}
+            disabled={busy || !turns.length}
             onClick={() => {
-              setTurns([]);
-              setConversationId(undefined);
-              ask.reset();
+              saveTurns([]);
             }}
           >
             <MessageSquarePlus />
@@ -99,6 +177,7 @@ export default function AskGenie() {
           </Button>
         }
       />
+      {persistenceError && <p role="alert">{persistenceError}</p>}
       {status.data && !status.data.genie ? (
         <ErrorState
           error={
@@ -159,7 +238,7 @@ export default function AskGenie() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="mb-2 text-xs font-semibold">Genie</p>
-                      {turn.reply ? (
+                      {turn.state === "complete" ? (
                         <>
                           <div className="text-sm leading-7 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-primary [&_a]:underline [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-3">
                             <Markdown>
@@ -222,13 +301,34 @@ export default function AskGenie() {
                             </div>
                           ))}
                         </>
-                      ) : turn.error ? (
-                        <p
-                          role="alert"
-                          className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-xs leading-6 text-destructive"
-                        >
-                          {turn.error} You can retry your question below.
-                        </p>
+                      ) : "error" in turn ? (
+                        <div>
+                          <p
+                            role="alert"
+                            className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-xs leading-6 text-destructive"
+                          >
+                            {turn.error}
+                          </p>
+                          {turn.state === "paused" && (
+                            <Button
+                              variant="outline"
+                              className="mt-3"
+                              disabled={busy}
+                              onClick={() =>
+                                updateTurn(turn.id, () => ({
+                                  id: turn.id,
+                                  question: turn.question,
+                                  operation: turn.operation,
+                                  state: turn.stage,
+                                }))
+                              }
+                            >
+                              {turn.stage === "retrieving"
+                                ? "Retry result download"
+                                : "Resume answer"}
+                            </Button>
+                          )}
+                        </div>
                       ) : (
                         <p className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
                           <span className="size-2 animate-pulse rounded-full bg-primary" />
@@ -273,7 +373,7 @@ export default function AskGenie() {
                 type="submit"
                 size="icon"
                 aria-label="Send question"
-                disabled={ask.isPending || !draft.trim()}
+                disabled={busy || !draft.trim()}
               >
                 <ArrowUp />
               </Button>
