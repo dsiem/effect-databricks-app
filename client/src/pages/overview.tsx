@@ -22,20 +22,44 @@ import {
 } from "recharts";
 import { compact, money, number, useFilters, useOverview } from "../api";
 import {
-  ChartTitle,
   ErrorState,
   ExploreLink,
   Loading,
   PageTitle,
 } from "../components/common";
-import { Badge, Button, Card, cn } from "../components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../components/ui";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
 
 const tooltipStyle = {
-  borderRadius: 10,
-  border: "1px solid #e3e8e1",
+  borderRadius: "var(--radius)",
+  border: "1px solid var(--border)",
+  background: "var(--popover)",
+  color: "var(--popover-foreground)",
   fontSize: 12,
-  boxShadow: "0 6px 18px #172c2710",
+  boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
 };
+
 export default function Overview() {
   const query = useOverview();
   const { query: filters } = useFilters();
@@ -46,7 +70,7 @@ export default function Overview() {
       <>
         <PageTitle
           title="Trip overview"
-          description="Aggregate trip counts, fares, distances, and durations for the selected filters."
+          description="Trip activity, fares, and pickup patterns at a glance."
         />
         <Loading />
       </>
@@ -86,7 +110,7 @@ export default function Overview() {
     <>
       <PageTitle
         title="Trip overview"
-        description="Aggregate trip counts, fares, distances, and durations for the selected filters."
+        description="Trip activity, fares, and pickup patterns at a glance."
         action={
           <Button variant="outline" asChild>
             <Link to={`/genie${suffix}`}>
@@ -98,30 +122,18 @@ export default function Overview() {
         }
       />
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map(({ title, value, detail, icon: Icon }, i) => (
-          <Card
-            key={title}
-            className={cn(
-              "relative overflow-hidden p-5",
-              i === 0 && "border-[#cbd9bd] bg-[#edf3e8]",
-            )}
-          >
-            <div className="mb-5 flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">{title}</p>
-              <Icon
-                className={cn(
-                  "size-4",
-                  i === 0 ? "text-primary" : "text-[#95a08e]",
-                )}
-              />
-            </div>
-            <p className="text-[29px] font-semibold tracking-[-.045em] tabular-nums">
-              {value}
-            </p>
-            <p className="mt-2 text-[10px] text-muted-foreground">{detail}</p>
-            {i === 0 && (
-              <div className="absolute -bottom-6 -right-4 size-20 rounded-full border-[10px] border-primary/[.04]" />
-            )}
+        {metrics.map(({ title, value, detail, icon: Icon }) => (
+          <Card key={title} className="gap-2">
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle className="text-sm font-medium">{title}</CardTitle>
+              <Icon className="size-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold tracking-tight tabular-nums">
+                {value}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+            </CardContent>
           </Card>
         ))}
       </div>
@@ -131,240 +143,251 @@ export default function Overview() {
         </Card>
       ) : (
         <>
-          <div className="mb-6 grid gap-5 xl:grid-cols-[1.75fr_1fr]">
-            <Card className="min-w-0 p-5 lg:p-6">
-              <ChartTitle
-                title={
-                  series === "trips"
-                    ? "Trips by pickup date"
-                    : "Fare revenue by pickup date"
-                }
-                subtitle={
-                  series === "trips"
-                    ? "Recorded trips over the selected period"
-                    : "Fare revenue over the selected period"
-                }
-                action={
-                  <div className="flex gap-1 rounded-lg bg-muted p-1">
-                    {(["trips", "revenue"] as const).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        aria-pressed={series === s}
-                        onClick={() => setSeries(s)}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-[10px] capitalize",
-                          series === s && "bg-white font-medium shadow-sm",
-                        )}
+          <div className="mb-6 grid gap-4 xl:grid-cols-[1.75fr_1fr]">
+            <Card className="min-w-0">
+              <Tabs
+                value={series}
+                onValueChange={(value) => {
+                  if (value === "trips" || value === "revenue")
+                    setSeries(value);
+                }}
+                className="gap-6"
+              >
+                <CardHeader>
+                  <CardTitle role="heading" aria-level={2}>
+                    {series === "trips"
+                      ? "Trips by pickup date"
+                      : "Fare revenue by pickup date"}
+                  </CardTitle>
+                  <CardDescription>
+                    Activity over the selected period
+                  </CardDescription>
+                  <CardAction>
+                    <TabsList aria-label="Daily chart metric">
+                      <TabsTrigger value="trips">Trips</TabsTrigger>
+                      <TabsTrigger value="revenue">Revenue</TabsTrigger>
+                    </TabsList>
+                  </CardAction>
+                </CardHeader>
+                <TabsContent value={series} className="px-6">
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer>
+                      <AreaChart
+                        data={[...daily]}
+                        margin={{ top: 10, right: 5, left: -16, bottom: 0 }}
                       >
-                        {s}
-                      </button>
-                    ))}
+                        <defs>
+                          <linearGradient
+                            id="tripFill"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor="var(--chart-1)"
+                              stopOpacity={0.3}
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor="var(--chart-1)"
+                              stopOpacity={0.03}
+                            />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid
+                          vertical={false}
+                          stroke="var(--border)"
+                        />
+                        <XAxis
+                          dataKey="day"
+                          tickFormatter={(s: string) => s.slice(5)}
+                          axisLine={false}
+                          tickLine={false}
+                          minTickGap={35}
+                          dy={10}
+                        />
+                        <YAxis
+                          tickFormatter={compact}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={tooltipStyle}
+                          formatter={(value) =>
+                            series === "revenue"
+                              ? money(Number(value), 2)
+                              : number(Number(value))
+                          }
+                        />
+                        <Area
+                          isAnimationActive={false}
+                          type="monotone"
+                          dataKey={series}
+                          name={series === "trips" ? "Trips" : "Fare revenue"}
+                          stroke="var(--chart-1)"
+                          strokeWidth={2}
+                          fill="url(#tripFill)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
-                }
-              />
-              <div className="h-64 w-full">
-                <ResponsiveContainer>
-                  <AreaChart
-                    data={[...daily]}
-                    margin={{ top: 10, right: 5, left: -16, bottom: 0 }}
-                  >
-                    <defs>
-                      <linearGradient id="tripFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="0%"
-                          stopColor="#85a870"
-                          stopOpacity={0.28}
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor="#85a870"
-                          stopOpacity={0.01}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      vertical={false}
-                      stroke="#edf0e9"
-                      strokeDasharray="3 3"
-                    />
-                    <XAxis
-                      dataKey="day"
-                      tickFormatter={(s: string) => s.slice(5)}
-                      axisLine={false}
-                      tickLine={false}
-                      minTickGap={35}
-                      dy={10}
-                    />
-                    <YAxis
-                      tickFormatter={compact}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={tooltipStyle}
-                      formatter={(value) =>
-                        series === "revenue"
-                          ? money(Number(value), 2)
-                          : number(Number(value))
-                      }
-                    />
-                    <Area
-                      isAnimationActive={false}
-                      type="monotone"
-                      dataKey={series}
-                      name={series === "trips" ? "Trips" : "Fare revenue"}
-                      stroke="#567d46"
-                      strokeWidth={2.5}
-                      fill="url(#tripFill)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="mt-5 flex items-center justify-between border-t pt-4 text-[10px] text-muted-foreground">
+                </TabsContent>
+              </Tabs>
+              <CardFooter className="flex-wrap justify-between gap-2 text-xs text-muted-foreground">
                 <span className="flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-[#6b9155]" />
+                  <span className="size-2 rounded-full bg-chart-1" />
                   NYC yellow taxis
                 </span>
                 <span>{daily.length} days with recorded trips</span>
-              </div>
+              </CardFooter>
             </Card>
-            <Card className="min-w-0 p-5 lg:p-6">
-              <ChartTitle
-                title="Trips by pickup hour"
-                subtitle="Trip distribution by pickup hour"
-                action={<Badge>24 hours</Badge>}
-              />
-              <div className="h-64 w-full">
-                <ResponsiveContainer>
-                  <BarChart
-                    data={[...hourly]}
-                    margin={{ top: 10, right: 0, left: -23, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      vertical={false}
-                      stroke="#edf0e9"
-                      strokeDasharray="3 3"
-                    />
-                    <XAxis
-                      dataKey="hour"
-                      axisLine={false}
-                      tickLine={false}
-                      interval={5}
-                      tickFormatter={(h) => `${h}:00`}
-                      dy={10}
-                    />
-                    <YAxis
-                      tickFormatter={compact}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={tooltipStyle}
-                      labelFormatter={(h) => `${h}:00 pickup`}
-                      formatter={(value) => number(Number(value))}
-                    />
-                    <Bar
-                      isAnimationActive={false}
-                      dataKey="trips"
-                      name="Trips"
-                      fill="#dfc458"
-                      radius={[3, 3, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="mt-5 flex items-center gap-2 border-t pt-4 text-[10px] text-muted-foreground">
-                <span className="size-2 rounded-full bg-[#dfc458]" />
+            <Card className="min-w-0">
+              <CardHeader>
+                <CardTitle role="heading" aria-level={2}>
+                  Trips by pickup hour
+                </CardTitle>
+                <CardDescription>Distribution across the day</CardDescription>
+                <CardAction>
+                  <Badge variant="secondary">24 hours</Badge>
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer>
+                    <BarChart
+                      data={[...hourly]}
+                      margin={{ top: 10, right: 0, left: -23, bottom: 0 }}
+                    >
+                      <CartesianGrid vertical={false} stroke="var(--border)" />
+                      <XAxis
+                        dataKey="hour"
+                        axisLine={false}
+                        tickLine={false}
+                        interval={5}
+                        tickFormatter={(h) => `${h}:00`}
+                        dy={10}
+                      />
+                      <YAxis
+                        tickFormatter={compact}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        contentStyle={tooltipStyle}
+                        labelFormatter={(h) => `${h}:00 pickup`}
+                        formatter={(value) => number(Number(value))}
+                      />
+                      <Bar
+                        isAnimationActive={false}
+                        dataKey="trips"
+                        name="Trips"
+                        fill="var(--chart-2)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+              <CardFooter className="gap-2 text-xs text-muted-foreground">
+                <span className="size-2 rounded-full bg-chart-2" />
                 Hours as recorded in the source
-              </div>
+              </CardFooter>
             </Card>
           </div>
-          <div className="grid gap-5 xl:grid-cols-[1.75fr_1fr]">
-            <Card className="p-5 lg:p-6">
-              <ChartTitle
-                title="Top pickup ZIP codes"
-                subtitle="Top pickup ZIP codes by trip volume"
-                action={
+          <div className="grid gap-4 xl:grid-cols-[1.75fr_1fr]">
+            <Card className="min-w-0">
+              <CardHeader>
+                <CardTitle role="heading" aria-level={2}>
+                  Top pickup ZIP codes
+                </CardTitle>
+                <CardDescription>
+                  Pickup areas ranked by trip volume
+                </CardDescription>
+                <CardAction>
                   <ExploreLink to={`/map${suffix}`}>
                     View pickup map
                   </ExploreLink>
-                }
-              />
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b text-[10px] text-muted-foreground">
-                      <th className="pb-3 font-normal">Pickup ZIP</th>
-                      <th className="pb-3 text-right font-normal">Trips</th>
-                      <th className="pb-3 text-right font-normal">
-                        Fare revenue
-                      </th>
-                      <th className="pb-3 text-right font-normal">Avg. fare</th>
-                      <th className="w-8" />
-                    </tr>
-                  </thead>
-                  <tbody>
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Pickup ZIP</TableHead>
+                      <TableHead className="text-right">Trips</TableHead>
+                      <TableHead className="text-right">Fare revenue</TableHead>
+                      <TableHead className="text-right">Avg. fare</TableHead>
+                      <TableHead className="w-10">
+                        <span className="sr-only">Explore</span>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {zones.slice(0, 5).map((zone, index) => (
-                      <tr key={zone.zip} className="border-b last:border-0">
-                        <td className="py-3.5">
-                          <span className="mr-3 text-[10px] text-muted-foreground">
+                      <TableRow key={zone.zip}>
+                        <TableCell className="font-medium">
+                          <span className="mr-3 text-xs text-muted-foreground">
                             {String(index + 1).padStart(2, "0")}
                           </span>
-                          <span className="font-medium">{zone.zip}</span>
-                        </td>
-                        <td className="text-right tabular-nums">
+                          {zone.zip}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
                           {number(zone.trips)}
-                        </td>
-                        <td className="text-right tabular-nums">
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
                           {money(zone.revenue)}
-                        </td>
-                        <td className="text-right tabular-nums">
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
                           {money(zone.avg_fare, 2)}
-                        </td>
-                        <td className="text-right">
-                          <Link
-                            aria-label={`View trips in ${zone.zip}`}
-                            to={`/trips?${new URLSearchParams({ ...Object.fromEntries(new URLSearchParams(filters)), zip: zone.zip })}`}
-                          >
-                            <ArrowUpRight className="ml-auto size-3.5 text-muted-foreground" />
-                          </Link>
-                        </td>
-                      </tr>
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon-sm" asChild>
+                            <Link
+                              aria-label={`View trips in ${zone.zip}`}
+                              to={`/trips?${new URLSearchParams({ ...Object.fromEntries(new URLSearchParams(filters)), zip: zone.zip })}`}
+                            >
+                              <ArrowUpRight />
+                            </Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </CardContent>
             </Card>
-            <Card className="relative flex flex-col overflow-hidden border-[#cedac8] bg-[#eaf0e4] p-6">
-              <div className="absolute -right-8 -top-10 size-44 rounded-full border-[25px] border-white/30" />
-              <div className="relative">
-                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-white/60">
-                  <Sparkles className="size-5 text-primary" />
-                </span>
-                <Badge className="ml-3 bg-white/50 text-primary">
-                  DATABRICKS GENIE
-                </Badge>
-                <h2 className="mt-6 max-w-52 text-2xl font-semibold leading-tight tracking-tight">
-                  Natural language queries
-                </h2>
-                <p className="mt-3 max-w-64 text-xs leading-6 text-[#738069]">
-                  Query trip counts, fares, and pickup patterns using natural
-                  language.
-                </p>
-              </div>
-              <Link
-                to={`/genie${suffix}`}
-                className="relative mt-7 inline-flex items-center gap-3 text-xs font-semibold text-primary"
-              >
-                Open Genie
-                <ArrowRight className="size-4" />
-              </Link>
+            <Card>
+              <CardHeader>
+                <div className="mb-2 flex size-10 items-center justify-center rounded-lg border bg-muted">
+                  <Sparkles className="size-5" />
+                </div>
+                <CardTitle role="heading" aria-level={2}>
+                  Ask your data a question
+                </CardTitle>
+                <CardDescription>
+                  Explore trip counts, fares, and pickup patterns in natural
+                  language with Databricks Genie.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 text-sm text-muted-foreground">
+                Start with a question. Follow up with context. Inspect the SQL
+                behind each answer.
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" asChild>
+                  <Link to={`/genie${suffix}`}>
+                    Open Genie
+                    <ArrowRight />
+                  </Link>
+                </Button>
+              </CardFooter>
             </Card>
           </div>
         </>
       )}
-      <p className="mt-4 text-right text-[10px] text-muted-foreground">
+      <p className="mt-4 text-right text-xs text-muted-foreground">
         Queried {new Date(query.data.queriedAt).toLocaleTimeString()} · Results
         cached for 60 seconds
       </p>

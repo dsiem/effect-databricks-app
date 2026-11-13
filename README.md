@@ -4,6 +4,12 @@ A working NYC taxi analytics workspace with React, Tailwind CSS 4, shadcn/ui and
 Radix UI components, Recharts, and Leaflet. The data is the real
 `samples.nyctaxi.trips` table. No synthetic dashboard data or mock Genie answers.
 
+The UI uses shadcn/ui's New York style with the neutral theme. The sidebar
+collapses to icons on desktop, remembers that preference, and becomes a drawer
+on mobile. Toggle it with the header button, sidebar rail, or **⌘B / Ctrl+B**.
+The sidebar shows the viewer's name and email from Databricks Apps proxy headers;
+local development uses the current workspace user's profile when available.
+
 - **Overview:** fare and trip metrics, daily trends, hourly activity, top ZIP codes.
 - **Trip explorer:** date/ZIP filters, server-side sorting and pagination, CSV export
   of the visible page.
@@ -139,7 +145,7 @@ edit the shared notebook; per-viewer row-level authorization is not implemented.
 
 ```sh
 npm run check          # lint, types, tests, build, both HTTP protocols, packed SQL adapter
-npm run test:architecture # offline Genie recovery browser tests and service error checks
+npm run test:architecture # offline Genie recovery, sidebar/dialog/responsive UI, and service checks
 npm run bundle:check   # deployment schema validation without credentials
 npm run data:check     # live SQL reconciliation, Lakebase CRUD, Genie + follow-up
 node scripts/check-deployed.mjs dev  # verify actual hosted APIs and app-identity access

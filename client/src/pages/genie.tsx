@@ -10,7 +10,18 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Markdown from "react-markdown";
 import { api, apiClient, useFilters, useStatus } from "../api";
 import { ErrorState, PageTitle } from "../components/common";
-import { Badge, Button, Card, Textarea } from "../components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Textarea,
+} from "../components/ui";
 
 import {
   conversationId,
@@ -182,21 +193,19 @@ export default function AskGenie() {
           }
         />
       ) : (
-        <Card className="flex min-h-[640px] flex-col overflow-hidden">
+        <Card className="min-h-[640px] gap-0 overflow-hidden py-0">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-6 py-4">
-            <span className="flex items-center gap-2 text-xs font-medium">
+            <span className="flex items-center gap-2 text-sm font-medium">
               <Sparkles className="size-4 text-primary" />
               Ask Genie
             </span>
-            <Badge className="bg-[#edf3e8] text-primary">
-              samples.nyctaxi.trips
-            </Badge>
+            <Badge variant="outline">samples.nyctaxi.trips</Badge>
           </div>
           <div className="flex-1 p-5 sm:p-8">
             {!turns.length && (
               <div className="mx-auto max-w-2xl py-9 text-center">
-                <div className="mx-auto mb-6 grid size-16 place-items-center rounded-2xl bg-[#eff3e7]">
-                  <Sparkles className="size-7 text-[#63814b]" />
+                <div className="mx-auto mb-6 grid size-16 place-items-center rounded-lg border bg-muted">
+                  <Sparkles className="size-7 text-foreground" />
                 </div>
                 <h2 className="text-2xl font-semibold tracking-tight">
                   Example queries
@@ -207,16 +216,17 @@ export default function AskGenie() {
                 </p>
                 <div className="mt-9 grid gap-3 text-left sm:grid-cols-2">
                   {questions.map((question) => (
-                    <button
+                    <Button
+                      variant="outline"
                       type="button"
                       key={question}
                       onClick={() => send(question)}
-                      className="group flex items-start gap-3 rounded-xl border p-4 text-xs leading-5 transition-colors hover:border-[#9bb289] hover:bg-muted/50"
+                      className="group flex items-start gap-3 h-auto justify-start whitespace-normal rounded-lg p-4 text-left text-sm font-normal leading-6"
                     >
-                      <Sparkles className="mt-1 size-3.5 shrink-0 text-[#a3b58c]" />
+                      <Sparkles className="mt-1 size-3.5 shrink-0 text-muted-foreground" />
                       {question}
                       <ArrowUp className="ml-auto mt-1 size-3 shrink-0 rotate-45 text-muted-foreground group-hover:text-primary" />
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -224,15 +234,15 @@ export default function AskGenie() {
             <div className="mx-auto max-w-3xl space-y-7" aria-live="polite">
               {turns.map((turn) => (
                 <div key={turn.id}>
-                  <div className="mb-5 ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-[#edf2e8] px-5 py-3 text-sm leading-6">
+                  <div className="mb-5 ml-auto max-w-[85%] rounded-lg rounded-tr-sm bg-muted px-5 py-3 text-sm leading-6">
                     {turn.question}
                   </div>
                   <div className="flex gap-3">
-                    <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary text-white">
+                    <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
                       <Sparkles className="size-3.5" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="mb-2 text-xs font-semibold">Genie</p>
+                      <p className="mb-2 text-sm font-semibold">Genie</p>
                       {turn.state === "complete" ? (
                         <>
                           <div className="text-sm leading-7 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-primary [&_a]:underline [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-3">
@@ -243,52 +253,52 @@ export default function AskGenie() {
                           {turn.reply.queries.map((result) => (
                             <div
                               key={result.sql}
-                              className="mt-4 overflow-hidden rounded-xl border"
+                              className="mt-4 overflow-hidden rounded-lg border"
                             >
-                              <div className="border-b bg-muted/50 px-4 py-3 text-xs font-medium">
+                              <div className="border-b bg-muted/50 px-4 py-3 text-sm font-medium">
                                 {result.description}
                               </div>
                               <div className="max-h-80 overflow-auto">
-                                <table className="w-full whitespace-nowrap text-left text-xs">
-                                  <thead className="bg-muted/30">
-                                    <tr>
+                                <Table className="w-full whitespace-nowrap text-left text-sm">
+                                  <TableHeader className="bg-muted/30">
+                                    <TableRow>
                                       {result.columns.map((column) => (
-                                        <th
+                                        <TableHead
                                           key={column}
                                           className="px-4 py-3 font-medium"
                                         >
                                           {column}
-                                        </th>
+                                        </TableHead>
                                       ))}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
                                     {result.rows.map((row, k) => (
                                       // biome-ignore lint/suspicious/noArrayIndexKey: Query snapshots can contain duplicate rows and have no row IDs.
-                                      <tr key={k} className="border-t">
+                                      <TableRow key={k} className="border-t">
                                         {row.map((cell, c) => (
-                                          <td
+                                          <TableCell
                                             key={result.columns[c]}
                                             className="px-4 py-3 tabular-nums"
                                           >
                                             {cell ?? "—"}
-                                          </td>
+                                          </TableCell>
                                         ))}
-                                      </tr>
+                                      </TableRow>
                                     ))}
-                                  </tbody>
-                                </table>
+                                  </TableBody>
+                                </Table>
                               </div>
                               {result.truncated && (
-                                <p className="border-t px-4 py-2 text-[10px] text-muted-foreground">
+                                <p className="border-t px-4 py-2 text-xs text-muted-foreground">
                                   Showing a bounded preview of the query result.
                                 </p>
                               )}
                               <details className="border-t p-4">
-                                <summary className="cursor-pointer text-[11px] font-medium text-primary">
+                                <summary className="cursor-pointer text-xs font-medium text-primary">
                                   View generated SQL
                                 </summary>
-                                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-[11px] leading-5 text-muted-foreground">
+                                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
                                   {result.sql}
                                 </pre>
                                 <CopySql sql={result.sql} />
@@ -300,7 +310,7 @@ export default function AskGenie() {
                         <div>
                           <p
                             role="alert"
-                            className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-xs leading-6 text-destructive"
+                            className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm leading-6 text-destructive"
                           >
                             {turn.error}
                           </p>
@@ -325,7 +335,7 @@ export default function AskGenie() {
                           )}
                         </div>
                       ) : (
-                        <p className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                        <p className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
                           <span className="size-2 animate-pulse rounded-full bg-primary" />
                           Processing query…
                         </p>
@@ -338,7 +348,7 @@ export default function AskGenie() {
             </div>
           </div>
           <form
-            className="mx-5 mb-5 rounded-xl border bg-background/70 p-3 sm:mx-8"
+            className="mx-5 mb-5 rounded-lg border bg-background/70 p-3 sm:mx-8"
             onSubmit={(e) => {
               e.preventDefault();
               send(draft);
@@ -356,10 +366,10 @@ export default function AskGenie() {
                   send(draft);
                 }
               }}
-              className="min-h-14 resize-none border-0 bg-transparent p-1 focus:ring-0"
+              className="min-h-14 resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
             />
             <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {query
                   ? "Current date and ZIP filters included"
                   : "Enter to send · Shift + Enter for a new line"}
@@ -374,7 +384,7 @@ export default function AskGenie() {
               </Button>
             </div>
           </form>
-          <p className="mb-5 px-5 text-center text-[10px] text-muted-foreground">
+          <p className="mb-5 px-5 text-center text-xs text-muted-foreground">
             Genie can make mistakes. Review generated SQL and results before
             drawing conclusions.
           </p>

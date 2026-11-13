@@ -12,12 +12,12 @@ export function PageTitle({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
       <div>
-        <h1 className="text-3xl font-semibold tracking-[-.04em] lg:text-[34px]">
-          {title}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+        <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          {description}
+        </p>
       </div>
       {action}
     </div>
@@ -46,8 +46,8 @@ export function ErrorState({
   retry?: () => void;
 }) {
   return (
-    <Card role="alert" className="p-8">
-      <AlertCircle className="mb-4 size-7 text-amber-600" />
+    <Card role="alert" className="gap-0 p-8">
+      <AlertCircle className="mb-4 size-7 text-destructive" />
       <h2 className="mb-2 text-lg font-semibold">Request failed</h2>
       <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
         {error.message}
@@ -73,7 +73,7 @@ export function ChartTitle({
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="text-base font-semibold leading-none">{title}</h2>
         <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
       </div>
       {action}
@@ -90,7 +90,7 @@ export function ExploreLink({
   return (
     <Link
       to={to}
-      className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+      className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline"
     >
       {children}
       <ArrowRight className="size-3.5" />

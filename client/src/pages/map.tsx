@@ -51,8 +51,8 @@ export default function PickupMap() {
   );
   const color = (count: number) =>
     count === 0
-      ? "#e6eade"
-      : ["#d9e4bd", "#bad18e", "#92b568", "#658c49", "#365a36"][
+      ? "#f4f4f5"
+      : ["#dbeafe", "#93c5fd", "#60a5fa", "#2563eb", "#1e40af"][
           Math.min(4, Math.floor(Math.sqrt(count / maximum) * 5))
         ];
   const mapped =
@@ -85,22 +85,22 @@ export default function PickupMap() {
         title="Pickups by ZIP area"
         description="Trip counts aggregated by pickup ZIP code for the selected filters."
         action={
-          <Badge className="border bg-card px-3 py-2">
+          <Badge variant="outline" className="px-3 py-2">
             <MapPin className="size-3.5" />
             New York City
           </Badge>
         }
       />
       <div className="grid gap-5 xl:grid-cols-[1fr_300px]">
-        <Card className="overflow-hidden">
+        <Card className="gap-0 overflow-hidden py-0">
           <div className="flex items-center justify-between border-b px-5 py-4">
             <div>
               <h2 className="text-sm font-semibold">Pickup activity</h2>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Hover for trip counts. Click an area to filter.
               </p>
             </div>
-            <Badge>{compact(mapped)} mapped trips</Badge>
+            <Badge variant="secondary">{compact(mapped)} mapped trips</Badge>
           </div>
           <div className="map-panel h-[490px] sm:h-[570px]">
             <MapContainer
@@ -148,11 +148,11 @@ export default function PickupMap() {
               />
             </MapContainer>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 p-4 text-[10px] text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4 text-xs text-muted-foreground">
             <span>Modified ZIP areas · geographic aggregation</span>
             <span className="flex items-center gap-1.5">
               Fewer
-              {["#d9e4bd", "#bad18e", "#92b568", "#658c49", "#365a36"].map(
+              {["#dbeafe", "#93c5fd", "#60a5fa", "#2563eb", "#1e40af"].map(
                 (c) => (
                   <span
                     key={c}
@@ -166,7 +166,7 @@ export default function PickupMap() {
           </div>
         </Card>
         <div className="space-y-5">
-          <Card className="p-5">
+          <Card className="gap-0 p-5">
             <ChartTitle
               title="Pickup ZIP ranking"
               subtitle="ZIP codes ranked by recorded trips"
@@ -181,9 +181,9 @@ export default function PickupMap() {
                   filters.zip === zone.zip && "bg-muted",
                 )}
               >
-                <div className="mb-2 flex items-center justify-between text-xs">
+                <div className="mb-2 flex items-center justify-between text-sm">
                   <span>
-                    <span className="mr-2 text-[10px] text-muted-foreground">
+                    <span className="mr-2 text-xs text-muted-foreground">
                       {String(index + 1).padStart(2, "0")}
                     </span>
                     <span className="font-medium">{zone.zip}</span>
@@ -192,7 +192,7 @@ export default function PickupMap() {
                 </div>
                 <div className="ml-5 h-1 overflow-hidden rounded bg-muted">
                   <div
-                    className="h-1 rounded bg-[#91ad70]"
+                    className="h-1 rounded bg-chart-2"
                     style={{
                       width: `${(zone.trips / (zones[0]?.trips || 1)) * 100}%`,
                     }}
@@ -201,21 +201,21 @@ export default function PickupMap() {
               </button>
             ))}
           </Card>
-          <Card className="bg-[#edf2e8] p-5">
-            <p className="text-xs font-semibold">Geographic coverage</p>
-            <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+          <Card className="gap-0 bg-muted/40 p-5">
+            <p className="text-sm font-semibold">Geographic coverage</p>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
               The sample has ZIP codes, not GPS coordinates. NYC Health’s
               modified ZIP areas group some postal ZIPs together. Trips outside
               these boundaries are included in totals, but are not drawn.
             </p>
-            <p className="mt-3 text-[11px] font-medium">
+            <p className="mt-3 text-xs font-medium">
               {number(
                 Math.max(0, (overview.data?.summary.trips ?? 0) - mapped),
               )}{" "}
               trips outside mapped areas
             </p>
             <a
-              className="mt-3 inline-flex items-center gap-1 text-[11px] text-primary underline"
+              className="mt-3 inline-flex items-center gap-1 text-xs text-primary underline"
               href={source}
               target="_blank"
               rel="noreferrer"
@@ -225,13 +225,13 @@ export default function PickupMap() {
             </a>
           </Card>
           {filters.zip && (
-            <Card className="p-5">
+            <Card className="gap-0 p-5">
               <p className="text-sm font-medium">Pickup ZIP {filters.zip}</p>
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-2 text-sm text-muted-foreground">
                 {money(overview.data?.summary.revenue ?? 0)} in fare revenue
               </p>
               <Link
-                className="mt-4 inline-flex items-center gap-2 text-xs font-medium text-primary"
+                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary"
                 to={`/trips?${query}`}
               >
                 View trip records

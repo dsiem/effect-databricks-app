@@ -4,7 +4,24 @@ import { useState } from "react";
 import type { TripSearch } from "../../../src/domain";
 import { api, apiClient, money, number, useFilters } from "../api";
 import { ErrorState, Loading, PageTitle } from "../components/common";
-import { Badge, Button, Card } from "../components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../components/ui";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 export default function TripExplorer() {
   const { filters, query } = useFilters();
   return <TripTable key={query} filters={filters} filterQuery={query} />;
@@ -73,19 +90,19 @@ function TripTable({
       ) : trips.error ? (
         <ErrorState error={trips.error} retry={() => void trips.refetch()} />
       ) : (
-        <Card className="overflow-hidden">
+        <Card className="gap-0 overflow-hidden py-0">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold">Trip records</h2>
-              <Badge>{number(trips.data.total)} trips</Badge>
+              <Badge variant="secondary">
+                {number(trips.data.total)} trips
+              </Badge>
             </div>
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              Sort by
-              <select
-                aria-label="Sort trips"
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Sort by</span>
+              <Select
                 value={sort}
-                onChange={(e) => {
-                  const value = e.target.value;
+                onValueChange={(value) => {
                   if (
                     value === "newest" ||
                     value === "fare" ||
@@ -94,18 +111,25 @@ function TripTable({
                     setSort(value);
                   setPage(1);
                 }}
-                className="h-8 rounded-md border bg-card px-2 text-xs text-foreground"
               >
-                <option value="newest">Latest pickup</option>
-                <option value="fare">Highest fare</option>
-                <option value="distance">Longest distance</option>
-              </select>
-            </label>
+                <SelectTrigger
+                  aria-label="Sort trips"
+                  className="text-foreground"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Latest pickup</SelectItem>
+                  <SelectItem value="fare">Highest fare</SelectItem>
+                  <SelectItem value="distance">Longest distance</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full whitespace-nowrap text-left text-xs">
-              <thead className="bg-muted/40 text-[10px] text-muted-foreground">
-                <tr>
+            <Table className="w-full whitespace-nowrap text-left text-sm">
+              <TableHeader className="bg-muted/40">
+                <TableRow>
                   {[
                     "Pickup time",
                     "Route · ZIP codes",
@@ -114,49 +138,49 @@ function TripTable({
                     "Duration",
                     "Fare",
                   ].map((title, i) => (
-                    <th
+                    <TableHead
                       key={title}
                       className={`px-5 py-4 font-medium ${i > 2 ? "text-right" : ""}`}
                     >
                       {title}
-                    </th>
+                    </TableHead>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {trips.data.rows.map((trip, i) => (
-                  <tr
+                  <TableRow
                     // biome-ignore lint/suspicious/noArrayIndexKey: Immutable trip snapshots can contain identical rows without source IDs.
                     key={`${trip.pickup_at}-${trip.dropoff_at}-${i}`}
                     className="border-t transition-colors hover:bg-muted/40"
                   >
-                    <td className="px-5 py-4 font-medium tabular-nums">
+                    <TableCell className="px-5 py-4 font-medium tabular-nums">
                       {trip.pickup_at}
-                    </td>
-                    <td className="px-5 py-4">
+                    </TableCell>
+                    <TableCell className="px-5 py-4">
                       <span className="inline-flex items-center gap-2">
                         <MapPin className="size-3 text-primary" />
                         {trip.pickup_zip}
                         <span className="text-muted-foreground">→</span>
                         {trip.dropoff_zip}
                       </span>
-                    </td>
-                    <td className="px-5 py-4 text-muted-foreground tabular-nums">
+                    </TableCell>
+                    <TableCell className="px-5 py-4 text-muted-foreground tabular-nums">
                       {trip.dropoff_at}
-                    </td>
-                    <td className="px-5 py-4 text-right tabular-nums">
+                    </TableCell>
+                    <TableCell className="px-5 py-4 text-right tabular-nums">
                       {trip.distance.toFixed(2)} mi
-                    </td>
-                    <td className="px-5 py-4 text-right tabular-nums">
+                    </TableCell>
+                    <TableCell className="px-5 py-4 text-right tabular-nums">
                       {trip.duration.toFixed(1)} min
-                    </td>
-                    <td className="px-5 py-4 text-right font-medium tabular-nums">
+                    </TableCell>
+                    <TableCell className="px-5 py-4 text-right font-medium tabular-nums">
                       {money(trip.fare, 2)}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             {!trips.data.rows.length && (
               <div className="p-14 text-center text-sm text-muted-foreground">
                 No trips match these filters.
@@ -164,7 +188,7 @@ function TripTable({
             )}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4">
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {trips.data.total
                 ? `${number((page - 1) * 25 + 1)}–${number(Math.min(page * 25, trips.data.total))} of ${number(trips.data.total)}`
                 : "0 records"}
@@ -179,7 +203,7 @@ function TripTable({
               >
                 <ChevronLeft />
               </Button>
-              <span className="text-xs">Page {page}</span>
+              <span className="text-sm">Page {page}</span>
               <Button
                 aria-label="Next page"
                 variant="outline"
@@ -193,7 +217,7 @@ function TripTable({
           </div>
         </Card>
       )}
-      <p className="mt-4 text-xs text-muted-foreground">
+      <p className="mt-4 text-sm text-muted-foreground">
         Source timestamps are shown as recorded. Fares are in USD and distances
         are in miles.
       </p>

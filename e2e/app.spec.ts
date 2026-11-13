@@ -11,13 +11,29 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
     page.getByText("Total fare revenue", { exact: true }),
   ).toBeVisible({ timeout: 120_000 });
   await expect(page.locator(".recharts-surface").first()).toBeVisible();
+  await page.getByRole("tab", { name: "Trips", exact: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(
+    page.getByRole("tab", { name: "Revenue", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("heading", {
+      name: "Fare revenue by pickup date",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.keyboard.press("ArrowLeft");
+  await expect(
+    page.getByRole("heading", { name: "Trips by pickup date", exact: true }),
+  ).toBeVisible();
   await page.getByLabel("Pickup ZIP", { exact: true }).fill("10001");
   await page.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(page).toHaveURL(/zip=10001/);
   await page.getByRole("link", { name: "Trip explorer", exact: true }).click();
   await expect(page.getByRole("table")).toBeVisible({ timeout: 120_000 });
   await expect(page.locator("tbody tr").first()).toContainText("10001");
-  await page.getByLabel("Sort trips").selectOption("fare");
+  await page.getByRole("combobox", { name: "Sort trips" }).click();
+  await page.getByRole("option", { name: "Highest fare", exact: true }).click();
   await expect(page.getByText("Page 1", { exact: true })).toBeVisible();
   await page.getByLabel("Next page").click();
   await expect(page.getByText("Page 2", { exact: true })).toBeVisible({

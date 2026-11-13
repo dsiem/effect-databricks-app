@@ -45,6 +45,13 @@ export const useStatus = () =>
     queryFn: ({ signal }) => api(apiClient.status(), signal),
     staleTime: 60_000,
   });
+export const useCurrentUser = () =>
+  useQuery({
+    queryKey: ["current-user"],
+    queryFn: ({ signal }) => api(apiClient.currentUser(), signal),
+    staleTime: 300_000,
+    retry: false,
+  });
 export const number = (value: number) =>
   new Intl.NumberFormat("en-US").format(Math.round(value));
 export const compact = (value: number) =>
