@@ -4,18 +4,91 @@ bundle:
 
 variables:
   app_name:
-    description: Unique app name (lowercase letters, numbers, hyphens; at most 30 characters).
-    default: effect-${workspace.current_user.domain_friendly_name}-dev
+    description: Unique app name (lowercase letters, digits, hyphens; at most 30 characters).
+    default: metrocab-dev
+  data_name:
+    description: Prefix for the data resources managed by this bundle target.
+    default: metrocab-${bundle.target}
+
+  warehouse_name:
+    description: Display name of the managed warehouse; set when adopting an existing warehouse.
+    default: ${var.data_name}-analytics
 
 resources:
+  sql_warehouses:
+    analytics:
+      name: ${var.warehouse_name}
+      cluster_size: 2X-Small
+      warehouse_type: PRO
+      enable_serverless_compute: true
+      enable_photon: true
+      min_num_clusters: 1
+      max_num_clusters: 1
+      auto_stop_mins: 10
+      tags: {}
+  genie_spaces:
+    taxi:
+      title: ${var.app_name} NYC taxi analyst
+      description: Historical NYC taxi analytics with source-grounded SQL.
+      warehouse_id: ${resources.sql_warehouses.analytics.id}
+      file_path: ./config/taxi.geniespace.json
+  postgres_projects:
+    notebook_project:
+      project_id: ${var.data_name}
+      display_name: ${var.data_name} notebook
+      pg_version: 17
+      default_endpoint_settings:
+        autoscaling_limit_min_cu: 1
+        autoscaling_limit_max_cu: 1
+        suspend_timeout_duration: 300s
+  postgres_branches:
+    notebook_branch:
+      parent: ${resources.postgres_projects.notebook_project.name}
+      branch_id: production
+      replace_existing: true
+      no_expiry: true
+  postgres_endpoints:
+    notebook_endpoint:
+      parent: ${resources.postgres_branches.notebook_branch.name}
+      endpoint_id: primary
+      endpoint_type: ENDPOINT_TYPE_READ_WRITE
+      replace_existing: true
+      autoscaling_limit_min_cu: 1
+      autoscaling_limit_max_cu: 1
   apps:
     app:
       name: ${var.app_name}
-      description: Effect-based foundation for Lakebase, Lakehouse SQL, and Genie.
+      description: NYC taxi analytics, Genie, and a Lakebase notebook, composed with Effect.
       source_code_path: .
+      config:
+        command: [node, dist/main.js]
+        env:
+          - name: APP_HTTP_PROTOCOL
+            value: http1
+          - name: DATABRICKS_WAREHOUSE_ID
+            value_from: lakehouse
+          - name: GENIE_SPACE_ID
+            value_from: genie
+          - name: LAKEBASE_ENDPOINT
+            value_from: lakebase
+          - name: PGDATABASE
+            value: databricks_postgres
+      resources:
+        - name: lakehouse
+          sql_warehouse:
+            id: ${resources.sql_warehouses.analytics.id}
+            permission: CAN_USE
+        - name: genie
+          genie_space:
+            name: ${resources.genie_spaces.taxi.title}
+            space_id: ${resources.genie_spaces.taxi.id}
+            permission: CAN_RUN
+        - name: lakebase
+          postgres:
+            branch: ${resources.postgres_branches.notebook_branch.name}
+            database: ${resources.postgres_branches.notebook_branch.name}/databases/databricks-postgres
+            permission: CAN_CONNECT_AND_CREATE
 
-# Keep the deployed source focused on the app; credentials and generated files
-# are also excluded by .gitignore. Databricks installs and builds from source.
 sync:
   exclude:
     - .github/**
@@ -23,13 +96,17 @@ sync:
     - examples/**
     - scripts/**
     - test/**
+    - e2e/**
+    - config/**
     - README.md
     - biome.json
+    - playwright.config.ts
 
 targets:
   dev:
     default: true
-    mode: development
+    variables:
+      app_name: metrocab-dev
   prod:
     mode: production
     variables:

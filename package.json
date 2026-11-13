@@ -23,12 +23,13 @@
     "package:check": "node scripts/check-package.mjs",
     "bundle:check": "node scripts/check-bundle.mjs",
     "bundle:validate": "databricks bundle validate --strict",
-    "deploy:dev": "databricks bundle deploy -t dev && databricks bundle run app -t dev",
+    "deploy:dev": "npm run workspace:setup -- dev",
     "dev:server": "npm run build --workspaces --if-present && node --env-file-if-exists=.env --import tsx --watch src/main.ts",
     "dev:client": "vite --host 127.0.0.1",
     "test:e2e": "playwright test",
     "data:check": "node --env-file-if-exists=.env --import tsx scripts/check-live.ts",
-    "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts"
+    "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
+    "workspace:setup": "node scripts/setup-workspace.mjs"
   },
   "dependencies": {
     "@effect/platform-node": "4.1.4",

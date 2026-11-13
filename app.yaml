@@ -2,4 +2,4 @@ command: ["node", "dist/main.js"]
 
 env:
   - name: APP_HTTP_PROTOCOL
-    value: "http2"
+    value: "http1"

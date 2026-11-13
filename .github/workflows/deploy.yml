@@ -56,10 +56,14 @@ jobs:
           test -n "$BUNDLE_VAR_app_name"
       - name: Validate
         run: databricks bundle validate --strict -t "$BUNDLE_TARGET"
-      - name: Deploy source and resources
-        run: databricks bundle deploy -t "$BUNDLE_TARGET"
-      - name: Start app with the deployed source
-        run: databricks bundle run app -t "$BUNDLE_TARGET"
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Deploy resources, migrate Lakebase, grant app access, and start
+        run: npm run workspace:setup -- "$BUNDLE_TARGET"
       - name: Wait for the app to run
         run: |
           for attempt in $(seq 1 40); do
