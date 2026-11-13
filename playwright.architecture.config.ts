@@ -5,12 +5,14 @@ export default defineConfig({
   testMatch: [
     "genie-recovery.spec.ts",
     "notebook-conflicts.spec.ts",
+    "notebook-pagination.spec.ts",
     "filter-validation.spec.ts",
     "ui.spec.ts",
     "date-range.spec.ts",
     "explore-context.spec.ts",
   ],
   timeout: 30_000,
+  workers: process.env.CI ? 2 : undefined,
   use: {
     baseURL: "http://127.0.0.1:3011",
     browserName: "chromium",

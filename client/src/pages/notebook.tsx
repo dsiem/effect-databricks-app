@@ -1,4 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   BookOpen,
   ExternalLink,
@@ -9,7 +13,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Note, NoteInput } from "../../../src/domain";
+import type { Note, NoteCursor, NoteInput } from "../../../src/domain";
 import { api, apiClient, useFilters } from "../api";
 import { ErrorState, Loading, PageTitle } from "../components/common";
 import { ExploreContext, FilterSummary } from "../components/explore-context";
@@ -29,11 +33,20 @@ export default function Notebook() {
   const { filters } = useFilters();
   const client = useQueryClient();
   const navigate = useNavigate();
-  const notes = useQuery({
+  const notes = useInfiniteQuery({
     queryKey: ["notes"],
-    queryFn: ({ signal }) => api(apiClient.notes(), signal),
+    initialPageParam: undefined as NoteCursor | undefined,
+    queryFn: ({ signal, pageParam }) =>
+      api(
+        apiClient.notes({
+          query: pageParam ? { cursor: pageParam } : {},
+        }),
+        signal,
+      ),
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
     staleTime: 0,
   });
+  const savedNotes = notes.data?.pages.flatMap((page) => page.rows) ?? [];
   const [editing, setEditing] = useState<NoteInput | null>(null);
   const [deleting, setDeleting] = useState<Note | null>(null);
   const dialogTrigger = useRef<HTMLElement | null>(null);
@@ -119,9 +132,9 @@ export default function Notebook() {
       </div>
       {notes.isPending ? (
         <Loading text="Loading saved notes…" />
-      ) : notes.error ? (
+      ) : notes.error && !notes.data ? (
         <ErrorState error={notes.error} retry={() => void notes.refetch()} />
-      ) : !notes.data.length ? (
+      ) : !savedNotes.length ? (
         <Card className="flex min-h-80 flex-col gap-0 items-center justify-center p-10 text-center">
           <span className="grid size-14 place-items-center rounded-2xl bg-muted">
             <BookOpen className="size-6 text-primary" />
@@ -149,13 +162,13 @@ export default function Notebook() {
         </Card>
       ) : (
         <>
-          <p className="mb-4 text-sm text-muted-foreground">
-            {notes.data.length} saved{" "}
-            {notes.data.length === 1 ? "note" : "notes"} · shared across this
-            app
+          <p aria-live="polite" className="mb-4 text-sm text-muted-foreground">
+            {savedNotes.length} saved{" "}
+            {savedNotes.length === 1 ? "note" : "notes"} shown · shared across
+            this app
           </p>
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {notes.data.map((note) => (
+            {savedNotes.map((note) => (
               <Card key={note.id} className="gap-0 p-6">
                 <div className="mb-4 flex items-start gap-3">
                   <h2 className="flex-1 text-base font-semibold tracking-tight">
@@ -234,6 +247,30 @@ export default function Notebook() {
               </Card>
             ))}
           </div>
+          {notes.error && (
+            <p role="alert" className="mt-4 text-sm text-destructive">
+              {notes.error.message}
+            </p>
+          )}
+          {(notes.hasNextPage || notes.error) && (
+            <div className="mt-6 flex justify-center">
+              <Button
+                variant="outline"
+                disabled={notes.isFetching}
+                onClick={() =>
+                  void (notes.isFetchNextPageError || !notes.error
+                    ? notes.fetchNextPage()
+                    : notes.refetch())
+                }
+              >
+                {notes.isFetching
+                  ? "Loading notes…"
+                  : notes.error
+                    ? "Retry loading notes"
+                    : "Load more notes"}
+              </Button>
+            </div>
+          )}
           {pin.error && (
             <p role="alert" className="mt-4 text-sm text-destructive">
               {pin.error.message}

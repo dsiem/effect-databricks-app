@@ -17,7 +17,7 @@ local development uses the current workspace user's profile when available.
 - **Ask Genie:** real conversations, follow-up questions, query results, generated
   SQL, and explicit date/ZIP filter context.
 - **Analyst notebook:** shared notes, pinning, editing, deletion, and saved filter
-  views persisted in Lakebase Postgres.
+  views persisted in Lakebase Postgres, with paginated browsing of every note.
 
 The sample contains 21,932 trips from January–February 2016 in the verified
 workspace. It contains ZIP codes rather than GPS points. Fares exclude tips and
@@ -107,6 +107,9 @@ the verified workspace. Bundle teardown also manages the adopted warehouse; revi
 `databricks bundle plan` before infrastructure changes or destroying a bundle.
 
 The **Deploy** GitHub workflow uses the same setup command and GitHub OIDC.
+CI and deployment prechecks include the offline browser suite. After the app
+reaches `RUNNING`, deployment must also pass hosted SQL, notebook persistence, and
+Genie verification using the app identity.
 Configure GitHub environments `dev` / `prod` with `DATABRICKS_HOST`,
 `DATABRICKS_CLIENT_ID`, and `DATABRICKS_APP_NAME`, plus a Databricks federation policy
 for the GitHub environment subject. An existing adopted warehouse must have its
@@ -147,11 +150,12 @@ edit the shared notebook; per-viewer row-level authorization is not implemented.
 
 ```sh
 npm run check          # lint, types, tests, build, both HTTP protocols, packed SQL adapter
+npm run test:browser   # offline browser checks against the built app; also required in CI
 npm run test:architecture # offline Genie recovery, sidebar/dialog/responsive UI, and service checks
 npm run bundle:check   # deployment schema validation without credentials
 npm run data:check     # live SQL reconciliation, Lakebase CRUD, Genie + follow-up
 node scripts/check-deployed.mjs dev  # verify actual hosted APIs and app-identity access
-npx playwright install chromium
+npx playwright install chromium # required once before either browser suite
 npm start              # separate terminal, with the configured .env
 npm run test:e2e       # real browser checks, no mocked data routes
 ```

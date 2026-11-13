@@ -16,8 +16,11 @@ import { makeCapability } from "./capability.js";
 import {
   type CapabilityAvailability,
   Note,
+  NoteCursor,
   type NoteInput,
   type NotePin,
+  type NoteSearch,
+  type Notes,
 } from "./domain.js";
 import {
   NoteConflict,
@@ -87,7 +90,7 @@ export class Notebook extends Context.Service<
   Notebook,
   {
     readonly availability: Effect.Effect<CapabilityAvailability>;
-    readonly list: Effect.Effect<ReadonlyArray<Note>, ServiceError>;
+    readonly list: (search: NoteSearch) => Effect.Effect<Notes, ServiceError>;
     readonly save: (input: NoteInput) => Effect.Effect<Note, ServiceError>;
     readonly pin: (
       id: string,
@@ -115,7 +118,7 @@ export class Notebook extends Context.Service<
       if (!settings.pgHost && !settings.lakebaseEndpoint)
         return {
           availability: capability.availability,
-          list: Effect.fail(failure),
+          list: () => Effect.fail(failure),
           save: () => Effect.fail(failure),
           pin: () => Effect.fail(failure),
           remove: () => Effect.fail(failure),
@@ -135,10 +138,11 @@ export class Notebook extends Context.Service<
       );
       return {
         availability: capability.availability,
-        list: database.pipe(
-          Effect.flatMap((notebook) => notebook.list),
-          capability.track,
-        ),
+        list: (search: NoteSearch) =>
+          database.pipe(
+            Effect.flatMap((notebook) => notebook.list(search)),
+            capability.track,
+          ),
         save: (input: NoteInput) =>
           database.pipe(
             Effect.flatMap((notebook) => notebook.save(input)),
@@ -168,12 +172,44 @@ export const makeNotebook = (
   const columns = sql`id::text AS id, title, body, filters, pinned, version,
       to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
       to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at`;
-  const list = SqlSchema.findAll({
-    Request: Schema.Void,
-    Result: Note,
-    execute: () =>
-      sql`SELECT ${columns} FROM metrocab.notes ORDER BY pinned DESC, updated_at DESC LIMIT 200`,
-  })(undefined).pipe(Effect.mapError(databaseError), restoreCredentialFailure);
+  const pageSize = 24;
+  const list = (search: NoteSearch) =>
+    SqlSchema.findAll({
+      Request: Schema.Void,
+      Result: Schema.Struct({
+        ...Note.fields,
+        cursor_updated_at: NoteCursor.fields.updatedAt,
+      }),
+      execute: () => sql`SELECT ${columns},
+      to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_updated_at
+      FROM metrocab.notes AS notes
+      ${
+        search.cursor
+          ? sql`WHERE (pinned, updated_at, id) <
+        (${search.cursor.pinned}, ${search.cursor.updatedAt}::timestamptz, ${search.cursor.id}::uuid)`
+          : sql``
+      }
+      ORDER BY notes.pinned DESC, notes.updated_at DESC, notes.id DESC LIMIT ${pageSize + 1}`,
+    })(undefined).pipe(
+      Effect.mapError(databaseError),
+      restoreCredentialFailure,
+      Effect.map((results): Notes => {
+        const rows = results.slice(0, pageSize);
+        const last = rows.at(-1);
+        return {
+          rows: rows.map(({ cursor_updated_at: _, ...note }) => note),
+          nextCursor:
+            results.length > pageSize && last
+              ? {
+                  id: last.id,
+                  pinned: last.pinned,
+                  updatedAt: last.cursor_updated_at,
+                }
+              : null,
+        };
+      }),
+      Effect.withSpan("notebook.list"),
+    );
   const conflict = (id: string) =>
     new NoteConflict({
       id,
@@ -251,6 +287,7 @@ export const migrateNotebook = (
       updated_at timestamptz NOT NULL DEFAULT now()
     )`;
       yield* sql`ALTER TABLE metrocab.notes ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1 CHECK (version > 0)`;
+      yield* sql`CREATE INDEX IF NOT EXISTS notes_listing_idx ON metrocab.notes (pinned DESC, updated_at DESC, id DESC)`;
       if (appPrincipal) {
         yield* sql`GRANT USAGE ON SCHEMA metrocab TO ${sql(appPrincipal)}`;
         yield* sql`GRANT SELECT, INSERT, UPDATE, DELETE ON metrocab.notes TO ${sql(appPrincipal)}`;

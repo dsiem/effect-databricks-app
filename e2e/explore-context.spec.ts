@@ -37,7 +37,7 @@ test.beforeEach(async ({ page }) => {
     }),
   );
   await page.route("**/api/notes", (route) =>
-    route.fulfill({ json: [savedNote] }),
+    route.fulfill({ json: { rows: [savedNote], nextCursor: null } }),
   );
 });
 
@@ -86,7 +86,7 @@ test("Explore hands the applied view to Notebook, and a new note saves that snap
   let saved: NoteInput | undefined;
   await page.route("**/api/notes", (route) => {
     if (route.request().method() !== "PUT")
-      return route.fulfill({ json: [savedNote] });
+      return route.fulfill({ json: { rows: [savedNote], nextCursor: null } });
     saved = route.request().postDataJSON() as NoteInput;
     return route.fulfill({
       json: { ...savedNote, ...saved, version: 1 },

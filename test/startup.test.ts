@@ -59,7 +59,7 @@ test("Lakebase discovery failures leave other services running and can be retrie
       assert.equal(yield* notebook.availability, "unknown");
       assert.equal(yield* analytics.availability, "unknown");
       for (let attempt = 1; attempt <= 2; attempt++) {
-        const exit = yield* Effect.exit(notebook.list);
+        const exit = yield* Effect.exit(notebook.list({}));
         assert.ok(Exit.isFailure(exit));
         const error = Cause.findErrorOption(exit.cause);
         assert.ok(

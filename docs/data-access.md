@@ -133,9 +133,19 @@ is enabled; the pool uses the direct endpoint host, at most four connections,
 are never used directly as database passwords.
 
 Migration is an idempotent transaction guarded by a PostgreSQL advisory lock.
-App startup never creates schemas. UUID-keyed upserts make repeating a note save
-safe; insert/update is a single SQL statement, including the saved filters.
-The UI supports list/create/edit/pin/delete and reopening saved dashboard views.
+App startup never creates schemas. UUID-keyed creates reject duplicates, and
+updates require the current version; each write is a single SQL statement,
+including the saved filters. The UI supports list/create/edit/pin/delete and
+reopening saved dashboard views.
+
+`GET /api/notes` returns `{ rows, nextCursor }` with at most 24 notes per page.
+The optional `cursor` query parameter is the JSON-encoded continuation object;
+the shared HTTP contract handles encoding and validation. Pages order by pinned
+status, update time, and UUID, all descending. Cursors retain PostgreSQL's full
+timestamp precision and remain usable if the boundary note is deleted. The
+explicit migration adds the matching listing index. The notebook's **Load more
+notes** action appends pages, retains visible notes if a later request fails,
+and offers a retry. Saves, pins, and deletes refresh the loaded pages.
 
 ## Deployment verification and workspace constraints
 
@@ -146,6 +156,13 @@ temporary-note CRUD, and checks a grounded Genie answer plus a follow-up.
 `npm run test:e2e` verifies actual browser interactions and persistence across reloads.
 `node scripts/check-deployed.mjs dev` exercises the deployed HTTP APIs with an
 authenticated caller while data access uses the app service principal.
+CI and deployment prechecks install Chromium and require `npm run test:browser`
+after the build and service checks. This offline suite covers notebook pagination
+and conflicts, filter validation, Genie recovery, and responsive interactions.
+The deployment workflow waits for `RUNNING`, then requires the deployed API check
+to succeed; a healthy process with broken data access fails the deployment job.
+The verifier follows notebook continuation cursors and removes its temporary note
+even if reading it back fails.
 
 The platform supplies a workspace hostname in this workspace, so the settings
 boundary normalizes it to an HTTPS origin. The deployed proxy returned 502 for

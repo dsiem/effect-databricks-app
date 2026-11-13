@@ -78,17 +78,30 @@ behavioral tests for each implementation task's completion criteria.
    failures, defects, interruption, and cleanup. Offline behavioral tests cover
    distinct requests, queued cancellation, deadlines, and independent Genie reads.
 
-7. [ ] **P2 — Make notebook listing complete and bounded**
+7. [x] **P2 — Make notebook listing complete and bounded**
 
    Replace the silent 200-note cutoff with pagination and explicit continuation
    metadata. Every saved note must remain reachable through the UI.
 
-8. [ ] **P2 — Expand application verification and deployment gates**
+   The shared API returns 24-note pages with validated continuation cursors.
+   Listing orders by pin status, full-precision update time, and UUID, backed by
+   an index in the explicit migration. The UI loads further pages and retains
+   visible notes on download errors. Database tests cover more than 200 notes,
+   timestamp ties, microseconds, and deleted cursor rows; browser tests cover
+   reaching note 201, refreshing pins, and retrying later pages.
+
+8. [x] **P2 — Expand application verification and deployment gates**
 
    Add offline tests for conflicting notebook writes, filter invariants, Genie
    recovery, dependency outages, and admission control. Run the existing deployed
    API verification after startup; the app reporting `RUNNING` alone must not
    finish deployment verification.
+
+   CI and deployment prechecks now require the offline browser suite. Deployment
+   waits for `RUNNING` and then runs the hosted API verifier for SQL, paginated
+   notebook persistence, and a grounded Genie answer. Offline tests execute that
+   verifier against HTTP fixtures and prove dependency failures fail the check
+   despite `RUNNING`, with temporary-note cleanup after read failures.
 
 9. [ ] **P2 — Model reproducible analysis context**
 

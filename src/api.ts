@@ -17,6 +17,7 @@ import {
   Note,
   NoteInput,
   NotePin,
+  NoteSearch,
   Notes,
   Overview,
   Status,
@@ -116,7 +117,10 @@ export const AppApi = HttpApi.make("taxi").add(
           success: GenieReply,
         },
       ),
-      HttpApiEndpoint.get("notes", "/api/notes", { success: Notes }),
+      HttpApiEndpoint.get("notes", "/api/notes", {
+        query: NoteSearch,
+        success: Notes,
+      }),
       HttpApiEndpoint.put("saveNote", "/api/notes", {
         payload: NoteInput,
         success: Note,

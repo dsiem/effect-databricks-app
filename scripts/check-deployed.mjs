@@ -39,17 +39,25 @@ const overview = await request("/api/overview");
 assert.ok(metadata.trips > 0);
 assert.equal(overview.summary.trips, metadata.trips);
 const id = randomUUID();
+const created = await request("/api/notes", "PUT", {
+  id,
+  title: "Deployed app verification",
+  body: "Temporary app-identity persistence check",
+  filters: { zip: "10001" },
+  version: null,
+});
 try {
-  await request("/api/notes", "PUT", {
-    id,
-    title: "Deployed app verification",
-    body: "Temporary app-identity persistence check",
-    filters: { zip: "10001" },
-    version: null,
-  });
-  assert.ok((await request("/api/notes")).some((note) => note.id === id));
+  let page = await request("/api/notes");
+  const cursors = new Set();
+  while (!page.rows.some((note) => note.id === id) && page.nextCursor) {
+    const cursor = JSON.stringify(page.nextCursor);
+    assert.ok(!cursors.has(cursor), "Notebook continuation did not advance");
+    cursors.add(cursor);
+    page = await request(`/api/notes?${new URLSearchParams({ cursor })}`);
+  }
+  assert.ok(page.rows.some((note) => note.id === id));
 } finally {
-  await request(`/api/notes/${id}?version=1`, "DELETE");
+  await request(`/api/notes/${id}?version=${created.version}`, "DELETE");
 }
 const operation = await request("/api/genie", "POST", {
   content:

@@ -107,7 +107,7 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
       .handle("submitGenie", ({ payload }) => respond(genie.submit(payload)))
       .handle("pollGenie", ({ params }) => respond(genie.poll(params)))
       .handle("genieResult", ({ params }) => respond(genie.result(params)))
-      .handle("notes", () => respond(notebook.list))
+      .handle("notes", ({ query }) => respond(notebook.list(query)))
       .handle("saveNote", ({ payload }) => respond(notebook.save(payload)))
       .handle("pinNote", ({ params, payload }) =>
         respond(notebook.pin(params.id, payload)),

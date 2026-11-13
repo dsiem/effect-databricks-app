@@ -20,5 +20,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
       - uses: databricks/setup-cli@v1.26.0
       - run: npm run bundle:check

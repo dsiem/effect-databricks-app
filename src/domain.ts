@@ -109,7 +109,29 @@ export const Note = Schema.Struct({
 });
 export type Note = typeof Note.Type;
 export type NoteInput = typeof NoteInput.Type;
-export const Notes = Schema.Array(Note);
+export const NoteCursor = Schema.Struct({
+  id: NoteInput.fields.id,
+  pinned: Schema.Boolean,
+  // Preserve PostgreSQL's microseconds when resuming the database ordering.
+  updatedAt: Schema.String.check(
+    Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/),
+    Schema.makeFilter(
+      (value) =>
+        !Number.isNaN(Date.parse(value)) &&
+        new Date(value).toISOString() === `${value.slice(0, 23)}Z`,
+    ),
+  ),
+});
+export type NoteCursor = typeof NoteCursor.Type;
+export const NoteSearch = Schema.Struct({
+  cursor: Schema.optionalKey(Schema.fromJsonString(NoteCursor)),
+});
+export type NoteSearch = typeof NoteSearch.Type;
+export const Notes = Schema.Struct({
+  rows: Schema.Array(Note),
+  nextCursor: Schema.NullOr(NoteCursor),
+});
+export type Notes = typeof Notes.Type;
 const GenieId = Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9-]{1,100}$/));
 export const GenieInput = Schema.Struct({
   content: boundedText(4000),

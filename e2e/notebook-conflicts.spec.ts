@@ -20,7 +20,9 @@ for (const removed of [false, true]) {
     let submitted: unknown;
     await page.route("**/api/notes", (route) => {
       if (route.request().method() === "GET")
-        return route.fulfill({ json: current ? [current] : [] });
+        return route.fulfill({
+          json: { rows: current ? [current] : [], nextCursor: null },
+        });
       submitted = route.request().postDataJSON();
       return route.fulfill({
         status: removed ? 404 : 409,
@@ -83,7 +85,7 @@ test("pinning sends only the pin and version, preserving newer note content", as
   let current = original;
   let payload: unknown;
   await page.route("**/api/notes", (route) =>
-    route.fulfill({ json: [current] }),
+    route.fulfill({ json: { rows: [current], nextCursor: null } }),
   );
   await page.route(`**/api/notes/${original.id}/pin`, (route) => {
     expect(route.request().method()).toBe("PATCH");

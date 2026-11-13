@@ -87,7 +87,11 @@ const fixture = () => {
           }),
           Layer.succeed(Notebook, {
             availability: Effect.succeed("unconfigured" as const),
-            list: Effect.sync(() => notes),
+            list: (search) =>
+              Effect.sync(() => {
+                if (search.cursor) calls.push(["notes", search]);
+                return { rows: notes, nextCursor: null };
+              }),
             save: (input) =>
               Effect.sync(() => {
                 calls.push(["save", input]);
@@ -199,7 +203,10 @@ test("generated client round-trips every endpoint through the real HTTP contract
         created_at: "2026-11-13",
         updated_at: "2026-11-13",
       });
-      assert.deepEqual(yield* client.notes(), [saved]);
+      assert.deepEqual(yield* client.notes({ query: {} }), {
+        rows: [saved],
+        nextCursor: null,
+      });
       const pinned = yield* client.pinNote({
         params: { id: note.id },
         payload: { version: saved.version, pinned: true },
@@ -215,7 +222,10 @@ test("generated client round-trips every endpoint through the real HTTP contract
           deleted: true,
         },
       );
-      assert.deepEqual(yield* client.notes(), []);
+      assert.deepEqual(yield* client.notes({ query: {} }), {
+        rows: [],
+        nextCursor: null,
+      });
     }),
   );
   assert.deepEqual(calls, [
@@ -266,6 +276,20 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
     ["/api/overview?from=2016-02-31", undefined],
     ["/api/trips?page=0", undefined],
     ["/api/trips?sort=unsafe", undefined],
+    ["/api/notes?cursor=not-json", undefined],
+    ...[
+      {},
+      { id: note.id, pinned: "true", updatedAt: "2026-11-13T00:00:00.000000Z" },
+      { id: "bad-id", pinned: false, updatedAt: "2026-11-13T00:00:00.000000Z" },
+      { id: note.id, pinned: false, updatedAt: "2026-02-30T00:00:00.000000Z" },
+      { id: note.id, pinned: false, updatedAt: "2026-11-13T00:00:00Z" },
+    ].map(
+      (cursor) =>
+        [
+          `/api/notes?${new URLSearchParams({ cursor: JSON.stringify(cursor) })}`,
+          undefined,
+        ] as const,
+    ),
     ["/api/genie/bad%20id/messages/message", undefined],
     ["/api/notes/bad-id", { method: "DELETE" }],
     [`/api/notes/${note.id}`, { method: "DELETE" }],
@@ -316,6 +340,24 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
     });
   }
   assert.deepEqual(calls, []);
+});
+
+test("generated client round-trips a microsecond notebook cursor through the HTTP boundary", async (t) => {
+  const { app, client, calls } = fixture();
+  t.after(app.dispose);
+  const cursor = {
+    id: note.id,
+    pinned: true,
+    updatedAt: "2026-11-13T10:00:00.000123Z",
+  };
+  assert.deepEqual(
+    await Effect.runPromise(client.notes({ query: { cursor } })),
+    {
+      rows: [],
+      nextCursor: null,
+    },
+  );
+  assert.deepEqual(calls, [["notes", { cursor }]]);
 });
 
 test("generated client rejects reversed dates before sending a request", async (t) => {

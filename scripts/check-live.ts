@@ -46,6 +46,16 @@ await Effect.runPromise(
     const settings = yield* Settings;
     if (settings.pgHost || settings.lakebaseEndpoint) {
       const notebook = yield* Notebook;
+      const allNotes = Effect.gen(function* () {
+        const notes = [];
+        let page = yield* notebook.list({});
+        notes.push(...page.rows);
+        while (page.nextCursor) {
+          page = yield* notebook.list({ cursor: page.nextCursor });
+          notes.push(...page.rows);
+        }
+        return notes;
+      });
       const id = randomUUID();
       yield* Effect.acquireUseRelease(
         notebook.save({
@@ -57,7 +67,7 @@ await Effect.runPromise(
         }),
         (created) =>
           Effect.gen(function* () {
-            assert.ok((yield* notebook.list).some((note) => note.id === id));
+            assert.ok((yield* allNotes).some((note) => note.id === id));
             const updated = yield* notebook.save({
               id,
               title: "Updated verification",
@@ -73,7 +83,7 @@ await Effect.runPromise(
             assert.equal(updated.filters.zip, zip);
           }),
         () =>
-          notebook.list.pipe(
+          allNotes.pipe(
             Effect.flatMap((notes) => {
               const current = notes.find((note) => note.id === id);
               return current
@@ -83,7 +93,7 @@ await Effect.runPromise(
             Effect.orDie,
           ),
       );
-      assert.ok(!(yield* notebook.list).some((note) => note.id === id));
+      assert.ok(!(yield* allNotes).some((note) => note.id === id));
       console.log(
         "Lakebase create, read, update, delete and filter persistence passed",
       );

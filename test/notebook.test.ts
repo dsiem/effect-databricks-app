@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { PgClient } from "@effect/sql-pg";
 import {
@@ -14,6 +15,7 @@ import * as Reactivity from "effect/reactivity/Reactivity";
 import * as SqlClient from "effect/sql/SqlClient";
 import type { Connection } from "effect/sql/SqlConnection";
 import { SqlError, UnknownError } from "effect/sql/SqlError";
+import type { Note, NoteSearch } from "../src/domain.js";
 import { type ServiceError, UpstreamError } from "../src/errors.js";
 import { makeNotebook, migrateNotebook, Notebook } from "../src/notebook.js";
 import { pgPassword, restoreCredentialFailure } from "../src/pg-credentials.js";
@@ -36,7 +38,7 @@ const operations: Record<
 > = {
   list: (
     notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
-  ) => notebook.list,
+  ) => notebook.list({}),
   save: (
     notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
   ) => notebook.save(input),
@@ -116,9 +118,8 @@ for (const [name, operation] of Object.entries(operations)) {
 }
 
 test("invalid Lakebase credential payload is a typed error with its schema diagnostic", async () => {
-  const exit = await runNotebook(
-    Effect.succeed({ token: 42 }),
-    (notebook) => notebook.list,
+  const exit = await runNotebook(Effect.succeed({ token: 42 }), (notebook) =>
+    notebook.list({}),
   );
   assert.ok(Exit.isFailure(exit));
   const error = Cause.findErrorOption(exit.cause);
@@ -170,9 +171,8 @@ test("notebook maps SQL failures without losing the original cause", async () =>
       operation: "execute",
     }),
   });
-  const exit = await withRows(
-    Effect.fail(sqlError),
-    (notebook) => notebook.list,
+  const exit = await withRows(Effect.fail(sqlError), (notebook) =>
+    notebook.list({}),
   );
   assert.ok(Exit.isFailure(exit));
   const error = Cause.findErrorOption(exit.cause);
@@ -181,9 +181,8 @@ test("notebook maps SQL failures without losing the original cause", async () =>
 });
 
 test("notebook preserves row decoding diagnostics", async () => {
-  const exit = await withRows(
-    Effect.succeed([{ id: "invalid" }]),
-    (notebook) => notebook.list,
+  const exit = await withRows(Effect.succeed([{ id: "invalid" }]), (notebook) =>
+    notebook.list({}),
   );
   assert.ok(Exit.isFailure(exit));
   const error = Cause.findErrorOption(exit.cause);
@@ -243,7 +242,7 @@ test("versioned notebook writes reject stale editors, pin conflicts, and deleted
       yield* sql`ALTER TABLE metrocab.notes DROP COLUMN version`;
       yield* migrateNotebook(sql);
       yield* migrateNotebook(sql);
-      assert.equal((yield* notebook.list)[0]?.title, input.title);
+      assert.equal((yield* notebook.list({})).rows[0]?.title, input.title);
       assert.equal(created.version, 1);
       assert.equal(created.pinned, false);
       const duplicate = yield* Effect.result(
@@ -271,7 +270,7 @@ test("versioned notebook writes reject stale editors, pin conflicts, and deleted
       assert.ok(
         failure?._tag === "Failure" && failure.failure._tag === "NoteConflict",
       );
-      const current = (yield* notebook.list)[0];
+      const current = (yield* notebook.list({})).rows[0];
       assert.ok(current);
       assert.equal(current.version, 2);
       assert.equal(current.title, successes[0]?.success.title);
@@ -319,7 +318,91 @@ test("versioned notebook writes reject stale editors, pin conflicts, and deleted
           result._tag === "Failure" && result.failure._tag === "NoteNotFound",
         );
       }
-      assert.deepEqual(yield* notebook.list, []);
+      assert.deepEqual(yield* notebook.list({}), {
+        rows: [],
+        nextCursor: null,
+      });
+    }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
+  );
+});
+
+test("notebook pages reach every note beyond 200, preserving pins, timestamp precision, and ties", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const { notebook, sql } = yield* notebookFixture;
+      assert.deepEqual(yield* notebook.list({}), {
+        rows: [],
+        nextCursor: null,
+      });
+      const inputs = Array.from({ length: 217 }, (_, index) => ({
+        ...input,
+        id: randomUUID(),
+        title: String(index),
+      }));
+      yield* Effect.forEach(inputs, (note) => notebook.save(note));
+      yield* sql`UPDATE metrocab.notes SET pinned = title::int < 26,
+        updated_at = '2026-11-13T10:00:00Z'::timestamptz +
+          (title::int % 3) * INTERVAL '1 microsecond'`;
+      const expected = [...inputs].sort(
+        (a, b) =>
+          Number(Number(b.title) < 26) - Number(Number(a.title) < 26) ||
+          (Number(b.title) % 3) - (Number(a.title) % 3) ||
+          b.id.localeCompare(a.id),
+      );
+      const collected: Note[] = [];
+      let search: NoteSearch = {};
+      let pages = 0;
+      while (true) {
+        const page = yield* notebook.list(search);
+        pages++;
+        assert.ok(pages <= 10, "continuation must advance");
+        assert.ok(page.rows.length > 0 && page.rows.length <= 24);
+        collected.push(...page.rows);
+        if (!page.nextCursor) break;
+        search = { cursor: page.nextCursor };
+      }
+      assert.equal(pages, 10);
+      assert.deepEqual(
+        collected.map((note) => note.id),
+        expected.map((note) => note.id),
+      );
+      assert.equal(new Set(collected.map((note) => note.id)).size, 217);
+    }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
+  );
+});
+
+test("continuation survives deletion of the boundary note and ignores newer inserts", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const { notebook, sql } = yield* notebookFixture;
+      for (let index = 0; index < 25; index++) {
+        yield* notebook.save({
+          ...input,
+          id: randomUUID(),
+          title: String(index),
+        });
+      }
+      yield* sql`UPDATE metrocab.notes SET updated_at = '2026-11-13T10:00:00Z'::timestamptz
+        + title::int * INTERVAL '1 second'`;
+      const first = yield* notebook.list({});
+      assert.ok(first.nextCursor);
+      const boundary = first.rows.at(-1);
+      assert.ok(boundary);
+      yield* notebook.remove(boundary.id, boundary.version);
+      assert.equal((yield* notebook.list({})).nextCursor, null);
+      const arrival = yield* notebook.save({
+        ...input,
+        id: randomUUID(),
+        title: "New arrival",
+      });
+      yield* sql`UPDATE metrocab.notes SET updated_at = '2026-11-14T00:00:00Z'::timestamptz WHERE id = ${arrival.id}::uuid`;
+      const last = yield* notebook.list({ cursor: first.nextCursor });
+      assert.deepEqual(
+        last.rows.map((note) => note.title),
+        ["0"],
+      );
+      assert.equal(last.nextCursor, null);
+      assert.equal((yield* notebook.list({})).rows[0]?.title, "New arrival");
     }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
   );
 });
