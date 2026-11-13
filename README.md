@@ -20,10 +20,12 @@ postal ZIPs into NYC Health MODZCTAs and explicitly counts unmapped trips.
 
 ## Run locally
 
-Use Node **22.19 or newer within Node 22**, npm 10, and Databricks CLI
+Use Node **22.23.5** (pinned in `.nvmrc`), npm 10, and Databricks CLI
 **1.26 or newer, below 2.0**.
 
 ```sh
+nvm install
+nvm use
 npm ci
 cp .env.example .env
 databricks auth login --host https://YOUR-WORKSPACE.cloud.databricks.com
