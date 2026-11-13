@@ -130,11 +130,6 @@ export function Layout() {
                     Reset
                   </Button>
                 )}
-                <span className="mb-2.5 ml-auto hidden text-xs text-muted-foreground 2xl:block">
-                  {metadata.data
-                    ? `Available: ${metadata.data.from} — ${metadata.data.to}`
-                    : "Dates follow the source dataset"}
-                </span>
                 <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
                   <span>Continue with applied Explore filters</span>
                   <Link
