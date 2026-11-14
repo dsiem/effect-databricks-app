@@ -242,7 +242,6 @@ when one exists. See the [interaction design rationale](docs/data-access.md#cont
 npm run check          # lint, types, tests, build, HTTP smoke check, packed SQL adapter
 npm run test:browser   # offline browser checks against the built app; also required in CI
 npm run test:architecture # offline Genie recovery, sidebar/dialog/responsive UI, and service checks
-node scripts/preview-notebook-options.mjs # regenerate the three interactive UX prototypes
 npm run bundle:check   # deployment schema validation without credentials
 npm run data:check     # live SQL reconciliation, Lakebase CRUD, Genie + follow-up
 npm run data:check:comments # live trip comments, safe retries, and temporary-row cleanup

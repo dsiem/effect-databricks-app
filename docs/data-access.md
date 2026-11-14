@@ -136,8 +136,6 @@ This demo's Genie space is attached directly to the public NYC sample table;
 custom bundle targets should point the Genie data source at their configured
 snapshot when it needs to share the app's frozen data view.
 Each saved turn retains its own filters and context alongside the answer.
-`node scripts/preview-genie-options.mjs` regenerates and checks three interactive
-layout prototypes in `output/`: floating helper, docked panel, and inline answers.
 The floating helper preserves the existing chart widths and page position.
 
 `GENIE_MAX_CONCURRENCY` independently limits concurrent submission requests to two
@@ -274,13 +272,6 @@ sheet keeps the desktop table visible behind it and uses the full mobile width;
 keyboard dismissal restores focus to the selected record. Saving a view and
 posting a comment demonstrate separate Lakebase writes alongside warehouse reads
 and contextual Genie analysis, using the same typed Effect API boundaries.
-
-`node scripts/preview-notebook-options.mjs` regenerates three interactive
-prototypes and a side-by-side PNG in `output/`. The alternatives are an inline
-journal (good narrative, but moves the records away as threads grow), expandable
-rows (direct, but disrupts table scanning and narrow layouts), and a contextual
-panel (chosen: preserves scanning and gives record details and discussion room).
-The script exercises both saving and commenting before capturing the comparison.
 
 ## Deployment verification and workspace constraints
 
