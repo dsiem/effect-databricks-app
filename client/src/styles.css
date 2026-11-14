@@ -195,6 +195,10 @@
     background: var(--subtle);
     border-color: var(--border-hover);
   }
+  .btn[aria-busy="true"] {
+    opacity: 0.6;
+    cursor: progress;
+  }
   .btn-primary {
     background: var(--color-brand-600);
     color: var(--on-accent);
@@ -234,6 +238,7 @@
   }
   .field {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     min-width: 0;
     gap: 0.375rem;
   }
@@ -506,10 +511,8 @@
     line-height: 1.6;
   }
   .filter-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: end;
-    gap: 0.75rem;
+    display: grid;
+    gap: 1rem;
     margin-bottom: 1.75rem;
     padding: 1rem 1.125rem;
     border: 1px solid var(--border);
@@ -517,29 +520,366 @@
     background: var(--surface);
     box-shadow: var(--shadow);
   }
+  .filter-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .filter-view {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .filter-view-label {
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
   .filter-controls {
     display: flex;
-    flex-wrap: wrap;
     align-items: end;
+    flex-wrap: wrap;
+    gap: 1rem;
+    min-width: 0;
+  }
+  .filter-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
     gap: 0.75rem;
-    flex: 1;
+    flex: 1 1 28rem;
+    min-width: 0;
   }
-  .date-filter {
-    width: 10rem;
+  .filter-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
-  .zip-filter {
-    width: 10.5rem;
+  .filter-pending {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    color: var(--warning);
+    font-size: 0.75rem;
   }
-  .saved-view-bar {
+  .filter-applied {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 0.5rem;
+    color: var(--muted);
+    font-size: 0.6875rem;
+  }
+  .filter-error {
+    color: var(--danger);
+    font-size: 0.8125rem;
   }
   .saved-status {
-    width: 100%;
     color: var(--color-brand-700);
     font-size: 0.75rem;
+  }
+
+  /* A text field and a bounded Foldkit calendar share one control. */
+  .date-control {
+    position: relative;
+    min-width: 0;
+  }
+  .date-input {
+    padding-right: 2.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .date-picker-anchor {
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: 2.5rem;
+  }
+  .date-picker,
+  .date-picker > div {
+    height: 100%;
+  }
+  .date-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    border-left: 1px solid var(--border);
+    border-radius: 0 0.5rem 0.5rem 0;
+    color: var(--muted);
+  }
+  .date-trigger:hover:not(:disabled) {
+    color: var(--foreground);
+    background: var(--subtle);
+  }
+  .date-panel {
+    z-index: 30;
+    width: min(19rem, calc(100vw - 1.5rem));
+    max-height: calc(100dvh - 1.5rem);
+    padding: 0.75rem;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--surface);
+    color: var(--foreground);
+    box-shadow: 0 12px 40px rgb(16 24 40 / 0.16);
+  }
+  .calendar {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+    user-select: none;
+  }
+  .calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.375rem;
+  }
+  .calendar-heading {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.375rem;
+    border-radius: 0.375rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .calendar-heading .icon {
+    width: 0.75rem;
+    height: 0.75rem;
+    color: var(--muted);
+  }
+  .calendar-nav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.375rem;
+    color: var(--muted);
+  }
+  .calendar-nav:hover:not(:disabled),
+  .calendar-heading:hover {
+    background: var(--subtle);
+  }
+  .calendar-grid {
+    display: grid;
+    gap: 0.125rem;
+    outline: none;
+  }
+  .calendar-week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.125rem;
+  }
+  .calendar-weekday {
+    padding: 0.375rem 0;
+    color: var(--muted);
+    font-size: 0.6875rem;
+    text-align: center;
+  }
+  .calendar-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+  }
+  .calendar-day,
+  .calendar-period {
+    width: 100%;
+    min-height: 2.125rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .calendar-day:hover:not(:disabled),
+  .calendar-period:hover:not(:disabled) {
+    background: var(--subtle);
+  }
+  .calendar-cell[data-outside-month] .calendar-day {
+    color: var(--muted);
+  }
+  .calendar-cell[data-selected] > button {
+    background: var(--color-brand-600);
+    color: var(--on-accent);
+  }
+  .calendar-cell[data-selected] > button:hover {
+    background: var(--color-brand-700);
+  }
+  .calendar-cell[data-focused] > button {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: -2px;
+  }
+  .calendar-cell[data-disabled] > button {
+    color: var(--muted);
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+  .calendar-periods {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.375rem;
+    outline: none;
+  }
+  .calendar-period {
+    min-height: 2.5rem;
+  }
+  .calendar-clear {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  .view-picker {
+    position: relative;
+    min-width: 0;
+  }
+  .view-picker-trigger {
+    max-width: min(24rem, 55vw);
+    font-weight: 600;
+  }
+  .view-picker-trigger .icon:last-child {
+    width: 0.875rem;
+    color: var(--muted);
+  }
+  .picker-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+  }
+  .view-picker-panel {
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    width: min(32rem, calc(100vw - 1.5rem));
+    max-height: min(38rem, calc(100dvh - 8rem));
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--surface);
+    box-shadow: 0 12px 40px rgb(16 24 40 / 0.14);
+    outline: none;
+    overflow: hidden;
+  }
+  .view-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    gap: 0.5rem;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .view-picker-list {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.5rem;
+  }
+  .view-picker-count {
+    padding: 0.5rem 0.75rem;
+    color: var(--muted);
+    font-size: 0.6875rem;
+  }
+  .view-picker-empty {
+    padding: 1.25rem 0.75rem;
+    text-align: center;
+  }
+  .view-picker-footer {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    border-top: 1px solid var(--border);
+    background: var(--canvas);
+  }
+  .view-option {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+  .view-option:hover {
+    background: var(--canvas);
+  }
+  .view-option.is-selected {
+    border-color: var(--color-brand-100);
+    background: var(--color-brand-50);
+  }
+  .view-option-open {
+    flex: 1;
+    min-width: 0;
+    justify-content: start;
+    padding: 0.75rem;
+    text-align: left;
+    white-space: normal;
+  }
+  .view-option-open:hover:not(:disabled) {
+    background: transparent;
+  }
+  .view-option-content {
+    display: grid;
+    gap: 0.5rem;
+    min-width: 0;
+    width: 100%;
+  }
+  .view-option-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    color: var(--foreground);
+    font-weight: 600;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .view-option-title > .icon {
+    width: 0.75rem;
+    height: 0.75rem;
+    color: var(--muted);
+  }
+  .view-option-applied {
+    color: var(--color-brand-700);
+    background: var(--surface);
+    padding: 0 0.3125rem;
+    border: 1px solid var(--color-brand-100);
+    border-radius: 0.25rem;
+    font-size: 0.625rem;
+    font-weight: 500;
+  }
+  .view-option-description {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .view-option-actions {
+    display: flex;
+    flex-shrink: 0;
+    padding-right: 0.375rem;
+  }
+  .view-option-actions .btn-icon {
+    width: 1.75rem;
+    min-height: 1.75rem;
+  }
+  .view-option-actions .icon {
+    width: 0.875rem;
+    height: 0.875rem;
   }
 
   /* Data components share a header, content area and subdued footer. */
@@ -1153,11 +1493,6 @@
     .workspace-header {
       padding-inline: 1.25rem;
     }
-    .saved-view-bar {
-      width: 100%;
-      padding-top: 0.75rem;
-      border-top: 1px solid var(--border);
-    }
   }
   @media (max-width: 767px) {
     .workspace-content {
@@ -1179,13 +1514,20 @@
     .filter-controls {
       gap: 0.75rem;
     }
-    .date-filter {
-      width: auto;
-      flex: 1 1 calc(50% - 0.75rem);
+    .filter-fields {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .zip-filter {
-      flex: 1 1 45%;
-      width: auto;
+    .filter-fields > :last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
+    .filter-actions {
+      margin-left: auto;
+    }
+    .filter-view {
+      gap: 0.5rem;
+    }
+    .view-picker-trigger {
+      max-width: 44vw;
     }
     .chart-header {
       padding: 1rem;
@@ -1226,6 +1568,19 @@
     }
     .genie-welcome {
       margin-top: 0.5rem;
+    }
+  }
+  @media (pointer: coarse) {
+    .input,
+    .genie-composer textarea {
+      font-size: 1rem;
+    }
+    .view-option-actions {
+      flex-direction: column;
+    }
+    .view-option-actions .btn-icon {
+      width: 2.5rem;
+      min-height: 2.5rem;
     }
   }
   @media (max-width: 399px) {

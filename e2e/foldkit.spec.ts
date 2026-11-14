@@ -144,7 +144,7 @@ test("late trip responses cannot overwrite a newer filter selection", async ({
   ).toHaveCount(0);
 });
 
-test("saved views sheet creates, edits, reloads, and deletes views with their filters", async ({
+test("saved view chooser creates, edits, reloads, and deletes views with their filters", async ({
   page,
 }) => {
   const stored: import("../shared/domain").Note[] = [];
@@ -191,7 +191,10 @@ test("saved views sheet creates, edits, reloads, and deletes views with their fi
     .getByRole("button", { name: "Save view", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Fare review", exact: true }),
+    page.getByRole("button", {
+      name: "Open saved view for Fare review",
+      exact: true,
+    }),
   ).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "Saved views", exact: true }).click();

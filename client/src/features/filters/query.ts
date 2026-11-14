@@ -10,7 +10,10 @@ export const filterError =
   "Check the dates and five-digit ZIP code. The start date must be on or before the end date.";
 export const queryFor = (filters: D.Filters) =>
   new URLSearchParams(
-    Object.entries(filters).filter(([, value]) => value),
+    (["from", "to", "zip"] as const).flatMap((key) => {
+      const value = filters[key];
+      return value ? [[key, value]] : [];
+    }),
   ).toString();
 export const href = (path: string, query: string) =>
   path + (query ? `?${query}` : "");

@@ -3,7 +3,10 @@ import { test } from "node:test";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { inertHtml } from "foldkit/html";
 import { chart } from "../src/ui/chart";
+import { field } from "../src/ui/field";
+import { filterPanel } from "../src/ui/filter-panel";
 import { button, loading, table } from "../src/ui/primitives";
+import { viewOption } from "../src/ui/view-picker";
 
 function elements(html: Html | string | undefined): NonNullable<Html>[] {
   return html && typeof html !== "string"
@@ -43,6 +46,70 @@ test("generic loading content carries no warehouse-specific guidance", () => {
   const text = JSON.stringify(rendered);
   assert.match(text, /Loading comments/);
   assert.doesNotMatch(text, /warehouse/i);
+});
+
+test("filter panels compose another dataset's controls without knowledge of their schema", () => {
+  type Message = { readonly _tag: "Apply" | "Reset" | "Save" | "Changed" };
+  const h = inertHtml as unknown as HtmlBuilder<Message>;
+  const rendered = filterPanel(h, {
+    label: "Inventory filters",
+    viewPicker: "Low stock",
+    fields: [
+      field(h, {
+        id: "warehouse",
+        label: "Warehouse",
+        value: "Berlin",
+        onInput: (): Message => ({ _tag: "Changed" }),
+      }),
+      field(h, {
+        id: "stock",
+        label: "Maximum stock",
+        type: "number",
+        value: "10",
+        onInput: (): Message => ({ _tag: "Changed" }),
+      }),
+      h.div(
+        [h.Class("field")],
+        [
+          h.label([h.For("category")], ["Category"]),
+          h.select([h.Id("category")], [h.option([], ["All categories"])]),
+        ],
+      ),
+      h.label([], [h.input([h.Type("checkbox")]), "Include discontinued"]),
+    ],
+    saveAction: button(h, { label: "Save view", onClick: { _tag: "Save" } }),
+    onApply: { _tag: "Apply" },
+    onReset: { _tag: "Reset" },
+    hasChanges: true,
+    appliedSummary: "Berlin · Stock below 5",
+  });
+  assert.equal(rendered?.data?.attrs?.["aria-label"], "Inventory filters");
+  assert.match(
+    text(rendered),
+    /WarehouseMaximum stockCategoryAll categoriesInclude discontinued/,
+  );
+  assert.match(
+    text(rendered),
+    /Unapplied changesShowing:Berlin · Stock below 5/,
+  );
+  assert.doesNotMatch(text(rendered), /Pickup|ZIP|Taxi|Any date/);
+});
+
+test("saved view options accept a caller-rendered summary for another dataset", () => {
+  const h = inertHtml as unknown as HtmlBuilder<{ readonly _tag: "Selected" }>;
+  const rendered = viewOption(h, {
+    title: "Critical incidents",
+    accessibleLabel: "Open critical incidents",
+    summary: "Severity: critical · Assigned to me",
+    description: "Production incidents requiring action",
+    selected: true,
+    onSelect: { _tag: "Selected" },
+  });
+  assert.match(
+    text(rendered),
+    /Critical incidentsAppliedSeverity: critical · Assigned to me/,
+  );
+  assert.doesNotMatch(text(rendered), /Pickup|ZIP|trip/);
 });
 
 test("chart axes use readable intervals rather than fractional trip counts", () => {

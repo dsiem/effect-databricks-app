@@ -156,10 +156,15 @@ test("CI and deployment require offline browser checks, and deployment requires 
     const commands = workflow.jobs.check?.steps.map((step) => step.run) ?? [];
     const check = commands.indexOf("npm run check");
     const install = commands.indexOf(
-      "npx playwright install --with-deps chromium",
+      "npx playwright install --with-deps chromium webkit",
     );
     const browser = commands.indexOf("npm run test:browser");
+    const filters = commands.indexOf("npm run test:filters");
     assert.ok(check >= 0 && install > check && browser > install, filename);
+    assert.ok(
+      filters > browser,
+      `${filename}: filter workflows must cover WebKit before deployment`,
+    );
     if (filename === "deploy.yml") {
       const deploy = workflow.jobs.deploy;
       assert.ok(deploy);

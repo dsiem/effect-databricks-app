@@ -1,7 +1,6 @@
 import { Dialog, Tabs } from "@foldkit/ui";
 import { Schema } from "effect";
 export const DialogId = Schema.Literals([
-  "views",
   "note",
   "delete",
   "trip",

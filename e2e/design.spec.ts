@@ -260,8 +260,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         .getByRole("button", { name: "Saved views", exact: true })
         .click();
       await expect(
-        page.getByRole("heading", {
-          name: "Midtown evening pickups",
+        page.getByRole("button", {
+          name: "Open saved view for Midtown evening pickups",
           exact: true,
         }),
       ).toBeVisible();

@@ -22,6 +22,7 @@ const names = [
   "chevron-left",
   "chevron-right",
   "chevron-down",
+  "calendar-days",
   "maximize-2",
   "minimize-2",
   "plus",

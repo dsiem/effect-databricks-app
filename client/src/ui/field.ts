@@ -10,7 +10,7 @@ export const field = <Message>(
     readonly label: string;
     readonly value: string;
     readonly onInput: (value: string) => Message;
-    readonly type?: "date" | "text";
+    readonly type?: NonNullable<Input.ViewConfig<Message>["type"]>;
     readonly placeholder?: string;
     readonly className?: string;
     readonly attributes?: ReadonlyArray<

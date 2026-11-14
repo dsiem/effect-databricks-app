@@ -1,5 +1,6 @@
 import { Menu, Tooltip } from "@foldkit/ui";
 import { Schema } from "effect";
+import { Calendar } from "foldkit";
 import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../shared/domain";
 import * as Filters from "../features/filters/messages";
@@ -27,7 +28,11 @@ export const Message = defineMessageUnion({
   ThemeMenu: { message: Menu.Message },
   SystemThemeChanged: {},
   Tooltip: { id: Schema.String, message: Tooltip.Message },
-  LoadedMetadata: { data: Schema.NullOr(D.Metadata), error: Schema.String },
+  LoadedMetadata: {
+    data: Schema.NullOr(D.Metadata),
+    error: Schema.String,
+    today: Calendar.CalendarDate,
+  },
   LoadedStatus: { data: Schema.NullOr(D.Status), error: Schema.String },
   LoadedUser: { user: Schema.NullOr(D.CurrentUser) },
   ...Filters.messages,

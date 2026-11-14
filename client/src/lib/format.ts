@@ -1,4 +1,6 @@
 import { format, parseISO } from "date-fns";
+import { Schema } from "effect";
+import { Calendar } from "foldkit";
 export const number = (value: number) =>
   new Intl.NumberFormat("en-US").format(Math.round(value));
 export const compact = (value: number) =>
@@ -28,3 +30,10 @@ export const dateLabel = (filters: {
       ? `Through ${to}`
       : "All dates";
 };
+
+// Calendar dates deliberately carry neither a time nor a timezone.
+export const calendarDay = Schema.decodeUnknownOption(
+  Calendar.CalendarDateFromIsoString,
+);
+export const isoDay = (date: Calendar.CalendarDate) =>
+  `${String(date.year).padStart(4, "0")}-${String(date.month).padStart(2, "0")}-${String(date.day).padStart(2, "0")}`;

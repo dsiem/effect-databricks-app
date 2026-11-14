@@ -1,9 +1,11 @@
+import { Popover } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
 
 export const messages = {
-  OpenSavedViews: {},
+  SavedViewsPicker: { message: Popover.Message },
+  ClearView: {},
   NewNote: {},
   CreatedNote: { id: Schema.String },
   EditNote: { note: D.Note },
@@ -24,7 +26,7 @@ export const messages = {
   DeleteNote: { note: D.Note },
   ConfirmDelete: {},
   MutatedNote: { removed: Schema.Boolean, error: Schema.String },
-  RestoreView: { filters: D.Filters },
+  RestoreView: { note: D.Note },
 };
 
 export const Message = defineMessageUnion({ Idle: {}, ...messages });

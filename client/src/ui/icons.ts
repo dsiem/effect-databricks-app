@@ -219,6 +219,27 @@ const shapes = {
   "chevron-down": <Message>(h: H<Message>) => [
     h.path([h.Attribute("d", "m6 9 6 6 6-6")], []),
   ],
+  "calendar-days": <Message>(h: H<Message>) => [
+    h.path([h.Attribute("d", "M8 2v4")], []),
+    h.path([h.Attribute("d", "M16 2v4")], []),
+    h.rect(
+      [
+        h.Attribute("width", "18"),
+        h.Attribute("height", "18"),
+        h.Attribute("x", "3"),
+        h.Attribute("y", "4"),
+        h.Attribute("rx", "2"),
+      ],
+      [],
+    ),
+    h.path([h.Attribute("d", "M3 10h18")], []),
+    h.path([h.Attribute("d", "M8 14h.01")], []),
+    h.path([h.Attribute("d", "M12 14h.01")], []),
+    h.path([h.Attribute("d", "M16 14h.01")], []),
+    h.path([h.Attribute("d", "M8 18h.01")], []),
+    h.path([h.Attribute("d", "M12 18h.01")], []),
+    h.path([h.Attribute("d", "M16 18h.01")], []),
+  ],
   "maximize-2": <Message>(h: H<Message>) => [
     h.polyline([h.Attribute("points", "15 3 21 3 21 9")], []),
     h.polyline([h.Attribute("points", "9 21 3 21 3 15")], []),

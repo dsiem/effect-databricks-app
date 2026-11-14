@@ -9,6 +9,8 @@ export interface ButtonOptions<Message> {
   readonly onClick?: Message;
   readonly type?: "button" | "submit";
   readonly disabled?: boolean;
+  /** Suppress activation while retaining keyboard focus during an async action. */
+  readonly busy?: boolean;
   readonly variant?: "outline" | "primary" | "ghost" | "destructive";
   readonly size?: "default" | "small" | "icon";
   readonly className?: string;
@@ -25,12 +27,13 @@ export const button = <Message>(
     {
       type: options.type ?? "button",
       ...(options.onClick === undefined ? {} : { onClick: options.onClick }),
-      isDisabled: options.disabled ?? false,
+      isDisabled: (options.disabled ?? false) || (options.busy ?? false),
       toView: ({ button }) =>
         h.button(
           [
             ...button,
             h.Disabled(options.disabled ?? false),
+            ...(options.busy ? [h.AriaBusy(true)] : []),
             ...(options.attributes ?? []),
             h.Class(
               `btn btn-${options.variant ?? "outline"} btn-${options.size ?? "default"} ${options.className ?? ""}`,

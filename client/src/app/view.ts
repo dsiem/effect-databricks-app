@@ -1,7 +1,14 @@
 import { Nav, Tooltip } from "@foldkit/ui";
 import { Array as Arr } from "effect";
 import type { Document } from "foldkit/html";
-import { filterError, filtersFromQuery, href } from "../features/filters/query";
+import {
+  filterError,
+  filtersFromQuery,
+  href,
+  queryFor,
+} from "../features/filters/query";
+import { filterSummary } from "../features/filters/summary";
+import { filterFields } from "../features/filters/view";
 import { genieHelperView, genieView } from "../features/genie/view";
 import { pickupMapView } from "../features/map/view";
 import { overviewView } from "../features/overview/view";
@@ -14,7 +21,7 @@ import { inspectorView } from "../features/trips/inspector";
 import { tripsView } from "../features/trips/view";
 import { featureView } from "../lib/feature-view";
 import { dialog } from "../ui/dialog";
-import { field } from "../ui/field";
+import { filterPanel } from "../ui/filter-panel";
 import { icon } from "../ui/icons";
 import { button, type Child, card } from "../ui/primitives";
 import { Message as M } from "./message";
@@ -170,93 +177,46 @@ function sidebar(h: H, model: Model) {
   });
 }
 function filters(h: H, model: Model) {
-  return h.form(
-    [
-      h.AriaLabel("Trip filters"),
-      h.Class("filter-bar"),
-      h.OnSubmit(M.ApplyFilters()),
-    ],
-    [
-      h.div(
-        [h.Class("filter-controls")],
-        [
-          ...(
-            [
-              ["from", "Pickup start date"],
-              ["to", "Pickup end date"],
-            ] as const
-          ).map(([key, label]) =>
-            field(h, {
-              id: `pickup-${key}`,
-              label,
-              type: "date",
-              value: model.filtersState.filterDraft[key],
-              onInput: (value) => M.FilterChanged({ field: key, value }),
-              className: "date-filter",
-              attributes: model.metadata.data
-                ? [
-                    h.Min(model.metadata.data.from),
-                    h.Max(model.metadata.data.to),
-                  ]
-                : [],
-            }),
-          ),
-          field(h, {
-            id: "pickup-zip",
-            label: "Pickup ZIP code",
-            value: model.filtersState.filterDraft.zip,
-            placeholder: "All pickup areas",
-            onInput: (value) => M.FilterChanged({ field: "zip", value }),
-            className: "zip-filter",
-            attributes: [
-              h.InputMode("numeric"),
-              h.Pattern("[0-9]{5}"),
-              h.Maxlength(5),
-            ],
-          }),
-          button(h, { type: "submit", label: "Apply", variant: "primary" }),
-          ...(model.query
-            ? [
-                button(h, {
-                  label: "Reset",
-                  onClick: M.ResetFilters(),
-                  variant: "ghost",
-                }),
-              ]
-            : []),
-        ],
+  const applied = filtersFromQuery(model.query);
+  const hasChanges =
+    !applied || queryFor(model.filtersState.filterDraft) !== queryFor(applied);
+  return filterPanel(h, {
+    label: "Trip filters",
+    viewPicker: featureView(h, "saved-views-picker", savedViewsView, {
+      ...model.savedViewsState,
+      dialogs: model.dialogs,
+      query: model.query,
+      canSave: !!applied && !hasChanges,
+    }),
+    fields: filterFields(h, {
+      draft: model.filtersState.filterDraft,
+      datePickers: model.filtersState.datePickers,
+      onDateMessage: (field, message) => M.FilterDatePicker({ field, message }),
+      onChange: (field, value) => M.FilterChanged({ field, value }),
+    }),
+    saveAction: button(h, {
+      label: h.span(
+        [h.Class("inline-flex items-center gap-2")],
+        [icon(h, "plus"), "Save view"],
       ),
-      h.div(
-        [h.Class("saved-view-bar")],
-        [
-          button(h, {
-            label: h.span(
-              [h.Class("inline-flex items-center gap-2")],
-              [icon(h, "plus"), "Save view"],
-            ),
-            onClick: M.NewNote(),
-            disabled: !filtersFromQuery(model.query),
-            variant: "ghost",
-          }),
-          button(h, {
-            label: h.span(
-              [h.Class("inline-flex items-center gap-2")],
-              [icon(h, "book-open"), "Saved views"],
-            ),
-            onClick: M.OpenSavedViews(),
-          }),
-        ],
-      ),
-      ...(model.savedViewsState.saved?.query === model.query
-        ? [
-            h.span(
-              [h.Role("status"), h.Class("saved-status")],
-              [`Saved “${model.savedViewsState.saved.title}”`],
-            ),
-          ]
-        : []),
-    ],
-  );
+      onClick: M.NewNote(),
+      disabled: !applied || hasChanges,
+      attributes: [
+        h.Attribute(
+          "title",
+          hasChanges
+            ? "Apply your changes before saving a view"
+            : "Save the applied filters",
+        ),
+      ],
+    }),
+    onApply: M.ApplyFilters(),
+    ...(model.query || hasChanges ? { onReset: M.ResetFilters() } : {}),
+    hasChanges,
+    ...(applied ? { appliedSummary: filterSummary(h, applied) } : {}),
+    error: model.filtersState.error,
+    notice: model.savedViewsState.notice,
+  });
 }
 export function view(model: Model, h: H): Document {
   let content: Child[];
@@ -424,14 +384,6 @@ export function view(model: Model, h: H): Document {
                 className: "workspace-dialog sidebar-dialog",
                 accessibleTitle: "Sidebar",
                 children: [sidebar(h, model)],
-              }),
-            ]
-          : []),
-        ...(model.savedViewsState.savedViews
-          ? [
-              featureView(h, "savedViews", savedViewsView, {
-                ...model.savedViewsState,
-                dialogs: model.dialogs,
               }),
             ]
           : []),

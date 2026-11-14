@@ -18,6 +18,7 @@ export default defineConfig({
     "ui.spec.ts",
     "design.spec.ts",
     "date-range.spec.ts",
+    "filter-workflow.spec.ts",
     "explore-context.spec.ts",
   ],
   timeout: 30_000,

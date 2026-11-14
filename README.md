@@ -27,8 +27,9 @@ local development uses the current workspace user's profile when available.
   the applied date/ZIP filters. Expand the helper for result tables and generated
   SQL; on mobile it opens as a sheet. The `/genie` conversation view is also available.
 - **Saved views:** save the applied filters with an optional finding directly in
-  Explore; reopen, pin, edit, or delete them from a side panel on the same page.
-  The panel supports paginated browsing of the shared library.
+  Explore; choose, pin, edit, or delete them from the view chooser beside the filters.
+  Choosing a view applies it on the current page and replaces pending edits.
+  The chooser supports paginated browsing of the shared library.
 
 An unscheduled SQL job copies `samples.nyctaxi.trips` once per bundle target into a
 managed Delta table and persists a UUID `trip_id` on each row. App analytics read this snapshot;
@@ -211,6 +212,40 @@ value, detail, and optional icon; `panelHeader` takes a title, description, and
 actions. `card`, `table`, `title`, and `dialog` supply the remaining shared
 structure. These helpers are generic over the caller's message type and contain
 no dataset or application state. Stateful interactions remain Foldkit submodels.
+Use `busy` for an in-flight button action: Foldkit suppresses activation and
+reports the busy state while keyboard focus stays on the control.
+
+`filterPanel` composes an arbitrary array of filter controls, a view picker, a save
+action, and the apply/reset workflow. It knows nothing about field names, value
+types, query parameters, or the dataset. A caller can supply text, numeric, select,
+checkbox, or custom Foldkit controls. `viewPicker` provides the styled Foldkit
+Popover shell; `viewOption` takes a name, caller-rendered summary, description,
+selection state, and optional management actions. Neither imports the saved-view
+API or interprets a filter value. The unit examples exercise inventory filters
+and incident views with independent message types.
+
+The taxi-specific controls are in `features/filters/view.ts`, their URL/schema
+rules in `features/filters/query.ts` and `shared/domain.ts`, and their display
+summary in `features/filters/summary.ts`. Adapt these feature definitions and the
+matching API contract for another dataset; keep the generic panel and chooser.
+`field` accepts the input types supported by Foldkit's `Input.ViewConfig`.
+
+The applied URL is the data source of truth. Edits remain pending until Apply;
+the panel shows the filters still being displayed, and saving stays unavailable
+until pending changes are applied. Invalid date order reports an inline error
+without replacing the current results. Reset clears both draft and applied
+filters. Opening a saved view replaces the draft even when its URL already
+matches the page. Editing a saved definition keeps its original filters and does
+not apply that definition to the current page.
+
+The reusable `dateField` pairs an editable ISO date with Foldkit's DatePicker.
+Calendar bounds come from the dataset and the opposite endpoint, making invalid
+days unselectable. Empty start and end calendars open at their respective range
+boundaries; selected dates open at their selection. Typed dates receive the same
+range and ordering validation when applied. Touch devices use 16px input text.
+The chooser uses Foldkit's
+modal Popover lifecycle for outside dismissal, Escape, background inertness,
+scroll locking, and focus return; native dialogs handle editing and deletion.
 
 Change the brand palette in `@theme` and the surface, text, border, radius, and
 chart tokens in `:root` and `:root.dark`. Component classes define appearance; feature utilities
@@ -226,6 +261,11 @@ the Playwright results under `test-results/design-*`; review them visually.
 The checks catch viewport overflow, collapsed maps, runtime errors, metric-grid
 regressions, and loss of primary-button distinction. They complement visual
 review rather than asserting that a passing functional test proves good design.
+
+Run `npm run test:filters` against the built app for the filter/view workflow in
+Chromium, WebKit, and WebKit's iPad profile. It checks field containment as well as
+viewport overflow, pending edits, save/apply behavior, view selection, reset, and
+keyboard dismissal. This complements engine-independent component checks.
 
 `npm run architecture:check` enforces import boundaries, including type imports,
 re-exports and literal dynamic imports. It runs as part of `npm run check`.
@@ -280,12 +320,13 @@ when one exists. See the [interaction design rationale](docs/data-access.md#cont
 npm run check          # lint, types, tests, build, HTTP smoke check, packed SQL adapter
 npm run test:browser   # offline browser checks against the built app; also required in CI
 npm run test:ui        # populated desktop/mobile screenshots and visual layout checks
+npm run test:filters   # filter/view workflow in Chromium, WebKit, and an iPad profile
 npm run test:architecture # offline Genie recovery, sidebar/dialog/responsive UI, and service checks
 npm run bundle:check   # deployment schema validation without credentials
 npm run data:check     # live SQL reconciliation, Lakebase CRUD, Genie + follow-up
 npm run data:check:comments # live trip comments, safe retries, and temporary-row cleanup
 node scripts/check-deployed.mjs dev  # verify actual hosted APIs and app-identity access
-npx playwright install chromium # required once before either browser suite
+npx playwright install chromium webkit # required once before the browser suites
 npm start              # separate terminal, with the configured .env
 npm run test:e2e       # real browser checks, no mocked data routes
 ```
@@ -309,7 +350,8 @@ and `npm run test:browser` to exercise the UI and recovery workflows offline.
 
 Interactive controls use `@foldkit/ui`: Nav for route links, Select for trip
 sorting, Tabs for chart metrics, Tooltip for the collapsed sidebar, and Dialog
-for modal sheets and editors. Date filters use native date inputs. Button, Input,
+for modal sheets and editors. Popover owns the saved-view chooser, and DatePicker
+owns the bounded calendars. Button, Input,
 and Textarea render helpers supply the form controls. Keep their interaction
 behavior in Foldkit UI and apply app styling through the components' attribute
 bundles. `client:check` rejects

@@ -1,5 +1,5 @@
 import { Effect, Schema } from "effect";
-import { Command, Navigation } from "foldkit";
+import { Calendar, Command, Navigation } from "foldkit";
 import { History, turnBase } from "../features/genie/model";
 import { request } from "../lib/api-client";
 import { done, result } from "../lib/command-result";
@@ -92,8 +92,11 @@ export const Focus = Command.define("Focus", {
 });
 export const LoadMetadata = Command.define("LoadMetadata", {
   messages: [M.LoadedMetadata],
-  execute: result(request((client) => client.metadata())).pipe(
-    Effect.map(M.LoadedMetadata),
+  execute: Effect.all({
+    result: result(request((client) => client.metadata())),
+    today: Calendar.today.local,
+  }).pipe(
+    Effect.map(({ result, today }) => M.LoadedMetadata({ ...result, today })),
   ),
 });
 export const LoadStatus = Command.define("LoadStatus", {

@@ -41,15 +41,19 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-test("Explore saves applied filters in place, and saved views reopen on the current page", async ({
+test("Explore applies changes before saving, and saved views reopen on the current page", async ({
   page,
 }) => {
   await page.goto(`/trips?${query}`);
   const tripFilters = page.getByRole("form", { name: "Trip filters" });
-  // An unsubmitted ZIP edit must not silently change the saved view.
+  // Saving stays unavailable until the draft is applied.
   await page
     .getByRole("textbox", { name: "Pickup ZIP code", exact: true })
     .fill("10002");
+  await expect(
+    tripFilters.getByRole("button", { name: "Save view", exact: true }),
+  ).toBeDisabled();
+  await tripFilters.getByRole("button", { name: "Apply", exact: true }).click();
   await tripFilters
     .getByRole("button", { name: "Save view", exact: true })
     .click();
@@ -58,7 +62,7 @@ test("Explore saves applied filters in place, and saved views reopen on the curr
     exact: true,
   });
   await expect(dialog).toContainText("Jan 10, 2016 – Jan 20, 2016");
-  await expect(dialog).toContainText("Pickup ZIP 10001");
+  await expect(dialog).toContainText("Pickup ZIP 10002");
   await dialog
     .getByRole("textbox", { name: "View name", exact: true })
     .fill("Weekday pickups");
@@ -74,9 +78,11 @@ test("Explore saves applied filters in place, and saved views reopen on the curr
   });
   await dialog.getByRole("button", { name: "Save view", exact: true }).click();
   await expect(dialog).not.toBeVisible();
-  expect(saved?.filters).toEqual(filters);
+  expect(saved?.filters).toEqual({ ...filters, zip: "10002" });
   expect(saved?.body).toEqual("Review the unusually high fares.");
-  await expect(page).toHaveURL(`/trips?${query}`);
+  await expect(page).toHaveURL(
+    `/trips?${new URLSearchParams({ ...filters, zip: "10002" })}`,
+  );
   await expect(
     page.getByRole("textbox", { name: "Pickup ZIP code", exact: true }),
   ).toHaveValue("10002");
@@ -88,7 +94,10 @@ test("Explore saves applied filters in place, and saved views reopen on the curr
     .click();
   const views = page.getByRole("dialog", { name: "Saved views", exact: true });
   await expect(
-    views.getByRole("heading", { name: savedNote.title }),
+    views.getByRole("button", {
+      name: `Open saved view for ${savedNote.title}`,
+      exact: true,
+    }),
   ).toBeVisible();
   await page.screenshot({
     path: "test-results/explore-saved-views.png",
@@ -119,7 +128,7 @@ test("editing a saved note retains its original view and the visible action rest
   const open = page.getByRole("button", {
     name: `Open saved view for ${savedNote.title}`,
   });
-  await expect(open).toHaveText("Open saved view");
+  await expect(open).toContainText(savedNote.title);
   await open.click();
   await expect(page).toHaveURL("/trips?to=2016-02-20&zip=11430");
 });

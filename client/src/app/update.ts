@@ -2,6 +2,7 @@ import { Dialog, Menu, Tooltip } from "@foldkit/ui";
 import { Option } from "effect";
 import { Command, Update } from "foldkit";
 import type { Url } from "foldkit/url";
+import * as FilterDates from "../features/filters/dates";
 import * as Filters from "../features/filters/model";
 import { filtersFromQuery, href, queryFor } from "../features/filters/query";
 import { updateFilters } from "../features/filters/update";
@@ -80,14 +81,12 @@ function updateApplication(
         query: message.query,
         mobileNavigation: false,
         tooltips: {},
-        filtersState: {
-          ...model.filtersState,
-          filterDraft: {
-            from: filters.from ?? "",
-            to: filters.to ?? "",
-            zip: filters.zip ?? "",
-          },
-        },
+        filtersState: FilterDates.reset(
+          model.filtersState,
+          filters,
+          model.metadata.data,
+        ),
+        savedViewsState: { ...model.savedViewsState, notice: "" },
         tripsState: {
           ...model.tripsState,
           page: 1,
@@ -194,13 +193,6 @@ function updateApplication(
             tripsState: { ...model.tripsState, selectedTrip: null },
           },
         };
-      if (model.savedViewsState.savedViews)
-        return {
-          model: {
-            ...model,
-            savedViewsState: { ...model.savedViewsState, savedViews: false },
-          },
-        };
       if (model.mobileNavigation)
         return { model: { ...model, mobileNavigation: false } };
       return {
@@ -247,7 +239,7 @@ function updateApplication(
           (message.id === "delete" && model.savedViewsState.noteBusy))
       )
         return { model };
-      return Update.foldChild({
+      const changed = Update.foldChild({
         update: Dialog.update,
         read: (model: Model) => Option.some(model.dialogs[message.id]),
         write: (model, child) => ({
@@ -261,11 +253,31 @@ function updateApplication(
             out._tag === "Closed" ? dismissDialog(model, message.id) : model,
         }),
       })(model, message.message);
+      // Domain-driven closure skips Dialog's Closed output. Restore focus after
+      // its resources are actually released; the deleted opener may be gone.
+      return message.id === "delete" &&
+        message.message._tag === "CompletedCloseDialog" &&
+        changed.model.savedViewsState.picker.isOpen
+        ? {
+            ...changed,
+            commands: [
+              ...(changed.commands ?? []),
+              AppCommands.Focus({
+                selector: `#${changed.model.savedViewsState.picker.id}-panel`,
+              }),
+            ],
+          }
+        : changed;
     }
     case "LoadedMetadata":
       return {
         model: {
           ...model,
+          filtersState: FilterDates.withMetadata(
+            model.filtersState,
+            message.data,
+            message.today,
+          ),
           metadata: {
             data: message.data,
             error: message.error,
@@ -287,12 +299,14 @@ function updateApplication(
       return { model: { ...model, user: message.user } };
     case "LoadPage":
       return loadPage(model);
+    case "FilterDatePicker":
     case "FilterChanged":
     case "ApplyFilters":
     case "ResetFilters":
     case "PickZip": {
       const changed = updateFilters(model.filtersState, message, {
         query: model.query,
+        metadata: model.metadata.data,
       });
       const next = { ...model, filtersState: changed.model };
       return changed.outMessage
@@ -348,7 +362,8 @@ function updateApplication(
         commands: changed.commands ?? [],
       };
     }
-    case "OpenSavedViews":
+    case "SavedViewsPicker":
+    case "ClearView":
     case "NewNote":
     case "CreatedNote":
     case "EditNote":
@@ -364,19 +379,33 @@ function updateApplication(
     case "RestoreView": {
       const changed = updateSavedViews(model.savedViewsState, message, {
         filters: filtersFromQuery(model.query) ?? {},
-        query: model.query,
       });
-      const next = { ...model, savedViewsState: changed.model };
+      const next = {
+        ...model,
+        savedViewsState: changed.model,
+        ...(changed.outMessage
+          ? {
+              filtersState: FilterDates.reset(
+                model.filtersState,
+                changed.outMessage.filters,
+                model.metadata.data,
+              ),
+            }
+          : {}),
+      };
       return {
         model: next,
-        commands: changed.outMessage
-          ? [
-              AppCommands.Navigate({
-                href: href(model.path, queryFor(changed.outMessage.filters)),
-                external: false,
-              }),
-            ]
-          : (changed.commands ?? []),
+        commands: [
+          ...(changed.commands ?? []),
+          ...(changed.outMessage
+            ? [
+                AppCommands.Navigate({
+                  href: href(model.path, queryFor(changed.outMessage.filters)),
+                  external: false,
+                }),
+              ]
+            : []),
+        ],
       };
     }
     case "OpenGenie":
@@ -438,11 +467,6 @@ function dismissDialog(model: Model, id: DialogId): Model {
         ...model,
         tripsState: { ...model.tripsState, selectedTrip: null },
       };
-    case "views":
-      return {
-        ...model,
-        savedViewsState: { ...model.savedViewsState, savedViews: false },
-      };
     case "navigation":
       return { ...model, mobileNavigation: false };
     case "genie":
@@ -472,7 +496,6 @@ export function update(
   }
   // Domain state controls visibility; Foldkit owns each dialog's lifecycle.
   const visibility = {
-    views: next.savedViewsState.savedViews,
     note: next.savedViewsState.editor !== null,
     delete: next.savedViewsState.deleting !== null,
     trip: next.tripsState.selectedTrip !== null,

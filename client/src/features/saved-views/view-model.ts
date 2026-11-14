@@ -4,6 +4,5 @@ export type ViewModel = Model & {
   readonly dialogs: {
     readonly delete: Dialog.Model;
     readonly note: Dialog.Model;
-    readonly views: Dialog.Model;
   };
 };

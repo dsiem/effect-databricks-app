@@ -1,8 +1,27 @@
+import { Popover } from "@foldkit/ui";
+import { Command, type Update } from "foldkit";
 import type * as D from "../../../../shared/domain";
 import type { FeatureUpdate } from "../../lib/feature-update";
+import { queryFor } from "../filters/query";
 import * as SavedViewsCommands from "./commands";
-import type { Message } from "./messages";
+import { Message as M, type Message } from "./messages";
 import type { Model } from "./model";
+
+function foldPicker(
+  model: Model,
+  changed: Update.ReturnWithOutMessage<
+    Popover.Model,
+    Popover.Message,
+    Popover.OutMessage
+  >,
+): FeatureUpdate<Model, Message, Out> {
+  return {
+    model: { ...model, picker: changed.model },
+    commands: (changed.commands ?? []).map((command) =>
+      Command.mapMessage(command, (message) => M.SavedViewsPicker({ message })),
+    ),
+  };
+}
 
 const loadNotes = (
   model: Model,
@@ -25,8 +44,16 @@ export function updateSavedViews(
   switch (message._tag) {
     case "Idle":
       return { model };
-    case "OpenSavedViews":
-      return loadNotes({ ...model, savedViews: true });
+    case "SavedViewsPicker": {
+      const changed = Popover.update(model.picker, message.message);
+      const folded = foldPicker(model, changed);
+      if (changed.outMessage?._tag !== "Opened") return folded;
+      const loaded = loadNotes(folded.model);
+      return {
+        ...loaded,
+        commands: [...(folded.commands ?? []), ...(loaded.commands ?? [])],
+      };
+    }
     case "NewNote":
       return { model, commands: [SavedViewsCommands.NewNote({})] };
     case "CreatedNote":
@@ -96,9 +123,16 @@ export function updateSavedViews(
           : model.editor
             ? { ...model.editor, saving: false, error: message.error }
             : null,
-        saved: message.note
-          ? { title: message.note.title, query: context.query }
-          : model.saved,
+        selection:
+          message.note &&
+          queryFor(message.note.filters) === queryFor(context.filters)
+            ? {
+                id: message.note.id,
+                title: message.note.title,
+                filters: message.note.filters,
+              }
+            : model.selection,
+        notice: message.note ? `Saved “${message.note.title}”` : model.notice,
       };
       return loadNotes(next);
     }
@@ -106,6 +140,18 @@ export function updateSavedViews(
       return model.notes.loading ? { model } : loadNotes(model, message.more);
     case "LoadedNotes":
       return {
+        commands:
+          message.more &&
+          message.data &&
+          !message.data.nextCursor &&
+          model.picker.isOpen
+            ? [
+                Command.mapMessage(
+                  Popover.FocusPanel({ id: model.picker.id }),
+                  (message) => M.SavedViewsPicker({ message }),
+                ),
+              ]
+            : [],
         model: {
           ...model,
           notePages: message.data
@@ -148,17 +194,43 @@ export function updateSavedViews(
         ...model,
         noteBusy: false,
         noteError: message.error,
+        notice: message.removed && !message.error ? "" : model.notice,
         deleting: message.removed && !message.error ? null : model.deleting,
+        selection:
+          message.removed &&
+          !message.error &&
+          model.deleting?.id === model.selection?.id
+            ? null
+            : model.selection,
       });
     case "RestoreView":
       return {
-        model: { ...model, savedViews: false },
-        outMessage: { _tag: "RestoreFilters", filters: message.filters },
+        ...foldPicker(
+          {
+            ...model,
+            selection: {
+              id: message.note.id,
+              title: message.note.title,
+              filters: message.note.filters,
+            },
+            notice: "",
+          },
+          Popover.close(model.picker),
+        ),
+        outMessage: { _tag: "RestoreFilters", filters: message.note.filters },
+      };
+    case "ClearView":
+      return {
+        ...foldPicker(
+          { ...model, selection: null, notice: "" },
+          Popover.close(model.picker),
+        ),
+        outMessage: { _tag: "RestoreFilters", filters: {} },
       };
   }
 }
 
-export type Context = { readonly filters: D.Filters; readonly query: string };
+export type Context = { readonly filters: D.Filters };
 export type Out = {
   readonly _tag: "RestoreFilters";
   readonly filters: D.Filters;

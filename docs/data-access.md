@@ -222,7 +222,7 @@ The optional `cursor` query parameter is the JSON-encoded continuation object;
 the shared HTTP contract handles encoding and validation. Pages order by pinned
 status, update time, and UUID, all descending. Cursors retain PostgreSQL's full
 timestamp precision and remain usable if the boundary note is deleted. The
-explicit migration adds the matching listing index. The Saved views sheet's
+explicit migration adds the matching listing index. The Saved views chooser's
 **Load more views** action appends pages, retains visible views if a later request
 fails, and offers a retry. Saves, pins, and deletes refresh the loaded pages.
 
@@ -264,11 +264,14 @@ its UUID-scoped temporary comments even when an assertion fails.
 
 The UX separates two user intentions: keep an analysis worth returning to, and
 discuss a specific record. Saving and discussing both start beside the data.
-**Save view** captures the applied filters with a name and optional finding; an
-unsubmitted filter edit is not saved. **Saved views** opens the existing shared
-library in a side panel. Reopening a saved view applies its filters to the current
-Explore page. Paginated browsing, pinning, editing, and deletion all stay in the
-side panel. Existing notes and optimistic edit versions are preserved.
+**Save view** captures the applied filters with a name and optional finding;
+pending edits must be applied before saving is available. The current view's
+chooser opens the existing shared library beside the filters. Choosing a row
+applies that view's filters to the current Explore page and replaces any draft,
+including when the applied URL already matches. Paginated browsing, pinning,
+editing, and deletion stay in the chooser. Existing notes and optimistic edit
+versions are preserved. The generic panel and chooser accept caller-provided
+controls and summaries; the taxi feature owns its date/ZIP definitions.
 
 Trip timestamps and explicit comment actions open a focused inspector with the
 route, timestamps, fare, distance, duration, and shared discussion. The responsive

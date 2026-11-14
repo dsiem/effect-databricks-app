@@ -3,7 +3,6 @@ import { Schema } from "effect";
 
 export { DialogId } from "../lib/ui-messages";
 export const Dialogs = Schema.Struct({
-  views: Dialog.Model,
   note: Dialog.Model,
   delete: Dialog.Model,
   trip: Dialog.Model,
@@ -11,7 +10,6 @@ export const Dialogs = Schema.Struct({
   genie: Dialog.Model,
 });
 export const initDialogs = () => ({
-  views: Dialog.init({ id: "saved-views", focusSelector: ".dialog-close" }),
   note: Dialog.init({ id: "note", focusSelector: "#note-title" }),
   delete: Dialog.init({ id: "delete-note", focusSelector: "button" }),
   trip: Dialog.init({

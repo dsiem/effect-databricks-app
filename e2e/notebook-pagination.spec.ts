@@ -62,7 +62,9 @@ test("all notes remain reachable beyond 200 and pinning a later note refreshes t
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto("/trips?zip=10001");
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
-  const headings = page.getByRole("heading", { name: /^Finding / });
+  const headings = page.getByRole("button", {
+    name: /^Open saved view for Finding /,
+  });
   await expect(headings).toHaveCount(24);
   const more = page.getByRole("button", {
     name: "Load more views",
@@ -85,10 +87,15 @@ test("all notes remain reachable beyond 200 and pinning a later note refreshes t
   await page
     .getByRole("button", { name: "Pin Finding 201", exact: true })
     .click();
-  await expect(headings.first()).toHaveText("Finding 201");
+  await expect(headings.first()).toHaveAccessibleName(
+    "Open saved view for Finding 201",
+  );
   await expect(headings).toHaveCount(201);
   await expect(
-    page.getByRole("heading", { name: "Finding 201", exact: true }),
+    page.getByRole("button", {
+      name: "Open saved view for Finding 201",
+      exact: true,
+    }),
   ).toHaveCount(1);
   await page
     .getByRole("button", { name: "Edit Finding 201", exact: true })
@@ -139,7 +146,9 @@ test("a failed next page keeps existing notes visible and can be retried", async
   });
   await page.goto("/trips");
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
-  const headings = page.getByRole("heading", { name: /^Finding / });
+  const headings = page.getByRole("button", {
+    name: /^Open saved view for Finding /,
+  });
   await expect(headings).toHaveCount(24);
   await page.getByRole("button", { name: "Load more views" }).click();
   const views = page.getByRole("dialog", { name: "Saved views", exact: true });
