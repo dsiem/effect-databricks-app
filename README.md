@@ -24,8 +24,8 @@ local development uses the current workspace user's profile when available.
   Explore; reopen, pin, edit, or delete them from a side panel on the same page.
   The analyst notebook remains the full shared library, with paginated browsing.
 
-Setup copies `samples.nyctaxi.trips` once per bundle target into a managed Delta
-table and persists a UUID `trip_id` on each row. App analytics read this snapshot;
+An unscheduled SQL job copies `samples.nyctaxi.trips` once per bundle target into a
+managed Delta table and persists a UUID `trip_id` on each row. App analytics read this snapshot;
 re-running setup keeps its IDs and does not refresh its rows. The sample contains
 21,932 trips from January–February 2016 in the verified workspace. It contains ZIP
 codes rather than GPS points. Fares exclude tips and tolls. All dates and amounts
@@ -52,9 +52,11 @@ npm run dev
 Open http://localhost:5173 (frontend). The Effect API runs on port 3000. Setup
 populates the ignored `.env` with resource IDs and connection parameters. Tokens
 are obtained from the CLI locally and from the platform app identity when deployed;
-no token is copied into the frontend. For manual setup, configure the warehouse,
-`TRIP_SNAPSHOT_TABLE`, and Lakebase values in `.env`, then run
-`APP_SERVICE_PRINCIPAL_ID=<app-client-id> npm run data:seed:snapshot` and
+no token is copied into the frontend. To rerun snapshot provisioning for a deployed
+bundle target, run
+`npm run data:seed:snapshot -- -t dev --params app_service_principal_id=<app-client-id>`
+using that target's catalog/schema. Local analytics use `TRIP_SNAPSHOT_TABLE` from
+`.env`. For manual Lakebase setup, configure its values in `.env`, then run
 `APP_SERVICE_PRINCIPAL_ID=<app-client-id> npm run db:migrate`.
 
 `npm run build && npm start` serves the built frontend and API together on port
@@ -65,13 +67,14 @@ return useful configuration errors instead of fabricated results.
 
 [databricks.yml](databricks.yml) declares and connects:
 
-| Resource         | Configuration                                                      |
-| ---------------- | ------------------------------------------------------------------ |
-| SQL warehouse    | Serverless PRO, 2X-Small, one cluster, ten-minute auto-stop        |
-| Unity Catalog    | Target-specific schema with a persistent copy of the taxi sample   |
-| Genie space      | NYC taxi table, sample questions, domain instructions              |
-| Lakebase project | Postgres 17, production branch, 1 CU primary endpoint              |
-| Databricks App   | Existing or new app identity, SQL/Genie/Lakebase resource bindings |
+| Resource         | Configuration                                                          |
+| ---------------- | ---------------------------------------------------------------------- |
+| SQL warehouse    | Serverless PRO, 2X-Small, one cluster, ten-minute auto-stop            |
+| Unity Catalog    | Target-specific schema with a persistent copy of the taxi sample       |
+| Snapshot job     | Unscheduled SQL notebook on the existing warehouse; preserves trip IDs |
+| Genie space      | NYC taxi table, sample questions, domain instructions                  |
+| Lakebase project | Postgres 17, production branch, 1 CU primary endpoint                  |
+| Databricks App   | Existing or new app identity, SQL/Genie/Lakebase resource bindings     |
 
 Lakebase project defaults include a five-minute idle suspension; the default
 endpoint inherits it. The app uses the endpoint's direct TLS host. Resource names
@@ -85,14 +88,30 @@ databricks bundle validate --strict -t dev
 npm run workspace:setup -- dev
 ```
 
-Setup deploys the bundle, creates a target-specific managed Delta snapshot with
-one persisted UUID per sample row, grants the app identity catalog/schema/table
-read access, runs an explicit idempotent notebook migration, and starts the app.
+Set `data_catalog` and `data_schema` in the target's bundle variables, or supply
+them as environment overrides when running setup:
+
+```sh
+BUNDLE_VAR_data_catalog=my_catalog BUNDLE_VAR_data_schema=my_schema npm run workspace:setup -- dev
+```
+
+Both the seed job and deployed app use `my_catalog.my_schema.trips`. Setup writes
+that same fully qualified name to `TRIP_SNAPSHOT_TABLE` in the local `.env`.
+The defaults remain `main` and `${var.data_name}` (for example, `metrocab-dev`),
+preserving the existing table location. `data_schema` can be changed independently
+of the warehouse and Lakebase resource prefix. Keep these overrides in the target
+configuration for subsequent deployments. Changing the catalog or schema selects
+a separate snapshot; existing trip IDs and comments are not migrated.
+
+Setup deploys the bundle and waits for its `seed_trip_snapshot` SQL job to finish
+on the existing warehouse. The job creates a target-specific managed Delta
+snapshot with one persisted UUID per sample row, validates the IDs, and grants
+the app identity catalog/schema/table read access. Setup then runs an explicit
+idempotent notebook migration and starts the app.
 Re-running setup preserves the snapshot and IDs; it does not copy newly changed
 source rows. Application startup does not run DDL. The deployer needs permission
 to create the schema in `data_catalog` and grant access to the app identity, plus
-database ownership for the Lakebase migration/grants. Set `data_catalog` in bundle
-overrides when `main` is not the intended catalog.
+database ownership for the Lakebase migration/grants.
 
 ### Free workspace / adopting existing resources
 

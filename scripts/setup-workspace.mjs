@@ -64,17 +64,17 @@ writeFileSync(".env", env, { mode: 0o600 });
 const principal = app.service_principal_client_id;
 if (!principal) throw new Error("App service principal is not available yet.");
 execFileSync(
-  process.execPath,
+  "databricks",
   [
-    "--env-file-if-exists=.env",
-    "--import",
-    "tsx",
-    "scripts/seed-trip-snapshot.ts",
+    "bundle",
+    "run",
+    "seed_trip_snapshot",
+    "-t",
+    target,
+    "--params",
+    `app_service_principal_id=${principal}`,
   ],
-  {
-    stdio: "inherit",
-    env: { ...process.env, APP_SERVICE_PRINCIPAL_ID: principal },
-  },
+  { stdio: "inherit" },
 );
 execFileSync(
   process.execPath,

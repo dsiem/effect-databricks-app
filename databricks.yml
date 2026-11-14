@@ -12,6 +12,9 @@ variables:
   data_catalog:
     description: Unity Catalog catalog for the persistent sample snapshot.
     default: main
+  data_schema:
+    description: Unity Catalog schema for the persistent sample snapshot, independent of the other data resource names.
+    default: ${var.data_name}
 
   warehouse_name:
     description: Display name of the managed warehouse; set when adopting an existing warehouse.
@@ -20,7 +23,7 @@ variables:
 resources:
   schemas:
     data:
-      name: ${var.data_name}
+      name: ${var.data_schema}
       catalog_name: ${var.data_catalog}
       comment: Persistent NYC taxi sample snapshot with stable trip IDs.
   sql_warehouses:
@@ -34,6 +37,24 @@ resources:
       max_num_clusters: 1
       auto_stop_mins: 10
       tags: {}
+  jobs:
+    seed_trip_snapshot:
+      name: ${var.data_name}-seed-trip-snapshot
+      description: One-time taxi snapshot and app read grants; safe to rerun without changing trip IDs.
+      max_concurrent_runs: 1
+      parameters:
+        - name: catalog
+          default: ${resources.schemas.data.catalog_name}
+        - name: schema
+          default: ${resources.schemas.data.name}
+        - name: app_service_principal_id
+          default: ""
+      tasks:
+        - task_key: seed_trip_snapshot
+          timeout_seconds: 900
+          notebook_task:
+            notebook_path: ./jobs/seed-trip-snapshot.sql
+            warehouse_id: ${resources.sql_warehouses.analytics.id}
   genie_spaces:
     taxi:
       title: ${var.app_name} NYC taxi analyst
@@ -76,7 +97,7 @@ resources:
           - name: DATABRICKS_WAREHOUSE_ID
             value_from: lakehouse
           - name: TRIP_SNAPSHOT_TABLE
-            value: ${var.data_catalog}.${var.data_name}.trips
+            value: ${resources.schemas.data.catalog_name}.${resources.schemas.data.name}.trips
           - name: GENIE_SPACE_ID
             value_from: genie
           - name: LAKEBASE_ENDPOINT

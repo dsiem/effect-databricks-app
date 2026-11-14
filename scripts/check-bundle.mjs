@@ -15,9 +15,59 @@ const schema = JSON.parse(
 const ajv = new Ajv({ strict: false, allErrors: true, validateFormats: false });
 const validate = ajv.compile(schema);
 const bundle = parse(readFileSync("databricks.yml", "utf8"));
+const substitution = (path) => `\${${path}}`;
 assert.ok(
   validate(bundle),
   ajv.errorsText(validate.errors, { separator: "\n" }),
+);
+
+const seed = bundle.resources.jobs.seed_trip_snapshot;
+assert.equal(
+  seed.schedule,
+  undefined,
+  "Snapshot seeding must stay unscheduled",
+);
+assert.equal(seed.continuous, undefined);
+assert.equal(seed.trigger, undefined);
+assert.equal(seed.max_concurrent_runs, 1);
+assert.equal(seed.tasks.length, 1);
+const notebook = seed.tasks[0].notebook_task;
+assert.equal(
+  notebook.warehouse_id,
+  substitution("resources.sql_warehouses.analytics.id"),
+  "Snapshot seeding must reuse the analytics warehouse",
+);
+assert.match(
+  readFileSync(notebook.notebook_path, "utf8"),
+  /^-- Databricks notebook source\n/,
+);
+
+// The managed schema is the single source for the job and app table location.
+assert.equal(
+  bundle.resources.schemas.data.catalog_name,
+  substitution("var.data_catalog"),
+);
+assert.equal(
+  bundle.resources.schemas.data.name,
+  substitution("var.data_schema"),
+);
+const seedParameters = Object.fromEntries(
+  seed.parameters.map(({ name, default: value }) => [name, value]),
+);
+assert.equal(
+  seedParameters.catalog,
+  substitution("resources.schemas.data.catalog_name"),
+);
+assert.equal(
+  seedParameters.schema,
+  substitution("resources.schemas.data.name"),
+);
+assert.equal(
+  bundle.resources.apps.app.config.env.find(
+    ({ name }) => name === "TRIP_SNAPSHOT_TABLE",
+  )?.value,
+  `${seedParameters.catalog}.${seedParameters.schema}.trips`,
+  "Seed job and app must use the same catalog, schema, and table",
 );
 
 // Check opt-in data bindings in the same resource structure used at deployment.

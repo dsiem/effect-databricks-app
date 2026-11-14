@@ -7,8 +7,9 @@ flowchart LR
   Analytics --> Arrow[Effect SQL Databricks / Arrow]
   Arrow --> Warehouse[SQL warehouse]
   Warehouse --> Source[samples.nyctaxi.trips]
-  Setup --> Snapshot[target Unity Catalog snapshot with trip_id]
-  Warehouse --> Snapshot
+  Setup --> Seed[Unscheduled SQL snapshot job]
+  Seed --> Warehouse
+  Warehouse --> Snapshot[target Unity Catalog snapshot with trip_id]
   API --> Genie[Genie service]
   Genie --> Space[Taxi Genie space]
   Space --> Warehouse
@@ -43,17 +44,32 @@ run with concurrency three. Metadata is cached for five minutes. Trip pages have
 25 rows and include the exact matching row count. Ordering includes the source
 columns for stable pagination; identical duplicate source rows remain identical.
 
-Setup materializes the sample with `CREATE TABLE IF NOT EXISTS ... AS SELECT
+Setup runs the bundle's unscheduled `seed_trip_snapshot` job, whose SQL notebook
+is `jobs/seed-trip-snapshot.sql`. It uses the existing SQL warehouse to materialize
+the sample with `CREATE TABLE IF NOT EXISTS ... AS SELECT
 uuid() AS trip_id, * FROM samples.nyctaxi.trips`. The UUID is nondeterministic at
 creation time but stored in Delta, so subsequent setup runs preserve each ID.
 Analytics read the configured three-part `TRIP_SNAPSHOT_TABLE`; metadata,
 overview, trip pages, exports, and comment threads all use the same snapshot.
 Validation confirms the snapshot is non-empty and each row has a unique non-null
 ID. Source refreshes do not rewrite it. The app service principal receives
-`USE CATALOG`, `USE SCHEMA`, and `SELECT` on that table. Each bundle target gets
-its own schema under `data_catalog` (default `main`); the deployer needs permission
-to create that schema and grant access. For a future dataset with a source primary
-key, copy that value into `trip_id` instead of generating one.
+`USE CATALOG`, `USE SCHEMA`, and `SELECT` on that table. Bundle variables
+`data_catalog` (default `main`) and `data_schema` (default `${var.data_name}`)
+configure the managed schema. Both the job's catalog/schema parameters and the
+app's `TRIP_SNAPSHOT_TABLE` derive from that schema resource, and setup writes the
+same fully qualified table name to local `.env`. Overriding `data_schema` does not
+rename the warehouse or Lakebase resources. Use separate schemas per target to
+keep snapshots isolated. The deployer needs permission to create the schema and
+grant access. For a future dataset with a source primary key, copy that value into
+`trip_id` instead of generating one.
+
+The job receives the target catalog/schema and app principal as parameters,
+validates them before executing DDL, and fails if the snapshot is empty or has
+missing or duplicate IDs. Counts stay in SQL without JavaScript precision loss.
+It has a 15-minute task timeout and no recurring schedule. Setup waits for success
+before running the Lakebase migration and starting the app. Manual reruns use
+`npm run data:seed:snapshot -- -t TARGET --params app_service_principal_id=APP_CLIENT_ID`.
+`test/workspace-setup.test.ts` checks setup ordering and that job failures stop deployment.
 
 All metadata, overview, and trip statements share one per-process admission pool,
 including distinct cache keys and trip pages. `WAREHOUSE_MAX_CONCURRENCY` defaults
