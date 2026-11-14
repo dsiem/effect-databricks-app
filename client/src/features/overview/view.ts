@@ -3,10 +3,13 @@ import { compact, money, number } from "../../lib/format";
 import { chart } from "../../ui/chart";
 import { icon } from "../../ui/icons";
 import {
+  button,
   type Child,
   card,
   error,
   loading,
+  metric,
+  panelHeader,
   table,
   title,
 } from "../../ui/primitives";
@@ -37,29 +40,31 @@ function overview(h: H, model: Model): Child[] {
     h.div(
       [h.Class("metrics")],
       [
-        ["Total trips", number(summary.trips), "Recorded taxi trips"],
-        [
-          "Total fare revenue",
-          money(summary.revenue),
-          "USD · excludes tips & tolls",
-        ],
-        ["Average fare", money(summary.avg_fare, 2), "Per recorded trip"],
-        [
-          "Average distance",
-          `${summary.avg_distance.toFixed(2)} mi`,
-          `${summary.avg_duration.toFixed(1)} min average duration`,
-        ],
-      ].map(([label = "", value = "", detail = ""]) =>
-        card(
-          h,
-          [
-            h.h2([h.Class("metric-label")], [label]),
-            h.p([h.Class("metric-value")], [value]),
-            h.p([h.Class("muted text-xs")], [detail]),
-          ],
-          "p-6",
-        ),
-      ),
+        metric(h, {
+          label: "Total trips",
+          value: number(summary.trips),
+          detail: "Recorded taxi trips",
+          icon: icon(h, "car-taxi-front"),
+        }),
+        metric(h, {
+          label: "Total fare revenue",
+          value: money(summary.revenue),
+          detail: "USD · excludes tips & tolls",
+          icon: icon(h, "circle-dollar-sign"),
+        }),
+        metric(h, {
+          label: "Average fare",
+          value: money(summary.avg_fare, 2),
+          detail: "Per recorded trip",
+          icon: icon(h, "activity"),
+        }),
+        metric(h, {
+          label: "Average distance",
+          value: `${summary.avg_distance.toFixed(2)} mi`,
+          detail: `${summary.avg_duration.toFixed(1)} min average duration`,
+          icon: icon(h, "route"),
+        }),
+      ],
     ),
     ...(summary.trips === 0
       ? [
@@ -89,65 +94,47 @@ function overview(h: H, model: Model): Child[] {
                       h.div(
                         [h.DataAttribute("slot", "tabs")],
                         [
-                          h.div(
-                            [h.Class("chart-header")],
-                            [
-                              h.div(
-                                [],
-                                [
-                                  h.h2([], [dailyTitle]),
-                                  h.p(
-                                    [h.Class("muted text-xs mt-1")],
-                                    ["Activity over the selected period"],
-                                  ),
-                                ],
+                          panelHeader(h, {
+                            title: dailyTitle,
+                            description: "Activity over the selected period",
+                            actions: [
+                              ask(
+                                h,
+                                (context, question) =>
+                                  M.OpenGenie({ context, question }),
+                                `Ask Genie about ${dailyTitle.toLowerCase()}`,
+                                {
+                                  page: "overview",
+                                  title: dailyTitle,
+                                  data: JSON.stringify({
+                                    metric: series,
+                                    daily,
+                                    queriedAt,
+                                  }),
+                                },
+                                "Explain the pattern in this chart and highlight any unusual days.",
                               ),
                               h.div(
-                                [h.Class("flex flex-wrap gap-2")],
-                                [
-                                  ask(
-                                    h,
-                                    (context, question) =>
-                                      M.OpenGenie({ context, question }),
-                                    `Ask Genie about ${dailyTitle.toLowerCase()}`,
-                                    {
-                                      page: "overview",
-                                      title: dailyTitle,
-                                      data: JSON.stringify({
-                                        metric: series,
-                                        daily,
-                                        queriedAt,
-                                      }),
-                                    },
-                                    "Explain the pattern in this chart and highlight any unusual days.",
+                                [...tablist, h.Class("tabs")],
+                                tabs.map((tab) =>
+                                  h.button(
+                                    [...tab.tab, h.Class("tab")],
+                                    [
+                                      tab.value === "trips"
+                                        ? "Trips"
+                                        : "Revenue",
+                                    ],
                                   ),
-                                  h.div(
-                                    [...tablist, h.Class("tabs")],
-                                    tabs.map((tab) =>
-                                      h.button(
-                                        [
-                                          ...tab.tab,
-                                          h.Class(
-                                            `btn ${tab.isActive ? "selected" : "ghost"}`,
-                                          ),
-                                        ],
-                                        [
-                                          tab.value === "trips"
-                                            ? "Trips"
-                                            : "Revenue",
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ],
-                          ),
+                          }),
                           h.div(
                             [...(tabs[activeIndex]?.panel ?? [])],
                             [
                               chart(h, {
                                 kind: "area",
+                                width: model.mobile ? 400 : 700,
                                 title: dailyTitle,
                                 data: daily.map((row) => ({
                                   label: row.day.slice(5),
@@ -175,19 +162,10 @@ function overview(h: H, model: Model): Child[] {
                 ),
               ]),
               card(h, [
-                h.div(
-                  [h.Class("chart-header")],
-                  [
-                    h.div(
-                      [],
-                      [
-                        h.h2([], ["Trips by pickup hour"]),
-                        h.p(
-                          [h.Class("muted text-xs mt-1")],
-                          ["Distribution across the day"],
-                        ),
-                      ],
-                    ),
+                panelHeader(h, {
+                  title: "Trips by pickup hour",
+                  description: "Distribution across the day",
+                  actions: [
                     ask(
                       h,
                       (context, question) => M.OpenGenie({ context, question }),
@@ -200,10 +178,11 @@ function overview(h: H, model: Model): Child[] {
                       "Explain this hourly pickup pattern. Which hours stand out?",
                     ),
                   ],
-                ),
+                }),
                 chart(h, {
                   kind: "bar",
                   title: "Trips by pickup hour",
+                  width: 400,
                   data: hourly.map((row) => ({
                     label: `${row.hour}:00`,
                     value: row.trips,
@@ -220,49 +199,34 @@ function overview(h: H, model: Model): Child[] {
             [h.Class("dashboard-grid")],
             [
               card(h, [
-                h.div(
-                  [h.Class("chart-header")],
-                  [
-                    h.div(
-                      [],
-                      [
-                        h.h2([], ["Top pickup ZIP codes"]),
-                        h.p(
-                          [h.Class("muted text-xs mt-1")],
-                          ["Pickup areas ranked by trip volume"],
-                        ),
-                      ],
+                panelHeader(h, {
+                  title: "Top pickup ZIP codes",
+                  description: "Pickup areas ranked by trip volume",
+                  actions: [
+                    ask(
+                      h,
+                      (context, question) => M.OpenGenie({ context, question }),
+                      "Ask Genie about top pickup ZIP codes",
+                      {
+                        page: "overview",
+                        title: "Top pickup ZIP codes",
+                        data: JSON.stringify({
+                          topPickupZIPs: zones.slice(0, 5),
+                          queriedAt,
+                        }),
+                      },
+                      "Compare these pickup ZIP codes by trip volume and average fare.",
                     ),
-                    h.div(
-                      [h.Class("flex flex-wrap gap-2")],
+                    h.a(
                       [
-                        ask(
-                          h,
-                          (context, question) =>
-                            M.OpenGenie({ context, question }),
-                          "Ask Genie about top pickup ZIP codes",
-                          {
-                            page: "overview",
-                            title: "Top pickup ZIP codes",
-                            data: JSON.stringify({
-                              topPickupZIPs: zones.slice(0, 5),
-                              queriedAt,
-                            }),
-                          },
-                          "Compare these pickup ZIP codes by trip volume and average fare.",
-                        ),
-                        h.a(
-                          [
-                            h.Href(href("/map", model.query)),
-                            h.Class("btn"),
-                            h.AriaLabel("View pickup map"),
-                          ],
-                          [icon(h, "map"), h.span([], ["Pickup map"])],
-                        ),
+                        h.Href(href("/map", model.query)),
+                        h.Class("btn btn-small"),
+                        h.AriaLabel("View pickup map"),
                       ],
+                      [icon(h, "map"), "Pickup map"],
                     ),
                   ],
-                ),
+                }),
                 table(h, {
                   caption: "Top pickup ZIP codes",
                   headers: [
@@ -291,7 +255,7 @@ function overview(h: H, model: Model): Child[] {
                             ),
                           ),
                           h.AriaLabel(`View trips in ${zone.zip}`),
-                          h.Class("btn ghost"),
+                          h.Class("btn btn-ghost btn-icon"),
                         ],
                         [icon(h, "arrow-up-right")],
                       ),
@@ -299,34 +263,32 @@ function overview(h: H, model: Model): Child[] {
                   })),
                 }),
               ]),
-              card(h, [
-                h.div(
-                  [h.Class("p-6 space-y-4")],
-                  [
-                    h.span([h.Class("brand-icon")], [icon(h, "sparkles")]),
-                    h.h2([], ["Take the next analytical step"]),
-                    h.p(
-                      [h.Class("muted text-sm leading-6")],
-                      [
-                        "Ask Genie to explain this view or explore a new angle with the same filters.",
-                      ],
+              card(
+                h,
+                [
+                  h.span([h.Class("brand-icon")], [icon(h, "sparkles")]),
+                  h.h2([], ["Take the next analytical step"]),
+                  h.p(
+                    [],
+                    [
+                      "Compare periods, investigate unusual fares, or uncover a pattern. Genie uses the filters and data in this view to help you go further.",
+                    ],
+                  ),
+                  button(h, {
+                    label: h.span(
+                      [h.Class("inline-flex items-center gap-2")],
+                      ["Explore with Genie", icon(h, "arrow-up-right")],
                     ),
-                    h.p(
-                      [h.Class("muted text-sm leading-6")],
-                      [
-                        "Compare periods, investigate unusual fares, or break down a pattern. Review the results and SQL alongside your dashboard.",
-                      ],
-                    ),
-                    ask(
-                      h,
-                      (context, question) => M.OpenGenie({ context, question }),
-                      "Explore with Genie",
-                      null,
-                      "Compare weekday and weekend trip activity for this view.",
-                    ),
-                  ],
-                ),
-              ]),
+                    onClick: M.OpenGenie({
+                      context: null,
+                      question:
+                        "Compare weekday and weekend trip activity for this view.",
+                    }),
+                    variant: "primary",
+                  }),
+                ],
+                "insight-card",
+              ),
             ],
           ),
         ]),

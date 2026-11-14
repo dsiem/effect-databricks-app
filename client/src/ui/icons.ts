@@ -122,6 +122,48 @@ const shapes = {
     h.path([h.Attribute("d", "M5 18v2")], []),
     h.path([h.Attribute("d", "M19 18v2")], []),
   ],
+  "circle-dollar-sign": <Message>(h: H<Message>) => [
+    h.circle(
+      [
+        h.Attribute("cx", "12"),
+        h.Attribute("cy", "12"),
+        h.Attribute("r", "10"),
+      ],
+      [],
+    ),
+    h.path([h.Attribute("d", "M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8")], []),
+    h.path([h.Attribute("d", "M12 18V6")], []),
+  ],
+  activity: <Message>(h: H<Message>) => [
+    h.path(
+      [
+        h.Attribute(
+          "d",
+          "M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2",
+        ),
+      ],
+      [],
+    ),
+  ],
+  route: <Message>(h: H<Message>) => [
+    h.circle(
+      [h.Attribute("cx", "6"), h.Attribute("cy", "19"), h.Attribute("r", "3")],
+      [],
+    ),
+    h.path(
+      [
+        h.Attribute(
+          "d",
+          "M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15",
+        ),
+      ],
+      [],
+    ),
+    h.circle(
+      [h.Attribute("cx", "18"), h.Attribute("cy", "5"), h.Attribute("r", "3")],
+      [],
+    ),
+  ],
   "panel-left": <Message>(h: H<Message>) => [
     h.rect(
       [

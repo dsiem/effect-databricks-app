@@ -6,8 +6,11 @@ export const badge = <Message>(h: H<Message>, text: string) =>
   h.span([h.Class("badge")], [text]);
 export interface ButtonOptions<Message> {
   readonly label: Child;
-  readonly onClick: Message;
+  readonly onClick?: Message;
+  readonly type?: "button" | "submit";
+  readonly disabled?: boolean;
   readonly variant?: "outline" | "primary" | "ghost" | "destructive";
+  readonly size?: "default" | "small" | "icon";
   readonly className?: string;
   readonly attributes?: ReadonlyArray<
     Exclude<Attribute<Message>, { readonly _tag: "Class" }>
@@ -20,14 +23,17 @@ export const button = <Message>(
 ) =>
   Button.view(
     {
-      onClick: options.onClick,
+      type: options.type ?? "button",
+      ...(options.onClick === undefined ? {} : { onClick: options.onClick }),
+      isDisabled: options.disabled ?? false,
       toView: ({ button }) =>
         h.button(
           [
             ...button,
+            h.Disabled(options.disabled ?? false),
             ...(options.attributes ?? []),
             h.Class(
-              `btn btn-${options.variant ?? "outline"} ${options.className ?? ""}`,
+              `btn btn-${options.variant ?? "outline"} btn-${options.size ?? "default"} ${options.className ?? ""}`,
             ),
           ],
           [options.label],
@@ -40,6 +46,58 @@ export const card = <Message>(h: H<Message>, children: Child[], classes = "") =>
   h.div(
     [h.Class(`card ${classes}`), h.DataAttribute("slot", "card")],
     children,
+  );
+
+/** Presentation only: callers own the metric's meaning and formatting. */
+export const metric = <Message>(
+  h: H<Message>,
+  options: {
+    readonly label: string;
+    readonly value: string;
+    readonly detail: string;
+    readonly icon?: Child;
+  },
+) =>
+  card(
+    h,
+    [
+      h.div(
+        [h.Class("metric-heading")],
+        [
+          h.h2([h.Class("metric-label")], [options.label]),
+          ...(options.icon ? [options.icon] : []),
+        ],
+      ),
+      h.p([h.Class("metric-value")], [options.value]),
+      h.p([h.Class("metric-detail")], [options.detail]),
+    ],
+    "metric",
+  );
+
+export const panelHeader = <Message>(
+  h: H<Message>,
+  options: {
+    readonly title: string;
+    readonly description?: string;
+    readonly actions?: Child[];
+  },
+) =>
+  h.div(
+    [h.Class("chart-header")],
+    [
+      h.div(
+        [],
+        [
+          h.h2([], [options.title]),
+          ...(options.description
+            ? [h.p([h.Class("muted text-xs mt-1")], [options.description])]
+            : []),
+        ],
+      ),
+      ...(options.actions?.length
+        ? [h.div([h.Class("panel-actions")], options.actions)]
+        : []),
+    ],
   );
 export const title = <Message>(
   h: H<Message>,

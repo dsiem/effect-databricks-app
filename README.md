@@ -5,10 +5,10 @@ SVG charts, and Leaflet. The app starts from the real
 `samples.nyctaxi.trips` data and persists a managed snapshot for stable trip
 identity. No synthetic dashboard data or mock Genie answers.
 
-The UI uses Tailwind's stock palette, system fonts, and accessible native dialogs.
-The shared stylesheet supplies basic controls, responsive layout, and overlay
-positioning; feature views use utilities without a custom theme. Leaflet keeps its
-default appearance. The sidebar
+The UI pairs Foldkit's accessible behavior with a small, reusable visual layer:
+neutral surfaces, an indigo accent, consistent controls, and responsive data panels.
+Theme tokens and component styles live in `client/src/styles.css`; generic view
+helpers live in `client/src/ui/`. The sidebar
 collapses to icons on desktop, remembers that preference, and becomes a drawer
 on mobile. Toggle it with the header button or **⌘B / Ctrl+B**.
 The sidebar shows the viewer's name and email from Databricks Apps proxy headers;
@@ -192,6 +192,38 @@ formatters, and include zero when scaling signed values. Tables take a caption,
 headers, and keyed cell rows. Use source identities such as `trip_id` or ZIP for
 changing records; positional keys suit immutable Genie result snapshots.
 
+### Reusing the visual components
+
+[Foldkit UI is headless](https://foldkit.dev/ui/overview): its attribute bundles
+provide behavior and accessibility, while the application supplies markup and
+styles in `toView`. The [official showcase](https://foldkit.dev/example-apps/ui-showcase)
+uses this same separation, with styled controls, an accent palette, and state
+selectors. Removing that visual layer does not produce a styled default UI.
+
+Use `button` for actions and form submissions (`type: "submit"`), with `primary`,
+`outline`, `ghost`, or `destructive` variants and `default`, `small`, or `icon`
+sizes. Pass `disabled` to keep Foldkit's state attributes and native behavior in
+sync. `field` renders a labeled Foldkit input; `metric` takes a label, formatted
+value, detail, and optional icon; `panelHeader` takes a title, description, and
+actions. `card`, `table`, `title`, and `dialog` supply the remaining shared
+structure. These helpers are generic over the caller's message type and contain
+no dataset or application state. Stateful interactions remain Foldkit submodels.
+
+Change the brand palette in `@theme` and the surface, text, border, radius, and
+chart tokens in `:root`. Component classes define appearance; feature utilities
+compose layouts. Tabs style `aria-selected` and navigation styles `aria-current`
+directly, so visual state follows Foldkit's actual state. Chart `width` controls
+the SVG coordinate space (400 for the compact hourly panel, 700 by default),
+keeping axis labels readable in panels of different sizes.
+
+After changing the UI, run `npm run build && npm run test:ui`. The offline review
+renders populated overview, trip, map, Genie, saved-view, and inspector screens
+at 390px and 1440px, plus loading, empty, and error states. PNGs are attached to
+the Playwright results under `test-results/design-*`; review them visually.
+The checks catch viewport overflow, collapsed maps, runtime errors, metric-grid
+regressions, and loss of primary-button distinction. They complement visual
+review rather than asserting that a passing functional test proves good design.
+
 `npm run architecture:check` enforces import boundaries, including type imports,
 re-exports and literal dynamic imports. It runs as part of `npm run check`.
 
@@ -244,6 +276,7 @@ when one exists. See the [interaction design rationale](docs/data-access.md#cont
 ```sh
 npm run check          # lint, types, tests, build, HTTP smoke check, packed SQL adapter
 npm run test:browser   # offline browser checks against the built app; also required in CI
+npm run test:ui        # populated desktop/mobile screenshots and visual layout checks
 npm run test:architecture # offline Genie recovery, sidebar/dialog/responsive UI, and service checks
 npm run bundle:check   # deployment schema validation without credentials
 npm run data:check     # live SQL reconciliation, Lakebase CRUD, Genie + follow-up

@@ -32,6 +32,7 @@
     "data:seed:snapshot": "databricks bundle run seed_trip_snapshot",
     "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
     "workspace:setup": "node scripts/setup-workspace.mjs",
+    "test:ui": "playwright test --config playwright.architecture.config.ts design.spec.ts --workers=1",
     "test:browser": "playwright test --config playwright.architecture.config.ts",
     "test:architecture": "npm test && npm run build && npm run test:browser",
     "client:check": "node scripts/check-client.mjs",

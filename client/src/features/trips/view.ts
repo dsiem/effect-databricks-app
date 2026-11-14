@@ -36,7 +36,7 @@ function trips(h: H, model: Model): Child[] {
       button(h, {
         label: "Export this page",
         onClick: M.ExportTrips(),
-        attributes: [h.Disabled(!data?.rows.length)],
+        disabled: !data?.rows.length,
       }),
     ],
   );
@@ -157,19 +157,15 @@ function trips(h: H, model: Model): Child[] {
               button(h, {
                 label: icon(h, "chevron-left"),
                 onClick: M.SetPage({ page: model.page - 1 }),
-                attributes: [
-                  h.AriaLabel("Previous page"),
-                  h.Disabled(model.page === 1),
-                ],
+                disabled: model.page === 1,
+                attributes: [h.AriaLabel("Previous page")],
               }),
               h.span([], [`Page ${model.page}`]),
               button(h, {
                 label: icon(h, "chevron-right"),
                 onClick: M.SetPage({ page: model.page + 1 }),
-                attributes: [
-                  h.AriaLabel("Next page"),
-                  h.Disabled(model.page * data.pageSize >= data.total),
-                ],
+                disabled: model.page * data.pageSize >= data.total,
+                attributes: [h.AriaLabel("Next page")],
               }),
             ],
           ),

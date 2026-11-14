@@ -1,6 +1,7 @@
-import { Button, Dialog, Input, Textarea } from "@foldkit/ui";
+import { Dialog, Textarea } from "@foldkit/ui";
 import { defineView } from "foldkit/submodel";
 import { dialog } from "../../ui/dialog";
+import { field } from "../../ui/field";
 import { icon } from "../../ui/icons";
 import {
   alert,
@@ -65,11 +66,11 @@ function savedViewList(h: H, model: Model): Child[] {
                 button(h, {
                   label: icon(h, note.pinned ? "pin" : "pin-off"),
                   onClick: M.PinNote({ note }),
+                  disabled: model.noteBusy,
                   attributes: [
                     h.AriaLabel(
                       `${note.pinned ? "Unpin" : "Pin"} ${note.title}`,
                     ),
-                    h.Disabled(model.noteBusy),
                   ],
                   variant: "ghost",
                 }),
@@ -149,7 +150,7 @@ function savedViewList(h: H, model: Model): Child[] {
                     ? "Retry loading views"
                     : "Load more views",
                 onClick: M.LoadNotes({ more: !!data?.nextCursor }),
-                attributes: [h.Disabled(model.notes.loading)],
+                disabled: model.notes.loading,
               }),
             ],
           ),
@@ -216,31 +217,14 @@ function editor(h: H, model: Model) {
       h.form(
         [h.OnSubmit(M.SaveNote()), h.Class("p-6 space-y-5")],
         [
-          h.div(
-            [],
-            [
-              h.label(
-                [h.For("note-title"), h.Class("field-label")],
-                ["View name"],
-              ),
-              Input.view(
-                {
-                  id: "note-title",
-                  value: draft.title,
-                  onInput: (value) => M.NoteChanged({ field: "title", value }),
-                  placeholder: "e.g. Midtown fare review",
-                  toView: (attributes) =>
-                    h.input([
-                      ...attributes.input,
-                      h.Class("input mt-2"),
-                      h.Required(true),
-                      h.Maxlength(160),
-                    ]),
-                },
-                h,
-              ),
-            ],
-          ),
+          field(h, {
+            id: "note-title",
+            label: "View name",
+            value: draft.title,
+            onInput: (value) => M.NoteChanged({ field: "title", value }),
+            placeholder: "e.g. Midtown fare review",
+            attributes: [h.Required(true), h.Maxlength(160)],
+          }),
           h.div(
             [],
             [
@@ -288,20 +272,14 @@ function editor(h: H, model: Model) {
               button(h, {
                 label: "Cancel",
                 onClick: M.CloseOverlay(),
-                attributes: [h.Disabled(saving)],
+                disabled: saving,
               }),
-              Button.view(
-                {
-                  type: "submit",
-                  isDisabled: saving || !draft.title.trim(),
-                  toView: (attributes) =>
-                    h.button(
-                      [...attributes.button, h.Class("btn btn-primary")],
-                      [saving ? "Saving…" : "Save view"],
-                    ),
-                },
-                h,
-              ),
+              button(h, {
+                type: "submit",
+                label: saving ? "Saving…" : "Save view",
+                disabled: saving || !draft.title.trim(),
+                variant: "primary",
+              }),
             ],
           ),
         ],
@@ -337,12 +315,12 @@ function deleteDialog(h: H, model: Model) {
           button(h, {
             label: "Cancel",
             onClick: M.CloseOverlay(),
-            attributes: [h.Disabled(model.noteBusy)],
+            disabled: model.noteBusy,
           }),
           button(h, {
             label: model.noteBusy ? "Deleting…" : "Delete view",
             onClick: M.ConfirmDelete(),
-            attributes: [h.Disabled(model.noteBusy)],
+            disabled: model.noteBusy,
             variant: "destructive",
           }),
         ],

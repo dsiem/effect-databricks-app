@@ -1,0 +1,325 @@
+import { expect, type Page, type TestInfo, test } from "@playwright/test";
+import type { Overview, Trip } from "../shared/domain";
+
+// Deliberately offline review data: production continues to use the warehouse.
+const daily = Array.from({ length: 31 }, (_, index) => {
+  const trips = Math.round(2400 + Math.sin(index * 0.8) * 520 + index * 18);
+  return {
+    day: `2016-01-${String(index + 1).padStart(2, "0")}`,
+    trips,
+    revenue: trips * 13.42,
+  };
+});
+const total = daily.reduce((sum, row) => sum + row.trips, 0);
+const overview: Overview = {
+  summary: {
+    trips: total,
+    revenue: total * 13.42,
+    avg_fare: 13.42,
+    avg_distance: 2.8,
+    avg_duration: 14.6,
+  },
+  daily,
+  hourly: Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    trips: Math.round(
+      800 +
+        2400 * Math.exp(-((hour - 18) ** 2) / 28) +
+        1300 * Math.exp(-((hour - 9) ** 2) / 12),
+    ),
+    avg_fare: 13.42,
+  })),
+  zones: [
+    "10001",
+    "10019",
+    "10022",
+    "10016",
+    "10003",
+    "10036",
+    "10017",
+    "10023",
+    "10011",
+    "11430",
+  ].map((zip, index) => ({
+    zip,
+    trips: 12400 - index * 1100,
+    revenue: (12400 - index * 1100) * 13.42,
+    avg_fare: 13.42,
+  })),
+  queriedAt: "2026-11-14T10:00:00Z",
+};
+const trips: Trip[] = Array.from({ length: 8 }, (_, index) => ({
+  trip_id: `visual-trip-${index}`,
+  pickup_at: `2016-01-31 ${String(18 - index).padStart(2, "0")}:24:00`,
+  dropoff_at: `2016-01-31 ${String(18 - index).padStart(2, "0")}:42:00`,
+  pickup_zip: "10001",
+  dropoff_zip: "10019",
+  distance: 2.8 + index * 0.3,
+  fare: 13.5 + index * 2.5,
+  duration: 18,
+}));
+const query = "?from=2016-01-01&to=2016-01-31";
+
+async function capture(
+  page: Page,
+  info: TestInfo,
+  name: string,
+  fullPage = true,
+) {
+  const path = info.outputPath(`${name}.png`);
+  await page.screenshot({ path, fullPage, animations: "disabled" });
+  await info.attach(name, { path, contentType: "image/png" });
+}
+
+async function fitsViewport(page: Page) {
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+}
+
+// Catch the regression that flattened every button variant into the same box.
+async function primaryIsDistinct(page: Page) {
+  const primary = page.getByRole("button", { name: "Apply", exact: true });
+  const secondary = page.getByRole("button", {
+    name: "Saved views",
+    exact: true,
+  });
+  const primaryStyle = await primary.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      background: style.backgroundColor,
+      color: style.color,
+      height: element.getBoundingClientRect().height,
+    };
+  });
+  expect(primaryStyle.background).not.toBe(
+    await secondary.evaluate(
+      (element) => getComputedStyle(element).backgroundColor,
+    ),
+  );
+  expect(primaryStyle.color).not.toBe(primaryStyle.background);
+  expect(primaryStyle.height).toBeGreaterThanOrEqual(36);
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const data: Record<string, unknown> = {
+      "/api/me": { name: "Avery Morgan", email: "avery@example.com" },
+      "/api/status": {
+        dataset: "samples.nyctaxi.trips",
+        warehouse: true,
+        genie: true,
+        lakebase: true,
+        capabilities: {
+          warehouse: "available",
+          genie: "available",
+          lakebase: "available",
+        },
+        auth: "Visual review",
+      },
+      "/api/metadata": { from: "2016-01-01", to: "2016-02-29", trips: total },
+      "/api/overview": overview,
+      "/api/trips": { rows: trips, total, page: 1, pageSize: 25 },
+      "/api/notes": {
+        rows: [
+          {
+            id: "57b7651d-c553-4fcf-815d-104cc57fd745",
+            title: "Midtown evening pickups",
+            body: "Review the evening pickup peak and compare fares across the busiest ZIP codes.",
+            filters: { from: "2016-01-01", to: "2016-01-31", zip: "10001" },
+            version: 1,
+            pinned: true,
+            created_at: "2026-11-14T10:00:00Z",
+            updated_at: "2026-11-14T10:00:00Z",
+          },
+        ],
+        nextCursor: null,
+      },
+      "/api/trip-comments": {
+        rows: [
+          {
+            id: "c2222511-09bb-4c34-bbbb-699c90e67729",
+            trip: trips[0],
+            body: "This fare is consistent with the other Midtown trips. Compare it with the evening average before investigating further.",
+            author: { name: "Jordan Lee", email: "jordan@example.com" },
+            created_at: "2026-11-14T10:00:00Z",
+          },
+        ],
+        nextCursor: null,
+      },
+    };
+    return route.fulfill({
+      status: path in data ? 200 : 404,
+      json: data[path] ?? { message: "Unmocked visual review request" },
+    });
+  });
+  // The bundled boundaries are real; omit network tiles to make review repeatable offline.
+  await page.route("https://tile.openstreetmap.org/**", (route) =>
+    route.fulfill({
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+X8f5WQAAAABJRU5ErkJggg==",
+        "base64",
+      ),
+    }),
+  );
+});
+
+for (const width of [390, 1440]) {
+  test(`populated workspace and overlays at ${width}px`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`/${query}`);
+    await expect(
+      page.getByRole("table", { name: "Top pickup ZIP codes", exact: true }),
+    ).toBeVisible();
+    await primaryIsDistinct(page);
+    await fitsViewport(page);
+    const tickHeights = await page
+      .locator(".chart-tick")
+      .evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().height),
+      );
+    expect(tickHeights.every((height) => height >= 8)).toBe(true);
+    const metrics = page.locator(".metrics > .card");
+    await expect(metrics).toHaveCount(4);
+    const bounds = await metrics.evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().y),
+    );
+    expect(new Set(bounds).size).toBe(width === 390 ? 2 : 1);
+    await capture(page, info, "overview");
+    await page
+      .locator("header")
+      .getByRole("button", { name: "Ask Genie", exact: true })
+      .click();
+    const helper = page.getByRole("dialog", { name: "Genie", exact: true });
+    await expect(
+      helper.getByRole("button", {
+        name: "Explain the main patterns in this view.",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await capture(page, info, "genie-helper", false);
+    await helper
+      .getByRole("button", { name: "Close Genie", exact: true })
+      .click();
+    await page.goto(`/trips${query}`);
+    const table = page.getByRole("table", {
+      name: "Matching trips",
+      exact: true,
+    });
+    await expect(table.getByRole("row")).toHaveCount(9);
+    await fitsViewport(page);
+    await capture(page, info, "trips");
+    await table
+      .getByRole("button", { name: trips[0]?.pickup_at, exact: true })
+      .click();
+    const inspector = page.getByRole("dialog", {
+      name: "Trip details",
+      exact: true,
+    });
+    await expect(
+      inspector.getByText("Jordan Lee", { exact: true }),
+    ).toBeVisible();
+    const sheet = await inspector.locator(".sheet").boundingBox();
+    expect(
+      Math.abs((sheet?.x ?? 0) + (sheet?.width ?? 0) - width),
+    ).toBeLessThan(20);
+    await capture(page, info, "trip-inspector", false);
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("button", { name: "Saved views", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", {
+        name: "Midtown evening pickups",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await capture(page, info, "saved-views", false);
+    await page
+      .getByRole("button", { name: "Save this view", exact: true })
+      .click();
+    const editor = page.getByRole("dialog", {
+      name: "Save this view",
+      exact: true,
+    });
+    await editor
+      .getByRole("textbox", { name: "View name", exact: true })
+      .fill("January fare review");
+    await capture(page, info, "save-view", false);
+    await page.goto(`/map${query}`);
+    const map = page.locator(".map-panel");
+    await expect(
+      page.locator(".leaflet-overlay-pane path").first(),
+    ).toBeVisible();
+    // Leaflet adds its class to the mount itself. A 100% height override collapsed it.
+    expect((await map.boundingBox())?.height).toBeGreaterThanOrEqual(350);
+    await fitsViewport(page);
+    await capture(page, info, "pickup-map");
+    await page.goto(`/genie${query}`);
+    await expect(
+      page.getByRole("heading", { name: "Go deeper into this view" }),
+    ).toBeVisible();
+    await fitsViewport(page);
+    await capture(page, info, "genie-page");
+    expect(errors).toEqual([]);
+  });
+}
+
+test("loading, empty, and error states retain the workspace layout", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/overview**", async (route) => {
+    await pending;
+    await route.fulfill({
+      json: {
+        ...overview,
+        summary: { ...overview.summary, trips: 0 },
+        daily: [],
+        hourly: [],
+        zones: [],
+      },
+    });
+  });
+  await page.goto("/");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Loading" }),
+  ).toBeVisible();
+  await capture(page, info, "loading");
+  release();
+  await expect(
+    page.getByText(
+      "No trips match these filters. Try another date range or pickup ZIP.",
+    ),
+  ).toBeVisible();
+  await capture(page, info, "empty");
+  await page.route("**/api/trips**", (route) =>
+    route.fulfill({
+      status: 503,
+      json: {
+        error: "unavailable",
+        message: "The warehouse is temporarily unavailable. Try again shortly.",
+      },
+    }),
+  );
+  await page.goto("/trips");
+  await expect(
+    page.getByRole("heading", { name: "Request failed" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Try again", exact: true }),
+  ).toBeVisible();
+  await capture(page, info, "error");
+});

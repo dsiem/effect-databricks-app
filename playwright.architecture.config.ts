@@ -14,6 +14,7 @@ export default defineConfig({
     "trip-comments.spec.ts",
     "filter-validation.spec.ts",
     "ui.spec.ts",
+    "design.spec.ts",
     "date-range.spec.ts",
     "explore-context.spec.ts",
   ],

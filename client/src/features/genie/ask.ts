@@ -12,6 +12,8 @@ export const ask = <Message>(
 ) =>
   button(h, {
     label: icon(h, "sparkles"),
+    variant: "ghost",
+    size: "icon",
     onClick: onOpen(context, question),
     attributes: [h.AriaLabel(label), h.Attribute("title", label)],
   });

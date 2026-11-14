@@ -24,12 +24,14 @@ test("custom button styling preserves base and variant classes for an independen
     onClick: { _tag: "Selected" },
     variant: "primary",
     className: "mt-4",
-    attributes: [h.Disabled(true), h.AriaLabel("Select item")],
+    disabled: true,
+    attributes: [h.AriaLabel("Select item")],
   });
   assert.ok(rendered?.data);
   assert.deepEqual(rendered.data.class, {
     btn: true,
-    primary: true,
+    "btn-primary": true,
+    "btn-default": true,
     "mt-4": true,
   });
   assert.equal(rendered.data.props?.disabled, true);
@@ -41,6 +43,19 @@ test("generic loading content carries no warehouse-specific guidance", () => {
   const text = JSON.stringify(rendered);
   assert.match(text, /Loading comments/);
   assert.doesNotMatch(text, /warehouse/i);
+});
+
+test("chart axes use readable intervals rather than fractional trip counts", () => {
+  const rendered = chart(inertHtml, {
+    title: "Trip counts",
+    kind: "area",
+    data: [{ label: "Monday", value: 3351 }],
+    formatTick: String,
+  });
+  const labels = elements(rendered)
+    .filter((node) => node.sel === "text")
+    .map(text);
+  assert.deepEqual(labels, ["0", "1000", "2000", "3000", "4000", "Monday"]);
 });
 
 for (const values of [[-10, 0, 20], [-10, -5], [0, 0], [0.05, 0.1], [3]]) {
@@ -99,7 +114,12 @@ test("chart points preserve currency precision and use the supplied tick formatt
     ),
   );
   assert.ok(
-    nodes.some((node) => node.sel === "text" && text(node) === "USD 1.25"),
+    nodes.some((node) => node.sel === "text" && text(node) === "USD 0"),
+  );
+  assert.ok(
+    nodes
+      .filter((node) => node.sel === "text" && text(node) !== "Monday")
+      .every((node) => text(node).startsWith("USD ")),
   );
 });
 

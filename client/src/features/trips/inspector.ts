@@ -1,4 +1,4 @@
-import { Button, Dialog, Textarea } from "@foldkit/ui";
+import { Dialog, Textarea } from "@foldkit/ui";
 import { defineView } from "foldkit/submodel";
 import { money } from "../../lib/format";
 import { dialog } from "../../ui/dialog";
@@ -108,7 +108,7 @@ function inspector(h: H, model: Model) {
                     onClick: M.LoadComments({
                       more: !!model.comments.data?.nextCursor,
                     }),
-                    attributes: [h.Disabled(model.comments.loading)],
+                    disabled: model.comments.loading,
                     className: " w-full mt-4",
                   }),
                 ]
@@ -206,22 +206,15 @@ function inspector(h: H, model: Model) {
                 ),
               ]
             : []),
-          Button.view(
-            {
-              type: "submit",
-              isDisabled: !!model.posting || !draft?.id || !draft.body.trim(),
-              toView: (attributes) =>
-                h.button(
-                  [...attributes.button, h.Class("btn btn-primary")],
-                  [
-                    model.posting?.trip.trip_id === trip.trip_id
-                      ? "Posting…"
-                      : "Post comment",
-                  ],
-                ),
-            },
-            h,
-          ),
+          button(h, {
+            type: "submit",
+            variant: "primary",
+            disabled: !!model.posting || !draft?.id || !draft.body.trim(),
+            label:
+              model.posting?.trip.trip_id === trip.trip_id
+                ? "Posting…"
+                : "Post comment",
+          }),
         ],
       ),
     ],

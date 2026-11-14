@@ -1,4 +1,4 @@
-import { Button, Input, Nav, Tooltip } from "@foldkit/ui";
+import { Nav, Tooltip } from "@foldkit/ui";
 import { Array as Arr } from "effect";
 import type { Document } from "foldkit/html";
 import { filterError, filtersFromQuery, href } from "../features/filters/query";
@@ -14,6 +14,7 @@ import { inspectorView } from "../features/trips/inspector";
 import { tripsView } from "../features/trips/view";
 import { featureView } from "../lib/feature-view";
 import { dialog } from "../ui/dialog";
+import { field } from "../ui/field";
 import { icon } from "../ui/icons";
 import { button, type Child, card } from "../ui/primitives";
 import { Message as M } from "./message";
@@ -98,6 +99,10 @@ function sidebar(h: H, model: Model) {
           h.div(
             [h.Class("sidebar-group")],
             [
+              h.p(
+                [h.Class("sidebar-section-label sidebar-label")],
+                ["Workspace"],
+              ),
               ...Arr.zip(navigation, items).map(([item, current]) =>
                 tooltip(item.path, item.label, (attrs) =>
                   h.a(
@@ -170,114 +175,84 @@ function filters(h: H, model: Model) {
       h.OnSubmit(M.ApplyFilters()),
     ],
     [
-      ...(
-        [
-          ["from", "Pickup start date"],
-          ["to", "Pickup end date"],
-        ] as const
-      ).map(([field, label]) =>
-        Input.view(
-          {
-            id: `pickup-${field}`,
-            name: field,
-            type: "date",
-            value: model.filtersState.filterDraft[field],
-            onInput: (value) => M.FilterChanged({ field, value }),
-            toView: (attributes) =>
-              h.div(
-                [h.Class("date-filter")],
-                [
-                  h.label(
-                    [...attributes.label, h.Class("field-label text-xs")],
-                    [label],
-                  ),
-                  h.input([
-                    ...attributes.input,
-                    h.Class("input"),
-                    ...(model.metadata.data
-                      ? [
-                          h.Min(model.metadata.data.from),
-                          h.Max(model.metadata.data.to),
-                        ]
-                      : []),
-                  ]),
-                ],
-              ),
-          },
-          h,
-        ),
-      ),
       h.div(
-        [h.Class("zip-filter")],
+        [h.Class("filter-controls")],
         [
-          h.label(
-            [h.For("pickup-zip"), h.Class("field-label text-xs")],
-            ["Pickup ZIP code"],
-          ),
-          Input.view(
-            {
-              id: "pickup-zip",
-              name: "zip",
-              placeholder: "Enter ZIP (optional)",
-              value: model.filtersState.filterDraft.zip,
-              onInput: (value) => M.FilterChanged({ field: "zip", value }),
-              toView: (attributes) =>
-                h.input([
-                  ...attributes.input,
-                  h.Class("input"),
-                  h.InputMode("numeric"),
-                  h.Pattern("[0-9]{5}"),
-                  h.Maxlength(5),
-                ]),
-            },
-            h,
-          ),
-        ],
-      ),
-      Button.view(
-        {
-          type: "submit",
-          toView: (attributes) =>
-            h.button(
-              [...attributes.button, h.Class("btn btn-primary")],
-              ["Apply"],
-            ),
-        },
-        h,
-      ),
-      ...(model.query
-        ? [
-            button(h, {
-              label: "Reset",
-              onClick: M.ResetFilters(),
-              variant: "ghost",
+          ...(
+            [
+              ["from", "Pickup start date"],
+              ["to", "Pickup end date"],
+            ] as const
+          ).map(([key, label]) =>
+            field(h, {
+              id: `pickup-${key}`,
+              label,
+              type: "date",
+              value: model.filtersState.filterDraft[key],
+              onInput: (value) => M.FilterChanged({ field: key, value }),
+              className: "date-filter",
+              attributes: model.metadata.data
+                ? [
+                    h.Min(model.metadata.data.from),
+                    h.Max(model.metadata.data.to),
+                  ]
+                : [],
             }),
-          ]
-        : []),
-      h.div(
-        [h.Class("saved-view-bar")],
-        [
-          h.span([], ["Applied Explore view"]),
-          button(h, {
-            label: "Save view",
-            onClick: M.NewNote(),
-            attributes: [h.Disabled(!filtersFromQuery(model.query))],
+          ),
+          field(h, {
+            id: "pickup-zip",
+            label: "Pickup ZIP code",
+            value: model.filtersState.filterDraft.zip,
+            placeholder: "All pickup areas",
+            onInput: (value) => M.FilterChanged({ field: "zip", value }),
+            className: "zip-filter",
+            attributes: [
+              h.InputMode("numeric"),
+              h.Pattern("[0-9]{5}"),
+              h.Maxlength(5),
+            ],
           }),
-          button(h, {
-            label: "Saved views",
-            onClick: M.OpenSavedViews(),
-            variant: "ghost",
-          }),
-          ...(model.savedViewsState.saved?.query === model.query
+          button(h, { type: "submit", label: "Apply", variant: "primary" }),
+          ...(model.query
             ? [
-                h.span(
-                  [h.Role("status")],
-                  [`Saved “${model.savedViewsState.saved.title}”`],
-                ),
+                button(h, {
+                  label: "Reset",
+                  onClick: M.ResetFilters(),
+                  variant: "ghost",
+                }),
               ]
             : []),
         ],
       ),
+      h.div(
+        [h.Class("saved-view-bar")],
+        [
+          button(h, {
+            label: h.span(
+              [h.Class("inline-flex items-center gap-2")],
+              [icon(h, "plus"), "Save view"],
+            ),
+            onClick: M.NewNote(),
+            disabled: !filtersFromQuery(model.query),
+            variant: "ghost",
+          }),
+          button(h, {
+            label: h.span(
+              [h.Class("inline-flex items-center gap-2")],
+              [icon(h, "book-open"), "Saved views"],
+            ),
+            onClick: M.OpenSavedViews(),
+          }),
+        ],
+      ),
+      ...(model.savedViewsState.saved?.query === model.query
+        ? [
+            h.span(
+              [h.Role("status"), h.Class("saved-status")],
+              [`Saved “${model.savedViewsState.saved.title}”`],
+            ),
+          ]
+        : []),
     ],
   );
 }
@@ -305,6 +280,7 @@ export function view(model: Model, h: H): Document {
           featureView(h, "overview", overviewView, {
             ...model.overviewState,
             query: model.query,
+            mobile: model.mobile,
           }),
         ];
         break;
@@ -399,29 +375,18 @@ export function view(model: Model, h: H): Document {
                       h.div(
                         [h.Class("ml-auto")],
                         [
-                          Button.view(
-                            {
-                              type: "button",
-                              onClick: M.OpenGenie({
-                                context: null,
-                                question: null,
-                              }),
-                              isDisabled: !filtersFromQuery(model.query),
-                              toView: (attributes) =>
-                                h.button(
-                                  [
-                                    ...attributes.button,
-                                    h.Id("genie-trigger"),
-                                    h.Class("btn"),
-                                  ],
-                                  [
-                                    icon(h, "sparkles"),
-                                    h.span([], ["Ask Genie"]),
-                                  ],
-                                ),
-                            },
-                            h,
-                          ),
+                          button(h, {
+                            label: h.span(
+                              [h.Class("inline-flex items-center gap-2")],
+                              [icon(h, "sparkles"), "Ask Genie"],
+                            ),
+                            onClick: M.OpenGenie({
+                              context: null,
+                              question: null,
+                            }),
+                            disabled: !filtersFromQuery(model.query),
+                            attributes: [h.Id("genie-trigger")],
+                          }),
                         ],
                       ),
                     ]

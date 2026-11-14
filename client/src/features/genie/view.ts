@@ -1,4 +1,4 @@
-import { Button, Dialog, Textarea } from "@foldkit/ui";
+import { Dialog, Textarea } from "@foldkit/ui";
 import { Option } from "effect";
 import { defineView } from "foldkit/submodel";
 import { Lexer, type MarkedToken, type Token } from "marked";
@@ -213,10 +213,8 @@ function genie(h: H, model: Model, floating = false) {
             button(h, {
               label: icon(h, "plus"),
               onClick: M.NewConversation(),
-              attributes: [
-                h.AriaLabel("New conversation"),
-                h.Disabled(working || !model.turns.length),
-              ],
+              disabled: working || !model.turns.length,
+              attributes: [h.AriaLabel("New conversation")],
               variant: "ghost",
             }),
             ...(floating
@@ -315,25 +313,37 @@ function genie(h: H, model: Model, floating = false) {
               : []),
         ...(!model.turns.length && enabled
           ? [
-              h.h3(
-                [h.Class("text-lg font-semibold")],
-                ["Go deeper into this view"],
-              ),
-              h.p(
-                [h.Class("muted text-sm leading-6 mt-2 mb-5")],
-                [
-                  "Explain what you’re seeing or ask Genie to run another analysis.",
-                ],
-              ),
               h.div(
-                [h.Class("space-y-2 mb-5")],
-                questions[context.page].map((question) =>
-                  button(h, {
-                    label: question,
-                    onClick: M.SendQuestion({ question }),
-                    className: " suggestion",
-                  }),
-                ),
+                [h.Class("genie-welcome")],
+                [
+                  h.h3(
+                    [h.Class("text-lg font-semibold")],
+                    ["Go deeper into this view"],
+                  ),
+                  h.p(
+                    [h.Class("muted text-sm leading-6 mt-2 mb-5")],
+                    [
+                      "Explain what you’re seeing or ask Genie to run another analysis.",
+                    ],
+                  ),
+                  h.div(
+                    [h.Class("space-y-2 mb-5")],
+                    questions[context.page].map((question) =>
+                      button(h, {
+                        label: h.span(
+                          [
+                            h.Class(
+                              "flex w-full items-center justify-between gap-3",
+                            ),
+                          ],
+                          [h.span([], [question]), icon(h, "arrow-up-right")],
+                        ),
+                        onClick: M.SendQuestion({ question }),
+                        className: " suggestion",
+                      }),
+                    ),
+                  ),
+                ],
               ),
             ]
           : []),
@@ -386,7 +396,7 @@ function genie(h: H, model: Model, floating = false) {
                                 onClick: M.EditQuestion({
                                   question: turn.question,
                                 }),
-                                attributes: [h.Disabled(working)],
+                                disabled: working,
                                 className: " mt-3",
                               }),
                             ]
@@ -398,7 +408,7 @@ function genie(h: H, model: Model, floating = false) {
                                       ? "Retry result download"
                                       : "Resume answer",
                                   onClick: M.ResumeTurn({ id: turn.id }),
-                                  attributes: [h.Disabled(working)],
+                                  disabled: working,
                                   className: " mt-3",
                                 }),
                               ]
@@ -456,22 +466,14 @@ function genie(h: H, model: Model, floating = false) {
                       : "Enter to send · Shift + Enter for a new line",
                   ],
                 ),
-                Button.view(
-                  {
-                    type: "submit",
-                    isDisabled: !enabled || working || !model.genieDraft.trim(),
-                    toView: (attributes) =>
-                      h.button(
-                        [
-                          ...attributes.button,
-                          h.Class("btn btn-primary"),
-                          h.AriaLabel("Send question"),
-                        ],
-                        [icon(h, "arrow-up")],
-                      ),
-                  },
-                  h,
-                ),
+                button(h, {
+                  type: "submit",
+                  variant: "primary",
+                  size: "icon",
+                  disabled: !enabled || working || !model.genieDraft.trim(),
+                  label: icon(h, "arrow-up"),
+                  attributes: [h.AriaLabel("Send question")],
+                }),
               ],
             ),
           ],
