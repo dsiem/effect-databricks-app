@@ -1,7 +1,5 @@
 import { Button, Dialog, Input, Textarea } from "@foldkit/ui";
-import { Message as M } from "../../app/message";
-import type { Model } from "../../app/model";
-import type { H } from "../../app/view-types";
+import { defineView } from "foldkit/submodel";
 import { dialog } from "../../ui/dialog";
 import { icon } from "../../ui/icons";
 import {
@@ -13,6 +11,9 @@ import {
   loading,
 } from "../../ui/primitives";
 import { filterSummary } from "../filters/summary";
+import type { H } from "./view-messages";
+import { Message as M } from "./view-messages";
+import type { ViewModel as Model } from "./view-model";
 
 const close = (h: H, label = "Close") =>
   button(h, {
@@ -158,7 +159,7 @@ function savedViewList(h: H, model: Model): Child[] {
   ];
 }
 
-export function savedViews(h: H, model: Model) {
+function savedViews(h: H, model: Model) {
   return dialog(h, {
     model: model.dialogs.views,
     onMessage: (message) => M.Dialog({ id: "views", message }),
@@ -191,7 +192,7 @@ export function savedViews(h: H, model: Model) {
     ],
   });
 }
-export function editor(h: H, model: Model) {
+function editor(h: H, model: Model) {
   const editor = model.editor;
   if (!editor) return null;
   const { draft, saving } = editor;
@@ -308,7 +309,7 @@ export function editor(h: H, model: Model) {
     ],
   });
 }
-export function deleteDialog(h: H, model: Model) {
+function deleteDialog(h: H, model: Model) {
   return dialog(h, {
     model: model.dialogs.delete,
     onMessage: (message) => M.Dialog({ id: "delete", message }),
@@ -349,3 +350,15 @@ export function deleteDialog(h: H, model: Model) {
     ],
   });
 }
+
+export const savedViewsView = defineView<Model, typeof M.Type>((model, h) =>
+  savedViews(h, model),
+);
+
+export const editorView = defineView<Model, typeof M.Type>((model, h) =>
+  editor(h, model),
+);
+
+export const deleteDialogView = defineView<Model, typeof M.Type>((model, h) =>
+  deleteDialog(h, model),
+);

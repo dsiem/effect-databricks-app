@@ -56,6 +56,16 @@ for (const [file, source] of sources) {
         "browser code may import only client code and shared contracts",
       );
     }
+    if (
+      (file.startsWith("client/src/features/") ||
+        file.startsWith("client/src/lib/")) &&
+      target
+    ) {
+      check(
+        !target.startsWith("client/src/app/"),
+        "features and client helpers must not depend on the application composition",
+      );
+    }
     if (file.startsWith("client/src/ui/") && target) {
       check(
         target.startsWith("client/src/ui/") ||

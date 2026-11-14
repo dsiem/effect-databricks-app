@@ -1,13 +1,12 @@
 import { Schema } from "effect";
 import * as D from "../../../../shared/domain";
-
-import { request } from "../../lib/request-state";
+import { empty, request } from "../../lib/request-state";
 export const Sort = D.TripSort;
 export const CommentDraft = Schema.Struct({
   id: Schema.String,
   body: Schema.String,
 });
-export const fields = {
+export const Model = Schema.Struct({
   trips: request(D.Trips),
   page: Schema.Number,
   sort: Sort,
@@ -17,4 +16,18 @@ export const fields = {
   posting: Schema.NullOr(D.TripCommentInput),
   postError: Schema.String,
   posted: Schema.String,
-};
+});
+
+export type Model = typeof Model.Type;
+
+export const init = (): Model => ({
+  trips: empty,
+  page: 1,
+  sort: "newest",
+  selectedTrip: null,
+  comments: empty,
+  commentDrafts: {},
+  posting: null,
+  postError: "",
+  posted: "",
+});

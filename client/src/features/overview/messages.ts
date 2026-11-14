@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
 
 export const messages = {
@@ -8,3 +9,6 @@ export const messages = {
     error: Schema.String,
   },
 };
+
+export const Message = defineMessageUnion({ Idle: {}, ...messages });
+export type Message = typeof Message.Type;

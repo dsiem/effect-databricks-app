@@ -1,6 +1,6 @@
 import { Effect, Schema, type Scope } from "effect";
 import { ApiError } from "../../../shared/api";
-import { Message as M } from "../app/message";
+import { Idle } from "./idle";
 
 export const failure = (error: unknown) =>
   Schema.is(ApiError)(error)
@@ -16,4 +16,4 @@ export const result = <A, E, R>(effect: Effect.Effect<A, E, R | Scope.Scope>) =>
     }),
   );
 export const done = (effect: Effect.Effect<unknown>) =>
-  effect.pipe(Effect.as(M.Idle()));
+  effect.pipe(Effect.as(Idle()));

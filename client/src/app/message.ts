@@ -1,4 +1,4 @@
-import { Dialog, Tabs, Tooltip } from "@foldkit/ui";
+import { Tooltip } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as CalendarDate from "foldkit/calendar";
 import { defineMessageUnion } from "foldkit/message";
@@ -10,9 +10,9 @@ import * as PickupMap from "../features/map/messages";
 import * as Overview from "../features/overview/messages";
 import * as SavedViews from "../features/saved-views/messages";
 import * as Trips from "../features/trips/messages";
-import { DialogId } from "./ui-state";
+import { uiMessages } from "../lib/ui-messages";
 export const Message = defineMessageUnion({
-  Idle: {},
+  ...uiMessages,
   Navigated: { path: Schema.String, query: Schema.String },
   Navigate: { href: Schema.String, external: Schema.Boolean },
   Booted: {
@@ -24,14 +24,10 @@ export const Message = defineMessageUnion({
   },
   Resized: { mobile: Schema.Boolean },
   ToggleSidebar: {},
-  CloseOverlay: {},
   Tooltip: { id: Schema.String, message: Tooltip.Message },
-  MetricTabs: { message: Tabs.Message },
-  Dialog: { id: DialogId, message: Dialog.Message },
   LoadedMetadata: { data: Schema.NullOr(D.Metadata), error: Schema.String },
   LoadedStatus: { data: Schema.NullOr(D.Status), error: Schema.String },
   LoadedUser: { user: Schema.NullOr(D.CurrentUser) },
-  LoadPage: {},
   ...Filters.messages,
   ...Overview.messages,
   ...Trips.messages,

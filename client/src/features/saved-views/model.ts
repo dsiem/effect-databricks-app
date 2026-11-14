@@ -1,13 +1,12 @@
 import { Schema } from "effect";
 import * as D from "../../../../shared/domain";
-
-import { request } from "../../lib/request-state";
+import { empty, request } from "../../lib/request-state";
 export const NoteEditor = Schema.Struct({
   draft: D.NoteInput,
   saving: Schema.Boolean,
   error: Schema.String,
 });
-export const fields = {
+export const Model = Schema.Struct({
   notes: request(D.Notes),
   notePages: Schema.Number,
   savedViews: Schema.Boolean,
@@ -18,4 +17,17 @@ export const fields = {
   saved: Schema.NullOr(
     Schema.Struct({ title: Schema.String, query: Schema.String }),
   ),
-};
+});
+
+export type Model = typeof Model.Type;
+
+export const init = (): Model => ({
+  notes: empty,
+  notePages: 1,
+  savedViews: false,
+  editor: null,
+  deleting: null,
+  noteBusy: false,
+  noteError: "",
+  saved: null,
+});

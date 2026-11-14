@@ -1,20 +1,18 @@
 import { Button, Dialog, Textarea } from "@foldkit/ui";
 import { Option } from "effect";
+import { defineView } from "foldkit/submodel";
 import { Lexer, type MarkedToken, type Token } from "marked";
 import type { GenieReply } from "../../../../shared/domain";
-import { Message as M } from "../../app/message";
-import {
-  busy,
-  filtersFromQuery,
-  type Model,
-  pageContext,
-} from "../../app/model";
-import type { H } from "../../app/view-types";
 import { dialog } from "../../ui/dialog";
 import { icon } from "../../ui/icons";
 import { alert, button, type Child, table } from "../../ui/primitives";
+import { filtersFromQuery } from "../filters/query";
 import { filterSummary } from "../filters/summary";
 import { PanelReturnFocus } from "./focus";
+import { busy } from "./model";
+import type { H } from "./view-messages";
+import { Message as M } from "./view-messages";
+import type { ViewModel as Model } from "./view-model";
 
 // Render Markdown as VNodes. Raw HTML is text and link protocols are constrained.
 function markdown(h: H, tokens: Token[]): Child[] {
@@ -173,8 +171,8 @@ function answer(h: H, model: Model, reply: GenieReply): Child[] {
     ),
   ];
 }
-export function genie(h: H, model: Model, floating = false) {
-  const context = model.genieSelection ?? pageContext(model);
+function genie(h: H, model: Model, floating = false) {
+  const context = model.genieSelection ?? model.context;
   const filters = filtersFromQuery(model.query);
   const enabled = !!model.status.data?.genie && !!filters;
   const working = busy(model);
@@ -504,3 +502,10 @@ export function genie(h: H, model: Model, floating = false) {
     content,
   );
 }
+
+export const genieView = defineView<Model, typeof M.Type>((model, h) =>
+  genie(h, model),
+);
+export const genieHelperView = defineView<Model, typeof M.Type>((model, h) =>
+  genie(h, model, true),
+);

@@ -1,7 +1,5 @@
 import { Button, Dialog, Textarea } from "@foldkit/ui";
-import { Message as M } from "../../app/message";
-import type { Model } from "../../app/model";
-import type { H } from "../../app/view-types";
+import { defineView } from "foldkit/submodel";
 import { money } from "../../lib/format";
 import { dialog } from "../../ui/dialog";
 import { icon } from "../../ui/icons";
@@ -13,6 +11,9 @@ import {
   error,
   loading,
 } from "../../ui/primitives";
+import type { H } from "./view-messages";
+import { Message as M } from "./view-messages";
+import type { ViewModel as Model } from "./view-model";
 
 const close = (h: H, label = "Close") =>
   button(h, {
@@ -22,7 +23,7 @@ const close = (h: H, label = "Close") =>
     className: " dialog-close",
     variant: "ghost",
   });
-export function inspector(h: H, model: Model) {
+function inspector(h: H, model: Model) {
   const trip = model.selectedTrip;
   if (!trip) return null;
   const draft = model.commentDrafts[trip.trip_id];
@@ -226,3 +227,7 @@ export function inspector(h: H, model: Model) {
     ],
   });
 }
+
+export const inspectorView = defineView<Model, typeof M.Type>((model, h) =>
+  inspector(h, model),
+);

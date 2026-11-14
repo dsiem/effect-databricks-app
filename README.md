@@ -158,17 +158,27 @@ output starts at `dist/src/main.js`, with contracts in `dist/shared/`.
 
 `client/src/main.ts` boots the runtime. `app/` composes the shell, routing,
 feature state, and message union. Each directory under `features/` owns its
-schemas, messages, updates, commands, and views where needed. Features keep one
-Foldkit runtime and one app model; their reducers receive the composed model so
-cross-feature analysis context remains explicit. Stateless `ui/` components are
+`Model`, initializer, message union, reducer, commands, and view contract.
+The root model nests those models under named state fields. Feature reducers
+receive only their own state and an explicit, read-only `Context`; they return
+local state, commands, and optional typed outputs. The application interprets
+outputs such as navigation, page reloads, and selection invalidation. Features
+keep one Foldkit runtime and never import `app/`.
+Feature views use `defineView` and are embedded through Foldkit submodels;
+`ViewModel` lists the extra inputs supplied by the application. View messages
+combine local messages with the shell interactions that the view can request.
+Stateless `ui/` components are
 generic over the caller's message type and import no app or domain state.
 `lib/` holds transport, formatting, and request helpers. The independently packed
 SQL adapter stays under `packages/sql-databricks/`.
 
 Add domain schemas and API endpoints in `shared/`, implement server behavior in
-`src/`, and place client behavior beside its feature. Compose new state and
-messages in `app/model.ts` and `app/message.ts`, then dispatch its reducer from
-`app/update.ts`. Keep application-specific copy in feature views. Use named
+`src/`, and place client behavior beside its feature. Add its nested state and
+message definitions in `app/model.ts` and `app/message.ts`, then dispatch its
+reducer from `app/update.ts`. Interpret its outputs there and pass only the
+inputs declared by its `Context` and `ViewModel`. A feature can be initialized
+and its reducer exercised without constructing the rest of the application.
+Keep application-specific copy in feature views. Use named
 button options (`label`, `onClick`, `variant`, `className`, `attributes`) and pass
 only a dialog's own model and message mapper to the generic dialog shell.
 

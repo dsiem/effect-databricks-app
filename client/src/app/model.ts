@@ -2,6 +2,7 @@ import { Tooltip } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as D from "../../../shared/domain";
 import * as Filters from "../features/filters/model";
+import { href } from "../features/filters/query";
 import * as Genie from "../features/genie/model";
 import * as PickupMap from "../features/map/model";
 import * as Overview from "../features/overview/model";
@@ -20,52 +21,34 @@ export const Model = Schema.Struct({
   metadata: request(D.Metadata),
   status: request(D.Status),
   user: Schema.NullOr(D.CurrentUser),
-  ...Filters.fields,
-  ...Overview.fields,
-  ...Trips.fields,
-  ...SavedViews.fields,
-  ...Genie.fields,
-  ...PickupMap.fields,
+  filtersState: Filters.Model,
+  overviewState: Overview.Model,
+  tripsState: Trips.Model,
+  savedViewsState: SavedViews.Model,
+  genieState: Genie.Model,
+  mapState: PickupMap.Model,
 });
 export type Model = typeof Model.Type;
-export const filtersFromQuery = (query: string) => {
-  const parsed = Schema.decodeUnknownOption(D.Filters)(
-    Object.fromEntries(new URLSearchParams(query)),
-  );
-  return parsed._tag === "Some" ? parsed.value : null;
-};
-export const filterError =
-  "Check the dates and five-digit ZIP code. The start date must be on or before the end date.";
-export const queryFor = (filters: D.Filters) =>
-  new URLSearchParams(
-    Object.entries(filters).filter(([, value]) => value),
-  ).toString();
-export const href = (path: string, query: string) =>
-  path + (query ? `?${query}` : "");
 export const requestKey = (model: Model) =>
-  `${href(model.path, model.query)}#${model.page}:${model.sort}`;
-export const busy = (model: Model) =>
-  model.turns.some((turn) =>
-    ["submitting", "waiting", "retrieving"].includes(turn.state),
-  );
+  `${href(model.path, model.query)}#${model.tripsState.page}:${model.tripsState.sort}`;
 export const navigation = [
   { path: "/", label: "Overview", icon: "layout-dashboard" },
   { path: "/trips", label: "Trip explorer", icon: "table-2" },
   { path: "/map", label: "Pickup map", icon: "map" },
 ] as const;
 export const pageContext = (model: Model): D.GenieContext => {
-  const overview = model.overview.data;
-  const trips = model.trips.data;
+  const overview = model.overviewState.overview.data;
+  const trips = model.tripsState.trips.data;
   switch (model.path) {
     case "/":
       return {
         page: "overview",
         title: "Trip overview",
-        ...(overview && !model.overview.error
+        ...(overview && !model.overviewState.overview.error
           ? {
               data: JSON.stringify({
                 summary: overview.summary,
-                dailyMetric: model.series,
+                dailyMetric: model.overviewState.series,
                 daily: overview.daily,
                 hourly: overview.hourly,
                 topPickupZIPs: overview.zones.slice(0, 5),
@@ -77,12 +60,12 @@ export const pageContext = (model: Model): D.GenieContext => {
     case "/trips":
       return {
         page: "trips",
-        title: `Trip records · page ${model.page}`,
-        ...(trips && !model.trips.error
+        title: `Trip records · page ${model.tripsState.page}`,
+        ...(trips && !model.tripsState.trips.error
           ? {
               data: JSON.stringify({
-                page: model.page,
-                sort: model.sort,
+                page: model.tripsState.page,
+                sort: model.tripsState.sort,
                 totalMatchingTrips: trips.total,
                 pageSize: trips.pageSize,
                 visibleRows: trips.rows,
@@ -95,14 +78,14 @@ export const pageContext = (model: Model): D.GenieContext => {
         page: "map",
         title: "Pickup activity by ZIP area",
         ...(overview &&
-        model.mappedTrips !== null &&
-        !model.mapError &&
-        !model.overview.error
+        model.mapState.mappedTrips !== null &&
+        !model.mapState.mapError &&
+        !model.overviewState.overview.error
           ? {
               data: JSON.stringify({
                 topPickupZIPs: overview.zones.slice(0, 10),
                 totalTrips: overview.summary.trips,
-                mappedTrips: model.mappedTrips,
+                mappedTrips: model.mapState.mappedTrips,
                 geography:
                   "NYC Health MODZCTA; postal ZIPs may be grouped; trips outside boundaries are not drawn.",
                 queriedAt: overview.queriedAt,

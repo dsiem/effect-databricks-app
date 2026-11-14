@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
 import { CommentDraft, Sort } from "./model";
 
@@ -24,3 +25,6 @@ export const messages = {
   PostComment: {},
   PostedComment: { input: D.TripCommentInput, error: Schema.String },
 };
+
+export const Message = defineMessageUnion({ Idle: {}, ...messages });
+export type Message = typeof Message.Type;

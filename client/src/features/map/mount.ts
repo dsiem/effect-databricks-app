@@ -2,7 +2,7 @@ import { Effect, Queue, Schema, Stream } from "effect";
 import { Mount } from "foldkit";
 import type { FeatureCollection } from "geojson";
 import * as D from "../../../../shared/domain";
-import { Message as M } from "../../app/message";
+import { Message as M } from "./view-messages";
 
 const Position = Schema.Array(Schema.Number);
 const PolygonCoordinates = Schema.Array(Schema.Array(Position));

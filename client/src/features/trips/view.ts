@@ -1,8 +1,6 @@
 import { Select } from "@foldkit/ui";
 import { Schema } from "effect";
-import { Message as M } from "../../app/message";
-import type { Model } from "../../app/model";
-import type { H } from "../../app/view-types";
+import { defineView } from "foldkit/submodel";
 import { money, number } from "../../lib/format";
 import { icon } from "../../ui/icons";
 import {
@@ -17,8 +15,11 @@ import {
 } from "../../ui/primitives";
 import { ask } from "../genie/ask";
 import { Sort } from "./model";
+import type { H } from "./view-messages";
+import { Message as M } from "./view-messages";
+import type { ViewModel as Model } from "./view-model";
 
-export function trips(h: H, model: Model): Child[] {
+function trips(h: H, model: Model): Child[] {
   const data = model.trips.data;
   const heading = title(
     h,
@@ -27,6 +28,7 @@ export function trips(h: H, model: Model): Child[] {
     [
       ask(
         h,
+        (context, question) => M.OpenGenie({ context, question }),
         "Ask Genie about these trips",
         null,
         "Summarize the visible trips and point out unusual fares or distances.",
@@ -179,3 +181,7 @@ export function trips(h: H, model: Model): Child[] {
     ),
   ];
 }
+
+export const tripsView = defineView<Model, typeof M.Type>((model, h) =>
+  h.div([h.Class("contents")], trips(h, model)),
+);

@@ -1,9 +1,9 @@
 import { Effect, Schema } from "effect";
 import { Command } from "foldkit";
 import { ApiError } from "../../../../shared/api";
-import { Message as M } from "../../app/message";
 import { request } from "../../lib/api-client";
 import { failure, result } from "../../lib/command-result";
+import { Message as M } from "./messages";
 import { History, Turn, turnBase } from "./model";
 export const CreateTurn = Command.define("CreateQuestion", {
   args: { question: Schema.String },

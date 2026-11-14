@@ -25,6 +25,30 @@ for (const [name, file, source, allowed] of [
     false,
   ],
   [
+    "feature reducers cannot import the application model",
+    "client/src/features/trips/update.ts",
+    'import type { Model } from "../../app/model";',
+    false,
+  ],
+  [
+    "feature commands cannot import application messages",
+    "client/src/features/trips/commands.ts",
+    'import { Message } from "../../app/message";',
+    false,
+  ],
+  [
+    "client helpers cannot depend on application messages",
+    "client/src/lib/result.ts",
+    'import { Message } from "../app/message";',
+    false,
+  ],
+  [
+    "application composes feature contracts",
+    "client/src/app/model.ts",
+    'import { Model } from "../features/trips/model";',
+    true,
+  ],
+  [
     "contracts cannot import Node APIs",
     "shared/api.ts",
     'import { readFile } from "node:fs";',

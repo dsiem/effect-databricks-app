@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
 import { Turn } from "./model";
 
@@ -20,3 +21,6 @@ export const messages = {
   CopySql: { sql: Schema.String },
   CopiedSql: { text: Schema.String },
 };
+
+export const Message = defineMessageUnion({ Idle: {}, ...messages });
+export type Message = typeof Message.Type;

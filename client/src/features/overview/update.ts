@@ -1,16 +1,20 @@
-import type { Update } from "foldkit";
-import type { Message } from "../../app/message";
-import { type Model, requestKey } from "../../app/model";
-import type { ApiClient } from "../../lib/api-client";
+import type { FeatureUpdate } from "../../lib/feature-update";
+
+import type { Message } from "./messages";
+import type { Model } from "./model";
 export function updateOverview(
   model: Model,
-  message: Extract<Message, { readonly _tag: "LoadedOverview" }>,
-): Update.Return<Model, Message, ApiClient> {
+  message: Message,
+  context: Context,
+): FeatureUpdate<Model, Message, Out> {
   switch (message._tag) {
+    case "Idle":
+      return { model };
     case "LoadedOverview":
-      return message.key !== requestKey(model)
+      return message.key !== context.requestKey
         ? { model }
         : {
+            outMessage: { _tag: "SelectionInvalidated" },
             model: {
               ...model,
               overview: {
@@ -18,8 +22,10 @@ export function updateOverview(
                 error: message.error,
                 loading: false,
               },
-              genieSelection: null,
             },
           };
   }
 }
+
+export type Context = { readonly requestKey: string };
+export type Out = { readonly _tag: "SelectionInvalidated" };

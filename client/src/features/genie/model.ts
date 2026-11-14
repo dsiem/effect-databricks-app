@@ -45,7 +45,7 @@ export const turnBase = ({ id, question, filters, context }: Turn) => ({
   ...(context ? { context } : {}),
 });
 export const History = Schema.Array(Turn);
-export const fields = {
+export const Model = Schema.Struct({
   genieOpen: Schema.Boolean,
   genieExpanded: Schema.Boolean,
   genieDraft: Schema.String,
@@ -53,4 +53,21 @@ export const fields = {
   turns: History,
   persistenceError: Schema.String,
   clipboard: Schema.String,
-};
+});
+
+export type Model = typeof Model.Type;
+
+export const busy = (model: Model) =>
+  model.turns.some((turn) =>
+    ["submitting", "waiting", "retrieving"].includes(turn.state),
+  );
+
+export const init = (): Model => ({
+  genieOpen: false,
+  genieExpanded: false,
+  genieDraft: "",
+  genieSelection: null,
+  turns: [],
+  persistenceError: "",
+  clipboard: "",
+});

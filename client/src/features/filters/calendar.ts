@@ -1,15 +1,16 @@
 import { Calendar, Dialog, Input } from "@foldkit/ui";
 import { Option } from "effect";
 import * as CalendarDate from "foldkit/calendar";
-import { Message as M } from "../../app/message";
-import type { Model } from "../../app/model";
-import { isoDate, parseDate } from "../../app/ui-state";
-import type { H } from "../../app/view-types";
+import { defineView } from "foldkit/submodel";
 import { dialog } from "../../ui/dialog";
 import { icon } from "../../ui/icons";
 import { button } from "../../ui/primitives";
+import { isoDate, parseDate } from "./calendar-state";
+import type { H } from "./view-messages";
+import { Message as M } from "./view-messages";
+import type { ViewModel as Model } from "./view-model";
 
-export function calendar(h: H, model: Model) {
+function calendar(h: H, model: Model) {
   const current = parseDate(`${model.calendarMonth}-01`);
   const min = model.metadata.data?.from;
   const max = model.metadata.data?.to;
@@ -171,3 +172,7 @@ export function calendar(h: H, model: Model) {
     ],
   });
 }
+
+export const calendarView = defineView<Model, typeof M.Type>((model, h) =>
+  calendar(h, model),
+);

@@ -1,7 +1,5 @@
 import { Button } from "@foldkit/ui";
-import { Message as M } from "../../app/message";
-import { filtersFromQuery, href, type Model } from "../../app/model";
-import type { H } from "../../app/view-types";
+import { defineView } from "foldkit/submodel";
 import { compact, money, number } from "../../lib/format";
 import {
   badge,
@@ -11,10 +9,14 @@ import {
   loading,
   title,
 } from "../../ui/primitives";
+import { filtersFromQuery, href } from "../filters/query";
 import { ask } from "../genie/ask";
 import { activityColors, MapMount } from "./mount";
+import type { H } from "./view-messages";
+import { Message as M } from "./view-messages";
+import type { ViewModel as Model } from "./view-model";
 
-export function pickupMap(h: H, model: Model): Child[] {
+function pickupMap(h: H, model: Model): Child[] {
   const heading = title(
     h,
     "Pickups by ZIP area",
@@ -59,6 +61,7 @@ export function pickupMap(h: H, model: Model): Child[] {
                     badge(h, `${compact(model.mappedTrips ?? 0)} mapped trips`),
                     ask(
                       h,
+                      (context, question) => M.OpenGenie({ context, question }),
                       "Ask Genie about this map",
                       null,
                       "Explain the pickup distribution in this map and compare the busiest areas.",
@@ -241,3 +244,7 @@ export function pickupMap(h: H, model: Model): Child[] {
     ),
   ];
 }
+
+export const pickupMapView = defineView<Model, typeof M.Type>((model, h) =>
+  h.div([h.Class("contents")], pickupMap(h, model)),
+);

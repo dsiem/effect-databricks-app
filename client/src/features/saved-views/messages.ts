@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
 
 export const messages = {
@@ -25,3 +26,6 @@ export const messages = {
   MutatedNote: { removed: Schema.Boolean, error: Schema.String },
   RestoreView: { filters: D.Filters },
 };
+
+export const Message = defineMessageUnion({ Idle: {}, ...messages });
+export type Message = typeof Message.Type;

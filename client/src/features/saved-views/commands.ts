@@ -1,10 +1,9 @@
 import { Effect, Schema } from "effect";
 import { Command } from "foldkit";
 import * as D from "../../../../shared/domain";
-import { Message as M } from "../../app/message";
 import { request } from "../../lib/api-client";
-
 import { result } from "../../lib/command-result";
+import { Message as M } from "./messages";
 export const NewNote = Command.define("CreateNoteDraft", {
   args: {},
   messages: [M.CreatedNote],

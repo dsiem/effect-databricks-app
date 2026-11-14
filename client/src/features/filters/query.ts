@@ -1,0 +1,16 @@
+import { Schema } from "effect";
+import * as D from "../../../../shared/domain";
+export const filtersFromQuery = (query: string) => {
+  const parsed = Schema.decodeUnknownOption(D.Filters)(
+    Object.fromEntries(new URLSearchParams(query)),
+  );
+  return parsed._tag === "Some" ? parsed.value : null;
+};
+export const filterError =
+  "Check the dates and five-digit ZIP code. The start date must be on or before the end date.";
+export const queryFor = (filters: D.Filters) =>
+  new URLSearchParams(
+    Object.entries(filters).filter(([, value]) => value),
+  ).toString();
+export const href = (path: string, query: string) =>
+  path + (query ? `?${query}` : "");

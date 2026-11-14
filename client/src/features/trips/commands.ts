@@ -1,10 +1,10 @@
 import { Effect, Schema } from "effect";
 import { Command } from "foldkit";
 import * as D from "../../../../shared/domain";
-import { Message as M } from "../../app/message";
 import { request } from "../../lib/api-client";
-
 import { done, result } from "../../lib/command-result";
+import { Idle } from "../../lib/idle";
+import { Message as M } from "./messages";
 export const LoadTrips = Command.define("LoadTrips", {
   args: {
     key: Schema.String,
@@ -59,7 +59,7 @@ export const PostComment = Command.define("PostComment", {
 });
 export const ExportTrips = Command.define("ExportTrips", {
   args: { rows: Schema.Array(D.Trip), page: Schema.Number },
-  messages: [M.Idle],
+  messages: [Idle],
   execute: ({ rows, page }) =>
     done(
       Effect.sync(() => {

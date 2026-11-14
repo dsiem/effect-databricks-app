@@ -1,15 +1,13 @@
-import type { Update } from "foldkit";
-import type { Message } from "../../app/message";
-import { type Model, requestKey } from "../../app/model";
-import { loadPage } from "../../app/navigation";
-import { empty } from "../../app/request-state";
-import type { ApiClient } from "../../lib/api-client";
+import type { FeatureUpdate } from "../../lib/feature-update";
+import { empty } from "../../lib/request-state";
 import * as TripsCommands from "./commands";
+import type { Message } from "./messages";
+import type { Model } from "./model";
 
 const comments = (
   model: Model,
   more = false,
-): Update.Return<Model, Message, ApiClient> =>
+): FeatureUpdate<Model, Message, Out> =>
   model.selectedTrip
     ? {
         model: {
@@ -27,29 +25,17 @@ const comments = (
     : { model };
 export function updateTrips(
   model: Model,
-  message: Extract<
-    Message,
-    {
-      readonly _tag:
-        | "SetPage"
-        | "SortTrips"
-        | "ExportTrips"
-        | "LoadedTrips"
-        | "InspectTrip"
-        | "LoadComments"
-        | "LoadedComments"
-        | "CommentChanged"
-        | "CreatedCommentDraft"
-        | "PostComment"
-        | "PostedComment";
-    }
-  >,
-): Update.Return<Model, Message, ApiClient> {
+  message: Message,
+  context: Context,
+): FeatureUpdate<Model, Message, Out> {
   switch (message._tag) {
+    case "Idle":
+      return { model };
     case "LoadedTrips":
-      return message.key !== requestKey(model)
+      return message.key !== context.requestKey
         ? { model }
         : {
+            outMessage: { _tag: "SelectionInvalidated" },
             model: {
               ...model,
               trips: {
@@ -57,17 +43,18 @@ export function updateTrips(
                 error: message.error,
                 loading: false,
               },
-              genieSelection: null,
             },
           };
     case "SetPage":
-      return loadPage({ ...model, page: message.page });
+      return {
+        model: { ...model, page: message.page },
+        outMessage: { _tag: "Reload" },
+      };
     case "SortTrips":
-      return loadPage({
-        ...model,
-        page: 1,
-        sort: message.sort,
-      });
+      return {
+        model: { ...model, page: 1, sort: message.sort },
+        outMessage: { _tag: "Reload" },
+      };
     case "ExportTrips":
       return {
         model,
@@ -190,3 +177,8 @@ export function updateTrips(
     }
   }
 }
+
+export type Context = { readonly requestKey: string };
+export type Out =
+  | { readonly _tag: "Reload" }
+  | { readonly _tag: "SelectionInvalidated" };

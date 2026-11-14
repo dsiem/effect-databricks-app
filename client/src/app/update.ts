@@ -2,27 +2,28 @@ import { Dialog, Tooltip } from "@foldkit/ui";
 import { Option } from "effect";
 import { Command, Update } from "foldkit";
 import type { Url } from "foldkit/url";
+import * as Filters from "../features/filters/model";
+import { filtersFromQuery, href, queryFor } from "../features/filters/query";
 import { updateFilters } from "../features/filters/update";
 import * as GenieCommands from "../features/genie/commands";
+import * as Genie from "../features/genie/model";
 import { updateGenie } from "../features/genie/update";
+import * as PickupMap from "../features/map/model";
 import { updateMap } from "../features/map/update";
 import { MetricTabs } from "../features/overview/metric-tabs";
+import * as Overview from "../features/overview/model";
 import { updateOverview } from "../features/overview/update";
+import * as SavedViews from "../features/saved-views/model";
 import { updateSavedViews } from "../features/saved-views/update";
+import * as Trips from "../features/trips/model";
 import { updateTrips } from "../features/trips/update";
 import type { ApiClient } from "../lib/api-client";
+import { pending } from "../lib/request-state";
 import * as AppCommands from "./commands";
 import { Message as M, type Message } from "./message";
-import { filtersFromQuery, type Model } from "./model";
+import { type Model, pageContext, requestKey } from "./model";
 import { loadPage } from "./navigation";
-import { empty, pending } from "./request-state";
-import {
-  DialogId,
-  initCalendars,
-  initDialogs,
-  initMetricTabs,
-  initTooltip,
-} from "./ui-state";
+import { DialogId, initDialogs, initTooltip } from "./ui-state";
 
 export function init(url: Url): Update.Return<Model, Message, ApiClient> {
   const query = Option.getOrElse(url.search, () => "").replace(/^\?/, "");
@@ -30,52 +31,20 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
   const model: Model = {
     path: url.pathname,
     query,
-    filterDraft: {
-      from: filters.from ?? "",
-      to: filters.to ?? "",
-      zip: filters.zip ?? "",
-    },
     sidebar: true,
     mobile: false,
     mobileNavigation: false,
     tooltips: {},
-    metricTabs: initMetricTabs(),
     dialogs: initDialogs(),
-    calendars: initCalendars("2016-01-01"),
     metadata: pending,
     status: pending,
     user: null,
-    overview: empty,
-    trips: empty,
-    page: 1,
-    sort: "newest",
-    series: "trips",
-    notes: empty,
-    notePages: 1,
-    savedViews: false,
-    editor: null,
-    deleting: null,
-    noteBusy: false,
-    noteError: "",
-    saved: null,
-    selectedTrip: null,
-    comments: empty,
-    commentDrafts: {},
-    posting: null,
-    postError: "",
-    posted: "",
-    calendar: false,
-    calendarMonth: "",
-    calendarEnd: false,
-    genieOpen: false,
-    genieExpanded: false,
-    genieDraft: "",
-    genieSelection: null,
-    turns: [],
-    persistenceError: "",
-    clipboard: "",
-    mappedTrips: null,
-    mapError: "",
+    filtersState: Filters.init(filters),
+    overviewState: Overview.init(),
+    tripsState: Trips.init(),
+    savedViewsState: SavedViews.init(),
+    genieState: Genie.init(),
+    mapState: PickupMap.init(),
   };
   const loaded = loadPage(model);
   return {
@@ -106,32 +75,44 @@ function updateApplication(
         ...model,
         path: message.path,
         query: message.query,
-        filterDraft: {
-          from: filters.from ?? "",
-          to: filters.to ?? "",
-          zip: filters.zip ?? "",
-        },
-        page: 1,
-        sort: "newest",
-        selectedTrip: null,
         mobileNavigation: false,
-        calendar: false,
-        genieSelection: null,
         tooltips: {},
+        filtersState: {
+          ...model.filtersState,
+          filterDraft: {
+            from: filters.from ?? "",
+            to: filters.to ?? "",
+            zip: filters.zip ?? "",
+          },
+          calendar: false,
+        },
+        tripsState: {
+          ...model.tripsState,
+          page: 1,
+          sort: "newest",
+          selectedTrip: null,
+        },
+        genieState: { ...model.genieState, genieSelection: null },
       });
     }
     case "Booted":
       return {
         model: {
           ...model,
-          turns: message.turns,
-          persistenceError: message.persistenceError,
           sidebar: message.sidebar,
           mobile: message.mobile,
-          calendars: [
-            { ...model.calendars[0], today: message.today },
-            { ...model.calendars[1], today: message.today },
-          ],
+          genieState: {
+            ...model.genieState,
+            turns: message.turns,
+            persistenceError: message.persistenceError,
+          },
+          filtersState: {
+            ...model.filtersState,
+            calendars: [
+              { ...model.filtersState.calendars[0], today: message.today },
+              { ...model.filtersState.calendars[1], today: message.today },
+            ],
+          },
         },
         commands: message.turns.flatMap<
           Command.Command<Message, never, ApiClient>
@@ -160,21 +141,53 @@ function updateApplication(
             commands: [AppCommands.PersistSidebar({ open: !model.sidebar })],
           };
     case "CloseOverlay": {
-      if (model.editor)
-        return model.editor.saving
+      if (model.savedViewsState.editor)
+        return model.savedViewsState.editor.saving
           ? { model }
-          : { model: { ...model, editor: null } };
-      if (model.deleting)
-        return model.noteBusy
+          : {
+              model: {
+                ...model,
+                savedViewsState: { ...model.savedViewsState, editor: null },
+              },
+            };
+      if (model.savedViewsState.deleting)
+        return model.savedViewsState.noteBusy
           ? { model }
-          : { model: { ...model, deleting: null } };
-      if (model.selectedTrip)
-        return { model: { ...model, selectedTrip: null } };
-      if (model.calendar) return { model: { ...model, calendar: false } };
-      if (model.savedViews) return { model: { ...model, savedViews: false } };
+          : {
+              model: {
+                ...model,
+                savedViewsState: { ...model.savedViewsState, deleting: null },
+              },
+            };
+      if (model.tripsState.selectedTrip)
+        return {
+          model: {
+            ...model,
+            tripsState: { ...model.tripsState, selectedTrip: null },
+          },
+        };
+      if (model.filtersState.calendar)
+        return {
+          model: {
+            ...model,
+            filtersState: { ...model.filtersState, calendar: false },
+          },
+        };
+      if (model.savedViewsState.savedViews)
+        return {
+          model: {
+            ...model,
+            savedViewsState: { ...model.savedViewsState, savedViews: false },
+          },
+        };
       if (model.mobileNavigation)
         return { model: { ...model, mobileNavigation: false } };
-      return { model: { ...model, genieOpen: false } };
+      return {
+        model: {
+          ...model,
+          genieState: { ...model.genieState, genieOpen: false },
+        },
+      };
     }
     case "Tooltip":
       return Update.foldChild({
@@ -192,18 +205,25 @@ function updateApplication(
     case "MetricTabs":
       return Update.foldChild({
         update: MetricTabs.update,
-        read: (model: Model) => Option.some(model.metricTabs),
-        write: (model, metricTabs) => ({ ...model, metricTabs }),
+        read: (model: Model) => Option.some(model.overviewState.metricTabs),
+        write: (model, metricTabs) => ({
+          ...model,
+          overviewState: { ...model.overviewState, metricTabs },
+        }),
         toParentMessage: (message) => M.MetricTabs({ message }),
         foldOutMessage: (out) => (model) => ({
-          model: { ...model, series: out.value, genieSelection: null },
+          model: {
+            ...model,
+            overviewState: { ...model.overviewState, series: out.value },
+            genieState: { ...model.genieState, genieSelection: null },
+          },
         }),
       })(model, message.message);
     case "Dialog": {
       if (
         message.message._tag === "RequestedClose" &&
-        ((message.id === "note" && model.editor?.saving) ||
-          (message.id === "delete" && model.noteBusy))
+        ((message.id === "note" && model.savedViewsState.editor?.saving) ||
+          (message.id === "delete" && model.savedViewsState.noteBusy))
       )
         return { model };
       return Update.foldChild({
@@ -238,7 +258,7 @@ function updateApplication(
           ...model,
           status: { data: message.data, error: message.error, loading: false },
         },
-        commands: model.genieOpen
+        commands: model.genieState.genieOpen
           ? [AppCommands.Focus({ selector: "#genie-composer" })]
           : [],
       };
@@ -254,10 +274,39 @@ function updateApplication(
     case "OpenCalendar":
     case "CalendarMonth":
     case "CalendarDay":
-    case "ClearDates":
-      return updateFilters(model, message);
-    case "LoadedOverview":
-      return updateOverview(model, message);
+    case "ClearDates": {
+      const changed = updateFilters(model.filtersState, message, {
+        query: model.query,
+        metadata: model.metadata.data,
+      });
+      const next = { ...model, filtersState: changed.model };
+      return changed.outMessage
+        ? {
+            model: next,
+            commands: [
+              AppCommands.Navigate({
+                href: href(model.path, changed.outMessage.query),
+                external: false,
+              }),
+            ],
+          }
+        : { model: next, commands: changed.commands ?? [] };
+    }
+    case "LoadedOverview": {
+      const changed = updateOverview(model.overviewState, message, {
+        requestKey: requestKey(model),
+      });
+      const next = { ...model, overviewState: changed.model };
+      return {
+        model: changed.outMessage
+          ? {
+              ...next,
+              genieState: { ...next.genieState, genieSelection: null },
+            }
+          : next,
+        commands: changed.commands ?? [],
+      };
+    }
     case "SetPage":
     case "SortTrips":
     case "ExportTrips":
@@ -268,8 +317,22 @@ function updateApplication(
     case "CommentChanged":
     case "CreatedCommentDraft":
     case "PostComment":
-    case "PostedComment":
-      return updateTrips(model, message);
+    case "PostedComment": {
+      const changed = updateTrips(model.tripsState, message, {
+        requestKey: requestKey(model),
+      });
+      const next = { ...model, tripsState: changed.model };
+      if (changed.outMessage?._tag === "Reload") return loadPage(next);
+      return {
+        model: changed.outMessage
+          ? {
+              ...next,
+              genieState: { ...next.genieState, genieSelection: null },
+            }
+          : next,
+        commands: changed.commands ?? [],
+      };
+    }
     case "OpenSavedViews":
     case "NewNote":
     case "CreatedNote":
@@ -283,8 +346,24 @@ function updateApplication(
     case "DeleteNote":
     case "ConfirmDelete":
     case "MutatedNote":
-    case "RestoreView":
-      return updateSavedViews(model, message);
+    case "RestoreView": {
+      const changed = updateSavedViews(model.savedViewsState, message, {
+        filters: filtersFromQuery(model.query) ?? {},
+        query: model.query,
+      });
+      const next = { ...model, savedViewsState: changed.model };
+      return {
+        model: next,
+        commands: changed.outMessage
+          ? [
+              AppCommands.Navigate({
+                href: href(model.path, queryFor(changed.outMessage.filters)),
+                external: false,
+              }),
+            ]
+          : (changed.commands ?? []),
+      };
+    }
     case "OpenGenie":
     case "ExpandGenie":
     case "ClearSelection":
@@ -297,29 +376,70 @@ function updateApplication(
     case "NewConversation":
     case "Persisted":
     case "CopySql":
-    case "CopiedSql":
-      return updateGenie(model, message);
-    case "MapReady":
-      return updateMap(model, message);
+    case "CopiedSql": {
+      const changed = updateGenie(model.genieState, message, {
+        filters: filtersFromQuery(model.query),
+        context: pageContext(model),
+        enabled: !!model.status.data?.genie,
+      });
+      const next = { ...model, genieState: changed.model };
+      return {
+        model:
+          changed.outMessage?._tag === "Opened"
+            ? { ...next, mobileNavigation: false }
+            : next,
+        commands: [
+          ...(changed.commands ?? []),
+          ...(changed.outMessage
+            ? [AppCommands.Focus({ selector: "#genie-composer" })]
+            : []),
+        ],
+      };
+    }
+    case "MapReady": {
+      const changed = updateMap(model.mapState, message, {
+        query: model.query,
+      });
+      const next = { ...model, mapState: changed.model };
+      return { model: next, commands: changed.commands ?? [] };
+    }
   }
 }
 
 function dismissDialog(model: Model, id: DialogId): Model {
   switch (id) {
     case "note":
-      return { ...model, editor: null };
+      return {
+        ...model,
+        savedViewsState: { ...model.savedViewsState, editor: null },
+      };
     case "delete":
-      return { ...model, deleting: null };
+      return {
+        ...model,
+        savedViewsState: { ...model.savedViewsState, deleting: null },
+      };
     case "trip":
-      return { ...model, selectedTrip: null };
+      return {
+        ...model,
+        tripsState: { ...model.tripsState, selectedTrip: null },
+      };
     case "calendar":
-      return { ...model, calendar: false };
+      return {
+        ...model,
+        filtersState: { ...model.filtersState, calendar: false },
+      };
     case "views":
-      return { ...model, savedViews: false };
+      return {
+        ...model,
+        savedViewsState: { ...model.savedViewsState, savedViews: false },
+      };
     case "navigation":
       return { ...model, mobileNavigation: false };
     case "genie":
-      return { ...model, genieOpen: false };
+      return {
+        ...model,
+        genieState: { ...model.genieState, genieOpen: false },
+      };
   }
 }
 
@@ -332,13 +452,13 @@ export function update(
   const commands = [...(result.commands ?? [])];
   // Domain state controls visibility; Foldkit owns each dialog's lifecycle.
   const visibility = {
-    views: next.savedViews,
-    note: next.editor !== null,
-    delete: next.deleting !== null,
-    trip: next.selectedTrip !== null,
-    calendar: next.calendar,
+    views: next.savedViewsState.savedViews,
+    note: next.savedViewsState.editor !== null,
+    delete: next.savedViewsState.deleting !== null,
+    trip: next.tripsState.selectedTrip !== null,
+    calendar: next.filtersState.calendar,
     navigation: next.mobile && next.mobileNavigation,
-    genie: next.mobile && next.genieOpen && next.path !== "/genie",
+    genie: next.mobile && next.genieState.genieOpen && next.path !== "/genie",
   };
   for (const id of DialogId.literals) {
     const child = next.dialogs[id];

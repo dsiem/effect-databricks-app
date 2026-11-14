@@ -1,14 +1,13 @@
-import type { Update } from "foldkit";
-import * as AppCommands from "../../app/commands";
-import type { Message } from "../../app/message";
-import { filtersFromQuery, href, type Model, queryFor } from "../../app/model";
-import type { ApiClient } from "../../lib/api-client";
+import type * as D from "../../../../shared/domain";
+import type { FeatureUpdate } from "../../lib/feature-update";
 import * as SavedViewsCommands from "./commands";
+import type { Message } from "./messages";
+import type { Model } from "./model";
 
 const loadNotes = (
   model: Model,
   more = false,
-): Update.Return<Model, Message, ApiClient> => ({
+): FeatureUpdate<Model, Message, Out> => ({
   model: { ...model, notes: { ...model.notes, loading: true, error: "" } },
   commands: [
     SavedViewsCommands.LoadNotes({
@@ -20,28 +19,12 @@ const loadNotes = (
 });
 export function updateSavedViews(
   model: Model,
-  message: Extract<
-    Message,
-    {
-      readonly _tag:
-        | "OpenSavedViews"
-        | "NewNote"
-        | "CreatedNote"
-        | "EditNote"
-        | "NoteChanged"
-        | "SaveNote"
-        | "SavedNote"
-        | "LoadNotes"
-        | "LoadedNotes"
-        | "PinNote"
-        | "DeleteNote"
-        | "ConfirmDelete"
-        | "MutatedNote"
-        | "RestoreView";
-    }
-  >,
-): Update.Return<Model, Message, ApiClient> {
+  message: Message,
+  context: Context,
+): FeatureUpdate<Model, Message, Out> {
   switch (message._tag) {
+    case "Idle":
+      return { model };
     case "OpenSavedViews":
       return loadNotes({ ...model, savedViews: true });
     case "NewNote":
@@ -55,7 +38,7 @@ export function updateSavedViews(
               id: message.id,
               title: "",
               body: "",
-              filters: filtersFromQuery(model.query) ?? {},
+              filters: context.filters,
               version: null,
             },
             saving: false,
@@ -114,7 +97,7 @@ export function updateSavedViews(
             ? { ...model.editor, saving: false, error: message.error }
             : null,
         saved: message.note
-          ? { title: message.note.title, query: model.query }
+          ? { title: message.note.title, query: context.query }
           : model.saved,
       };
       return loadNotes(next);
@@ -170,12 +153,13 @@ export function updateSavedViews(
     case "RestoreView":
       return {
         model: { ...model, savedViews: false },
-        commands: [
-          AppCommands.Navigate({
-            href: href(model.path, queryFor(message.filters)),
-            external: false,
-          }),
-        ],
+        outMessage: { _tag: "RestoreFilters", filters: message.filters },
       };
   }
 }
+
+export type Context = { readonly filters: D.Filters; readonly query: string };
+export type Out = {
+  readonly _tag: "RestoreFilters";
+  readonly filters: D.Filters;
+};

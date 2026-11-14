@@ -1,6 +1,4 @@
-import { Message as M } from "../../app/message";
-import { filtersFromQuery, href, type Model, queryFor } from "../../app/model";
-import type { H } from "../../app/view-types";
+import { defineView } from "foldkit/submodel";
 import { money, number } from "../../lib/format";
 import { chart } from "../../ui/chart";
 import { icon } from "../../ui/icons";
@@ -12,10 +10,14 @@ import {
   table,
   title,
 } from "../../ui/primitives";
+import { filtersFromQuery, href, queryFor } from "../filters/query";
 import { ask } from "../genie/ask";
 import { MetricTabs } from "./metric-tabs";
+import type { H } from "./view-messages";
+import { Message as M } from "./view-messages";
+import type { ViewModel as Model } from "./view-model";
 
-export function overview(h: H, model: Model): Child[] {
+function overview(h: H, model: Model): Child[] {
   const heading = title(
     h,
     "Trip overview",
@@ -105,6 +107,8 @@ export function overview(h: H, model: Model): Child[] {
                                 [
                                   ask(
                                     h,
+                                    (context, question) =>
+                                      M.OpenGenie({ context, question }),
                                     `Ask Genie about ${dailyTitle.toLowerCase()}`,
                                     {
                                       page: "overview",
@@ -180,6 +184,7 @@ export function overview(h: H, model: Model): Child[] {
                     ),
                     ask(
                       h,
+                      (context, question) => M.OpenGenie({ context, question }),
                       "Ask Genie about pickup hours",
                       {
                         page: "overview",
@@ -228,6 +233,8 @@ export function overview(h: H, model: Model): Child[] {
                       [
                         ask(
                           h,
+                          (context, question) =>
+                            M.OpenGenie({ context, question }),
                           "Ask Genie about top pickup ZIP codes",
                           {
                             page: "overview",
@@ -304,6 +311,7 @@ export function overview(h: H, model: Model): Child[] {
                     ),
                     ask(
                       h,
+                      (context, question) => M.OpenGenie({ context, question }),
                       "Explore with Genie",
                       null,
                       "Compare weekday and weekend trip activity for this view.",
@@ -320,3 +328,7 @@ export function overview(h: H, model: Model): Child[] {
     ),
   ];
 }
+
+export const overviewView = defineView<Model, typeof M.Type>((model, h) =>
+  h.div([h.Class("contents")], overview(h, model)),
+);

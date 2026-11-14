@@ -1,14 +1,17 @@
-import type { Update } from "foldkit";
-import type { Message } from "../../app/message";
-import type { Model } from "../../app/model";
-import type { ApiClient } from "../../lib/api-client";
+import type { FeatureUpdate } from "../../lib/feature-update";
+
+import type { Message } from "./messages";
+import type { Model } from "./model";
 export function updateMap(
   model: Model,
-  message: Extract<Message, { readonly _tag: "MapReady" }>,
-): Update.Return<Model, Message, ApiClient> {
+  message: Message,
+  context: Context,
+): FeatureUpdate<Model, Message, Out> {
   switch (message._tag) {
+    case "Idle":
+      return { model };
     case "MapReady":
-      return model.query !== message.query
+      return context.query !== message.query
         ? { model }
         : {
             model: {
@@ -19,3 +22,6 @@ export function updateMap(
           };
   }
 }
+
+export type Context = { readonly query: string };
+export type Out = never;

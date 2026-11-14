@@ -1,24 +1,24 @@
 import { Button, Input, Tooltip } from "@foldkit/ui";
 import type { Document } from "foldkit/html";
-import { calendar } from "../features/filters/calendar";
-import { genie } from "../features/genie/view";
-import { pickupMap } from "../features/map/view";
-import { overview } from "../features/overview/view";
-import { deleteDialog, editor, savedViews } from "../features/saved-views/view";
-import { inspector } from "../features/trips/inspector";
-import { trips } from "../features/trips/view";
+import { calendarView } from "../features/filters/calendar";
+import { filterError, filtersFromQuery, href } from "../features/filters/query";
+import { genieHelperView, genieView } from "../features/genie/view";
+import { pickupMapView } from "../features/map/view";
+import { overviewView } from "../features/overview/view";
+import {
+  deleteDialogView,
+  editorView,
+  savedViewsView,
+} from "../features/saved-views/view";
+import { inspectorView } from "../features/trips/inspector";
+import { tripsView } from "../features/trips/view";
+import { featureView } from "../lib/feature-view";
 import { dateLabel } from "../lib/format";
 import { dialog } from "../ui/dialog";
 import { icon } from "../ui/icons";
 import { button, type Child, card } from "../ui/primitives";
 import { Message as M } from "./message";
-import {
-  filterError,
-  filtersFromQuery,
-  href,
-  type Model,
-  navigation,
-} from "./model";
+import { type Model, navigation, pageContext } from "./model";
 import { initTooltip } from "./ui-state";
 import type { H } from "./view-types";
 
@@ -159,8 +159,12 @@ function sidebar(h: H, model: Model) {
 }
 function filters(h: H, model: Model) {
   const date = dateLabel({
-    ...(model.filterDraft.from ? { from: model.filterDraft.from } : {}),
-    ...(model.filterDraft.to ? { to: model.filterDraft.to } : {}),
+    ...(model.filtersState.filterDraft.from
+      ? { from: model.filtersState.filterDraft.from }
+      : {}),
+    ...(model.filtersState.filterDraft.to
+      ? { to: model.filtersState.filterDraft.to }
+      : {}),
   });
   const label = date === "All dates" ? "Select date range" : date;
   return h.form(
@@ -180,12 +184,12 @@ function filters(h: H, model: Model) {
           h.input([
             h.Type("hidden"),
             h.Name("from"),
-            h.Value(model.filterDraft.from),
+            h.Value(model.filtersState.filterDraft.from),
           ]),
           h.input([
             h.Type("hidden"),
             h.Name("to"),
-            h.Value(model.filterDraft.to),
+            h.Value(model.filtersState.filterDraft.to),
           ]),
           button(h, {
             label: label,
@@ -210,7 +214,7 @@ function filters(h: H, model: Model) {
               id: "pickup-zip",
               name: "zip",
               placeholder: "Enter ZIP (optional)",
-              value: model.filterDraft.zip,
+              value: model.filtersState.filterDraft.zip,
               onInput: (value) => M.FilterChanged({ field: "zip", value }),
               toView: (attributes) =>
                 h.input([
@@ -256,8 +260,13 @@ function filters(h: H, model: Model) {
             onClick: M.OpenSavedViews(),
             variant: "ghost",
           }),
-          ...(model.saved?.query === model.query
-            ? [h.span([h.Role("status")], [`Saved “${model.saved.title}”`])]
+          ...(model.savedViewsState.saved?.query === model.query
+            ? [
+                h.span(
+                  [h.Role("status")],
+                  [`Saved “${model.savedViewsState.saved.title}”`],
+                ),
+              ]
             : []),
         ],
       ),
@@ -284,16 +293,41 @@ export function view(model: Model, h: H): Document {
   else
     switch (model.path) {
       case "/":
-        content = overview(h, model);
+        content = [
+          featureView(h, "overview", overviewView, {
+            ...model.overviewState,
+            query: model.query,
+          }),
+        ];
         break;
       case "/trips":
-        content = trips(h, model);
+        content = [
+          featureView(h, "trips", tripsView, {
+            ...model.tripsState,
+            dialogs: model.dialogs,
+          }),
+        ];
         break;
       case "/map":
-        content = pickupMap(h, model);
+        content = [
+          featureView(h, "pickupMap", pickupMapView, {
+            ...model.mapState,
+            overview: model.overviewState.overview,
+            query: model.query,
+          }),
+        ];
         break;
       case "/genie":
-        content = [genie(h, model)];
+        content = [
+          featureView(h, "genie", genieView, {
+            ...model.genieState,
+            context: pageContext(model),
+            dialogs: model.dialogs,
+            mobile: model.mobile,
+            query: model.query,
+            status: model.status,
+          }),
+        ];
         break;
       default:
         content = [
@@ -395,8 +429,17 @@ export function view(model: Model, h: H): Document {
             ),
           ],
         ),
-        ...(model.genieOpen && model.path !== "/genie"
-          ? [genie(h, model, true)]
+        ...(model.genieState.genieOpen && model.path !== "/genie"
+          ? [
+              featureView(h, "genie-helper", genieHelperView, {
+                ...model.genieState,
+                context: pageContext(model),
+                dialogs: model.dialogs,
+                mobile: model.mobile,
+                query: model.query,
+                status: model.status,
+              }),
+            ]
           : []),
         ...(model.mobile && model.mobileNavigation
           ? [
@@ -409,11 +452,48 @@ export function view(model: Model, h: H): Document {
               }),
             ]
           : []),
-        ...(model.savedViews ? [savedViews(h, model)] : []),
-        ...(model.selectedTrip ? [inspector(h, model)] : []),
-        ...(model.calendar ? [calendar(h, model)] : []),
-        ...(model.deleting ? [deleteDialog(h, model)] : []),
-        ...(model.editor ? [editor(h, model)] : []),
+        ...(model.savedViewsState.savedViews
+          ? [
+              featureView(h, "savedViews", savedViewsView, {
+                ...model.savedViewsState,
+                dialogs: model.dialogs,
+              }),
+            ]
+          : []),
+        ...(model.tripsState.selectedTrip
+          ? [
+              featureView(h, "inspector", inspectorView, {
+                ...model.tripsState,
+                dialogs: model.dialogs,
+              }),
+            ]
+          : []),
+        ...(model.filtersState.calendar
+          ? [
+              featureView(h, "calendar", calendarView, {
+                ...model.filtersState,
+                dialogs: model.dialogs,
+                metadata: model.metadata,
+                mobile: model.mobile,
+              }),
+            ]
+          : []),
+        ...(model.savedViewsState.deleting
+          ? [
+              featureView(h, "deleteDialog", deleteDialogView, {
+                ...model.savedViewsState,
+                dialogs: model.dialogs,
+              }),
+            ]
+          : []),
+        ...(model.savedViewsState.editor
+          ? [
+              featureView(h, "editor", editorView, {
+                ...model.savedViewsState,
+                dialogs: model.dialogs,
+              }),
+            ]
+          : []),
       ],
     ),
   };

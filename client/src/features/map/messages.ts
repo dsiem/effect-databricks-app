@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { defineMessageUnion } from "foldkit/message";
 
 export const messages = {
   MapReady: {
@@ -7,3 +8,6 @@ export const messages = {
     error: Schema.String,
   },
 };
+
+export const Message = defineMessageUnion({ Idle: {}, ...messages });
+export type Message = typeof Message.Type;

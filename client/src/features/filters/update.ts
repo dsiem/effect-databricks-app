@@ -2,30 +2,20 @@ import { Calendar } from "@foldkit/ui";
 import { Option } from "effect";
 import { Update } from "foldkit";
 import * as CalendarDate from "foldkit/calendar";
-import { Message as M, type Message } from "../../app/message";
-import { filtersFromQuery, type Model, queryFor } from "../../app/model";
-import { navigate } from "../../app/navigation";
-import { initCalendars, isoDate, parseDate } from "../../app/ui-state";
-import type { ApiClient } from "../../lib/api-client";
+import type * as D from "../../../../shared/domain";
+import type { FeatureUpdate } from "../../lib/feature-update";
+import { initCalendars, isoDate, parseDate } from "./calendar-state";
+import { Message as M, type Message } from "./messages";
+import type { Model } from "./model";
+import { filtersFromQuery, queryFor } from "./query";
 export function updateFilters(
   model: Model,
-  message: Extract<
-    Message,
-    {
-      readonly _tag:
-        | "Calendar"
-        | "FilterChanged"
-        | "ApplyFilters"
-        | "ResetFilters"
-        | "PickZip"
-        | "OpenCalendar"
-        | "CalendarMonth"
-        | "CalendarDay"
-        | "ClearDates";
-    }
-  >,
-): Update.Return<Model, Message, ApiClient> {
+  message: Message,
+  context: Context,
+): FeatureUpdate<Model, Message, Out> {
   switch (message._tag) {
+    case "Idle":
+      return { model };
     case "Calendar":
       return Update.foldChild({
         update: Calendar.update,
@@ -41,13 +31,18 @@ export function updateFilters(
           M.Calendar({ index: message.index, message: child }),
         foldOutMessage: (out) => (model) =>
           out._tag === "SelectedDate"
-            ? updateFilters(model, M.CalendarDay({ day: isoDate(out.date) }))
+            ? updateFilters(
+                model,
+                M.CalendarDay({ day: isoDate(out.date) }),
+                context,
+              )
             : updateFilters(
                 model,
                 M.CalendarMonth({
                   month: `${out.year}-${String(out.month).padStart(2, "0")}`,
                   index: message.index,
                 }),
+                context,
               ),
       })(model, message.message);
     case "FilterChanged":
@@ -58,18 +53,23 @@ export function updateFilters(
         },
       };
     case "ApplyFilters":
-      return navigate(model, model.path, queryFor(model.filterDraft));
-    case "ResetFilters":
-      return navigate(model, model.path, "");
-    case "PickZip":
-      return navigate(
+      return {
         model,
-        model.path,
-        queryFor({
-          ...(filtersFromQuery(model.query) ?? {}),
-          zip: message.zip,
-        }),
-      );
+        outMessage: { _tag: "Navigate", query: queryFor(model.filterDraft) },
+      };
+    case "ResetFilters":
+      return { model, outMessage: { _tag: "Navigate", query: "" } };
+    case "PickZip":
+      return {
+        model,
+        outMessage: {
+          _tag: "Navigate",
+          query: queryFor({
+            ...(filtersFromQuery(context.query) ?? {}),
+            zip: message.zip,
+          }),
+        },
+      };
     case "OpenCalendar":
       return {
         model: {
@@ -79,16 +79,16 @@ export function updateFilters(
           calendarMonth: (
             model.filterDraft.from ||
             model.filterDraft.to ||
-            model.metadata.data?.from ||
+            context.metadata?.from ||
             "2016-01-01"
           ).slice(0, 7),
           calendars: initCalendars(
             model.filterDraft.from ||
               model.filterDraft.to ||
-              model.metadata.data?.from ||
+              context.metadata?.from ||
               "2016-01-01",
-            model.metadata.data?.from,
-            model.metadata.data?.to,
+            context.metadata?.from,
+            context.metadata?.to,
             model.calendars[0].today,
           ),
         },
@@ -143,3 +143,9 @@ export function updateFilters(
       };
   }
 }
+
+export type Context = {
+  readonly query: string;
+  readonly metadata: typeof D.Metadata.Type | null;
+};
+export type Out = { readonly _tag: "Navigate"; readonly query: string };

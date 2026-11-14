@@ -1,5 +1,6 @@
 import { Calendar as UiCalendar } from "@foldkit/ui";
 import { Schema } from "effect";
+import { defineMessageUnion } from "foldkit/message";
 
 export const messages = {
   Calendar: { index: Schema.Literals([0, 1]), message: UiCalendar.Message },
@@ -18,3 +19,6 @@ export const messages = {
   CalendarDay: { day: Schema.String },
   ClearDates: {},
 };
+
+export const Message = defineMessageUnion({ Idle: {}, ...messages });
+export type Message = typeof Message.Type;

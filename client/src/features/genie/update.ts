@@ -1,48 +1,27 @@
-import type { Command, Update } from "foldkit";
-import * as AppCommands from "../../app/commands";
-import { Message as M, type Message } from "../../app/message";
-import {
-  busy,
-  filtersFromQuery,
-  type Model,
-  pageContext,
-} from "../../app/model";
+import type { Command } from "foldkit";
+import type * as D from "../../../../shared/domain";
 import type { ApiClient } from "../../lib/api-client";
+import type { FeatureUpdate } from "../../lib/feature-update";
 import * as GenieCommands from "./commands";
-import { turnBase } from "./model";
+import { Message as M, type Message } from "./messages";
+import { busy, type Model, turnBase } from "./model";
 export function updateGenie(
   model: Model,
-  message: Extract<
-    Message,
-    {
-      readonly _tag:
-        | "OpenGenie"
-        | "ExpandGenie"
-        | "ClearSelection"
-        | "GenieDraft"
-        | "SendQuestion"
-        | "CreatedTurn"
-        | "ChangedTurn"
-        | "ResumeTurn"
-        | "EditQuestion"
-        | "NewConversation"
-        | "Persisted"
-        | "CopySql"
-        | "CopiedSql";
-    }
-  >,
-): Update.Return<Model, Message, ApiClient> {
+  message: Message,
+  context: Context,
+): FeatureUpdate<Model, Message, Out> {
   switch (message._tag) {
+    case "Idle":
+      return { model };
     case "OpenGenie":
       return {
         model: {
           ...model,
-          mobileNavigation: false,
           genieOpen: true,
           genieSelection: message.context ?? model.genieSelection,
           genieDraft: message.question ?? model.genieDraft,
         },
-        commands: [AppCommands.Focus({ selector: "#genie-composer" })],
+        outMessage: { _tag: "Opened" },
       };
     case "ExpandGenie":
       return { model: { ...model, genieExpanded: !model.genieExpanded } };
@@ -53,8 +32,8 @@ export function updateGenie(
     case "SendQuestion":
       return busy(model) ||
         !message.question.trim() ||
-        !filtersFromQuery(model.query) ||
-        !model.status.data?.genie
+        !context.filters ||
+        !context.enabled
         ? { model }
         : {
             model,
@@ -67,8 +46,8 @@ export function updateGenie(
       const turn = {
         id: message.id,
         question: message.question,
-        filters: filtersFromQuery(model.query) ?? {},
-        context: model.genieSelection ?? pageContext(model),
+        filters: context.filters ?? {},
+        context: model.genieSelection ?? context.context,
         state: "submitting" as const,
       };
       const previous = model.turns
@@ -117,13 +96,14 @@ export function updateGenie(
                 state: turn.stage,
               },
             }),
+            context,
           )
         : { model };
     }
     case "EditQuestion":
       return {
         model: { ...model, genieDraft: message.question },
-        commands: [AppCommands.Focus({ selector: "#genie-composer" })],
+        outMessage: { _tag: "FocusComposer" },
       };
     case "NewConversation":
       return busy(model)
@@ -140,3 +120,12 @@ export function updateGenie(
       return { model: { ...model, clipboard: message.text } };
   }
 }
+
+export type Context = {
+  readonly filters: D.Filters | null;
+  readonly context: D.GenieContext;
+  readonly enabled: boolean;
+};
+export type Out =
+  | { readonly _tag: "Opened" }
+  | { readonly _tag: "FocusComposer" };
