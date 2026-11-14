@@ -300,8 +300,7 @@ The verifier follows saved-view continuation cursors and removes its temporary n
 even if reading it back fails.
 
 The platform supplies a workspace hostname in this workspace, so the settings
-boundary normalizes it to an HTTPS origin. The deployed proxy returned 502 for
-the HTTP/2-only listener; the app uses HTTP/1.1 here. Both transports remain
+boundary normalizes it to an HTTPS origin. The app uses an HTTP/1.1 server,
 covered by the local smoke check.
 
 The verified workspace's free tier rejects additional warehouses with

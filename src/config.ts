@@ -6,7 +6,4 @@ export const ServerConfig = Config.all({
     Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 65535 })),
     "DATABRICKS_APP_PORT",
   ).pipe(Config.withDefault(3000)),
-  protocol: Config.Literals(["http1", "http2"], "APP_HTTP_PROTOCOL").pipe(
-    Config.withDefault("http1"),
-  ),
 });

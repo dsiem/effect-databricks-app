@@ -228,8 +228,7 @@ The server is an Effect application, including HTTP routing and lifetime:
   to existing installations. Comment submissions use a stable draft ID so retrying
   after a lost response does not create duplicates; authors come from the server's
   current-viewer identity.
-- `NodeRuntime` manages graceful signal shutdown for HTTP/1.1 locally and HTTP/2
-  as an optional transport. The verified workspace deployment uses HTTP/1.1; its proxy returned 502 for an HTTP/2-only listener.
+- `NodeRuntime` manages graceful signal shutdown for the HTTP/1.1 server.
 
 The app uses its service principal for shared access. All app viewers can see and
 edit shared saved views; per-viewer row-level authorization is not implemented.
@@ -240,7 +239,7 @@ when one exists. See the [interaction design rationale](docs/data-access.md#cont
 ## Verify
 
 ```sh
-npm run check          # lint, types, tests, build, both HTTP protocols, packed SQL adapter
+npm run check          # lint, types, tests, build, HTTP smoke check, packed SQL adapter
 npm run test:browser   # offline browser checks against the built app; also required in CI
 npm run test:architecture # offline Genie recovery, sidebar/dialog/responsive UI, and service checks
 node scripts/preview-notebook-options.mjs # regenerate the three interactive UX prototypes

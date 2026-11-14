@@ -7,16 +7,15 @@ const readConfig = (env: Record<string, string>) =>
   Effect.runPromise(ServerConfig.parse(ConfigProvider.fromEnvRecord(env)));
 
 test("starts locally without Databricks credentials", async () => {
-  assert.deepEqual(await readConfig({}), { port: 3000, protocol: "http1" });
+  assert.deepEqual(await readConfig({}), { port: 3000 });
 });
 
-test("reads the Databricks port and HTTP/2 setting", async () => {
+test("reads the Databricks port", async () => {
   assert.deepEqual(
     await readConfig({
       DATABRICKS_APP_PORT: "8000",
-      APP_HTTP_PROTOCOL: "http2",
     }),
-    { port: 8000, protocol: "http2" },
+    { port: 8000 },
   );
 });
 
@@ -25,10 +24,9 @@ test("accepts an ephemeral port for smoke checks", async () => {
 });
 
 test("treats empty environment values as absent", async () => {
-  assert.deepEqual(
-    await readConfig({ DATABRICKS_APP_PORT: "", APP_HTTP_PROTOCOL: "" }),
-    { port: 3000, protocol: "http1" },
-  );
+  assert.deepEqual(await readConfig({ DATABRICKS_APP_PORT: "" }), {
+    port: 3000,
+  });
 });
 
 for (const port of ["-1", "65536", "1.5", "invalid"]) {
@@ -36,10 +34,6 @@ for (const port of ["-1", "65536", "1.5", "invalid"]) {
     await assert.rejects(readConfig({ DATABRICKS_APP_PORT: port }));
   });
 }
-
-test("rejects unsupported protocols", async () => {
-  await assert.rejects(readConfig({ APP_HTTP_PROTOCOL: "https" }));
-});
 
 test("accepts a platform workspace hostname as well as a full URL", async () => {
   const { Settings } = await import("../src/settings.js");

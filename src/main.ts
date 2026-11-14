@@ -1,5 +1,4 @@
-import { createServer as createHttpServer } from "node:http";
-import { createServer as createHttp2Server } from "node:http2";
+import { createServer } from "node:http";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import { Effect, Layer } from "effect";
@@ -15,11 +14,12 @@ import { TripComments } from "./trip-comments.js";
 import { Workspace } from "./workspace.js";
 
 const ServerLive = Layer.unwrap(
-  Effect.map(ServerConfig, ({ port, protocol }) =>
-    NodeHttpServer.layer(
-      () => (protocol === "http2" ? createHttp2Server() : createHttpServer()),
-      { host: "0.0.0.0", port, gracefulShutdownTimeout: "5 seconds" },
-    ),
+  Effect.map(ServerConfig, ({ port }) =>
+    NodeHttpServer.layer(createServer, {
+      host: "0.0.0.0",
+      port,
+      gracefulShutdownTimeout: "5 seconds",
+    }),
   ),
 );
 

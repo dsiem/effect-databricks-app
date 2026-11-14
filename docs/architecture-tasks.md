@@ -64,7 +64,7 @@ behavioral tests for each implementation task's completion criteria.
    Status exposes observed capability availability independently of configuration;
    invalid settings still fail startup. Offline tests exercise the real warehouse
    adapter during a discovery outage, and smoke checks verify shell and health
-   routes after notebook failure over both HTTP protocols.
+   routes after notebook failure.
 
 6. [x] **P2 — Add shared warehouse admission control**
 

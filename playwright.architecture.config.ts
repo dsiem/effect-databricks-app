@@ -29,7 +29,6 @@ export default defineConfig({
     url: `http://127.0.0.1:${port}/health`,
     env: {
       DATABRICKS_APP_PORT: port,
-      APP_HTTP_PROTOCOL: "http1",
       DATABRICKS_HOST: "",
       DATABRICKS_WAREHOUSE_ID: "",
       GENIE_SPACE_ID: "",

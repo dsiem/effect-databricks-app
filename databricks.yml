@@ -92,8 +92,6 @@ resources:
       config:
         command: [node, dist/src/main.js]
         env:
-          - name: APP_HTTP_PROTOCOL
-            value: http1
           - name: DATABRICKS_WAREHOUSE_ID
             value_from: lakehouse
           - name: TRIP_SNAPSHOT_TABLE
