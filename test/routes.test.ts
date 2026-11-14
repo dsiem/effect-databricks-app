@@ -47,6 +47,8 @@ const appFor = (
           ),
           Layer.succeed(Notebook, {
             availability: Effect.succeed("unconfigured" as const),
+            comments: () => effect,
+            addComment: () => effect,
             list: () => effect,
             save: () => effect,
             pin: () => effect,

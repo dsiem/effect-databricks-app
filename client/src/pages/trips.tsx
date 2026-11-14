@@ -1,11 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Download, MapPin } from "lucide-react";
-import { useState } from "react";
-import type { TripSearch } from "../../../src/domain";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  MapPin,
+  MessageSquare,
+} from "lucide-react";
+import { useRef, useState } from "react";
+import type { Trip, TripSearch } from "../../../src/domain";
 import { api, apiClient, money, number, useFilters } from "../api";
 import { ErrorState, Loading, PageTitle } from "../components/common";
 import { AskGenieButton } from "../components/genie/helper";
 import { useGeniePage } from "../components/genie/provider";
+import { TripInspector } from "../components/trip-inspector";
 import {
   Badge,
   Button,
@@ -37,6 +44,17 @@ function TripTable({
 }) {
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<NonNullable<TripSearch["sort"]>>("newest");
+  const [selected, setSelected] = useState<Trip | null>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const opener = useRef<HTMLElement | null>(null);
+  const inspect = (trip: Trip) => {
+    opener.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setSelected(trip);
+    setInspectorOpen(true);
+  };
   const trips = useQuery({
     queryKey: ["trips", filterQuery, page, sort],
     queryFn: ({ signal }) =>
@@ -62,6 +80,7 @@ function TripTable({
   const exportCsv = () => {
     if (!trips.data) return;
     const fields = [
+      "trip_id",
       "pickup_at",
       "dropoff_at",
       "pickup_zip",
@@ -91,7 +110,7 @@ function TripTable({
     <>
       <PageTitle
         title="Trip records"
-        description="Filter trip records by pickup date and ZIP code, sort results, and export the current page as CSV."
+        description="Explore individual trips. Open a record to inspect its details and discuss it with your team."
         action={
           <div className="flex flex-wrap gap-2">
             <AskGenieButton
@@ -163,6 +182,7 @@ function TripTable({
                     "Distance",
                     "Duration",
                     "Fare",
+                    "Discussion",
                   ].map((title, i) => (
                     <TableHead
                       key={title}
@@ -174,14 +194,19 @@ function TripTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {trips.data.rows.map((trip, i) => (
+                {trips.data.rows.map((trip) => (
                   <TableRow
-                    // biome-ignore lint/suspicious/noArrayIndexKey: Immutable trip snapshots can contain identical rows without source IDs.
-                    key={`${trip.pickup_at}-${trip.dropoff_at}-${i}`}
+                    key={trip.trip_id}
                     className="border-t transition-colors hover:bg-muted/40"
                   >
                     <TableCell className="px-5 py-4 font-medium tabular-nums">
-                      {trip.pickup_at}
+                      <button
+                        type="button"
+                        className="text-left underline-offset-4 hover:underline focus-visible:underline"
+                        onClick={() => inspect(trip)}
+                      >
+                        {trip.pickup_at}
+                      </button>
                     </TableCell>
                     <TableCell className="px-5 py-4">
                       <span className="inline-flex items-center gap-2">
@@ -202,6 +227,17 @@ function TripTable({
                     </TableCell>
                     <TableCell className="px-5 py-4 text-right font-medium tabular-nums">
                       {money(trip.fare, 2)}
+                    </TableCell>
+                    <TableCell className="px-5 py-4 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Details and comments for trip ${trip.pickup_at} from ${trip.pickup_zip} to ${trip.dropoff_zip}`}
+                        onClick={() => inspect(trip)}
+                      >
+                        <MessageSquare className="size-4" />
+                        Comment
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -247,6 +283,12 @@ function TripTable({
         Source timestamps are shown as recorded. Fares are in USD and distances
         are in miles.
       </p>
+      <TripInspector
+        trip={selected}
+        open={inspectorOpen}
+        onOpenChange={setInspectorOpen}
+        opener={opener}
+      />
     </>
   );
 }

@@ -40,8 +40,12 @@ export class Analytics extends Context.Service<
     Effect.gen(function* () {
       const settings = yield* Settings;
       const workspace = yield* Workspace;
+      const [catalog = "unconfigured", schema = "snapshot", table = "trips"] =
+        settings.tripSnapshotTable
+          ? settings.tripSnapshotTable.split(".")
+          : ["unconfigured", "snapshot", "trips"];
       const capability = makeCapability(
-        !!(settings.warehouseId && settings.host),
+        !!(settings.warehouseId && settings.host && settings.tripSnapshotTable),
       );
       const admit = makeAdmission({
         service: "warehouse",
@@ -50,9 +54,9 @@ export class Analytics extends Context.Service<
       });
       const error = unavailable(
         "warehouse",
-        settings.warehouseId
-          ? "The NYC taxi query failed. Check warehouse access and SELECT permission on samples.nyctaxi.trips."
-          : "Set DATABRICKS_WAREHOUSE_ID to connect the NYC taxi dataset.",
+        settings.warehouseId && settings.host && settings.tripSnapshotTable
+          ? "The NYC taxi query failed. Check warehouse access and SELECT permission on the configured trip snapshot."
+          : "Set DATABRICKS_WAREHOUSE_ID and TRIP_SNAPSHOT_TABLE to connect the NYC taxi dataset.",
       );
       const sql = yield* DatabricksClient.make({
         host: settings.host || "https://unconfigured.invalid",
@@ -82,11 +86,12 @@ export class Analytics extends Context.Service<
           unavailable(error.service, error.message, cause),
         ),
       );
+      const snapshot = sql`${sql(catalog)}.${sql(schema)}.${sql(table)}`;
       const read = <A>(
         schema: Schema.Decoder<A>,
         statement: Effect.Effect<ReadonlyArray<unknown>, unknown>,
       ) =>
-        (settings.warehouseId && settings.host
+        (settings.warehouseId && settings.host && settings.tripSnapshotTable
           ? SqlSchema.findAll({
               Request: Schema.Void,
               Result: schema,
@@ -116,7 +121,7 @@ export class Analytics extends Context.Service<
             sql`SELECT
       CAST(MIN(tpep_pickup_datetime) AS DATE)::STRING AS from,
       CAST(MAX(tpep_pickup_datetime) AS DATE)::STRING AS to,
-      CAST(COUNT(*) AS DOUBLE) AS trips FROM samples.nyctaxi.trips`,
+      CAST(COUNT(*) AS DOUBLE) AS trips FROM ${snapshot}`,
           ).pipe(
             Effect.flatMap((rows) =>
               rows[0] ? Effect.succeed(rows[0]) : Effect.fail(error),
@@ -141,7 +146,7 @@ export class Analytics extends Context.Service<
           CAST(COALESCE(AVG(fare_amount), 0) AS DOUBLE) AS avg_fare,
           CAST(COALESCE(AVG(trip_distance), 0) AS DOUBLE) AS avg_distance,
           CAST(COALESCE(AVG(timestampdiff(SECOND, tpep_pickup_datetime, tpep_dropoff_datetime) / 60.0), 0) AS DOUBLE) AS avg_duration
-          FROM samples.nyctaxi.trips ${predicate}`,
+          FROM ${snapshot} ${predicate}`,
               ).pipe(
                 Effect.map(
                   (rows) =>
@@ -158,20 +163,20 @@ export class Analytics extends Context.Service<
                 Daily,
                 sql`SELECT CAST(CAST(tpep_pickup_datetime AS DATE) AS STRING) AS day,
           CAST(COUNT(*) AS DOUBLE) AS trips, CAST(COALESCE(SUM(fare_amount),0) AS DOUBLE) AS revenue
-          FROM samples.nyctaxi.trips ${predicate} GROUP BY 1 ORDER BY 1`,
+          FROM ${snapshot} ${predicate} GROUP BY 1 ORDER BY 1`,
               ),
               hourly: read(
                 Hourly,
                 sql`SELECT CAST(HOUR(tpep_pickup_datetime) AS DOUBLE) AS hour,
           CAST(COUNT(*) AS DOUBLE) AS trips, CAST(COALESCE(AVG(fare_amount),0) AS DOUBLE) AS avg_fare
-          FROM samples.nyctaxi.trips ${predicate} GROUP BY 1 ORDER BY 1`,
+          FROM ${snapshot} ${predicate} GROUP BY 1 ORDER BY 1`,
               ),
               zones: read(
                 Zone,
                 sql`SELECT COALESCE(CAST(pickup_zip AS STRING), 'Unknown') AS zip,
           CAST(COUNT(*) AS DOUBLE) AS trips, CAST(COALESCE(SUM(fare_amount),0) AS DOUBLE) AS revenue,
           CAST(COALESCE(AVG(fare_amount),0) AS DOUBLE) AS avg_fare
-          FROM samples.nyctaxi.trips ${predicate} GROUP BY 1 ORDER BY trips DESC`,
+          FROM ${snapshot} ${predicate} GROUP BY 1 ORDER BY trips DESC`,
               ),
             },
             { concurrency: 3 },
@@ -202,20 +207,21 @@ export class Analytics extends Context.Service<
           {
             rows: read(
               Trip,
-              sql`SELECT CAST(tpep_pickup_datetime AS STRING) AS pickup_at,
+              sql`SELECT CAST(trip_id AS STRING) AS trip_id,
+          CAST(tpep_pickup_datetime AS STRING) AS pickup_at,
           CAST(tpep_dropoff_datetime AS STRING) AS dropoff_at,
           COALESCE(CAST(pickup_zip AS STRING),'Unknown') AS pickup_zip,
           COALESCE(CAST(dropoff_zip AS STRING),'Unknown') AS dropoff_zip,
           CAST(COALESCE(trip_distance,0) AS DOUBLE) AS distance,
           CAST(COALESCE(fare_amount,0) AS DOUBLE) AS fare,
           CAST(COALESCE(timestampdiff(SECOND,tpep_pickup_datetime,tpep_dropoff_datetime)/60.0,0) AS DOUBLE) AS duration
-          FROM samples.nyctaxi.trips ${predicate}
-          ORDER BY ${order}, tpep_pickup_datetime DESC, tpep_dropoff_datetime DESC, pickup_zip, dropoff_zip, fare_amount, trip_distance
+          FROM ${snapshot} ${predicate}
+          ORDER BY ${order}, tpep_pickup_datetime DESC, tpep_dropoff_datetime DESC, pickup_zip, dropoff_zip, fare_amount, trip_distance, trip_id
           LIMIT 25 OFFSET ${sql.param("INT", String((page - 1) * 25))}`,
             ),
             total: read(
               Schema.Struct({ total: Schema.Number }),
-              sql`SELECT CAST(COUNT(*) AS DOUBLE) AS total FROM samples.nyctaxi.trips ${predicate}`,
+              sql`SELECT CAST(COUNT(*) AS DOUBLE) AS total FROM ${snapshot} ${predicate}`,
             ).pipe(Effect.map((rows) => rows[0]?.total ?? 0)),
           },
           { concurrency: 2 },

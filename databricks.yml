@@ -9,12 +9,20 @@ variables:
   data_name:
     description: Prefix for the data resources managed by this bundle target.
     default: metrocab-${bundle.target}
+  data_catalog:
+    description: Unity Catalog catalog for the persistent sample snapshot.
+    default: main
 
   warehouse_name:
     description: Display name of the managed warehouse; set when adopting an existing warehouse.
     default: ${var.data_name}-analytics
 
 resources:
+  schemas:
+    data:
+      name: ${var.data_name}
+      catalog_name: ${var.data_catalog}
+      comment: Persistent NYC taxi sample snapshot with stable trip IDs.
   sql_warehouses:
     analytics:
       name: ${var.warehouse_name}
@@ -67,6 +75,8 @@ resources:
             value: http1
           - name: DATABRICKS_WAREHOUSE_ID
             value_from: lakehouse
+          - name: TRIP_SNAPSHOT_TABLE
+            value: ${var.data_catalog}.${var.data_name}.trips
           - name: GENIE_SPACE_ID
             value_from: genie
           - name: LAKEBASE_ENDPOINT

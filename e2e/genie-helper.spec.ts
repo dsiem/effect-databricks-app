@@ -75,6 +75,7 @@ test.beforeEach(async ({ page }) => {
       json: {
         rows: [
           {
+            trip_id: "1a2f4670-fcd5-4ac1-9232-2d6b5b91664a",
             pickup_at: "2016-01-11 18:00:00",
             dropoff_at: "2016-01-11 18:14:00",
             pickup_zip: "10001",

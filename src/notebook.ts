@@ -15,12 +15,17 @@ import type { Statement } from "effect/sql/Statement";
 import { makeCapability } from "./capability.js";
 import {
   type CapabilityAvailability,
+  type CurrentUser,
   Note,
   NoteCursor,
   type NoteInput,
   type NotePin,
   type NoteSearch,
   type Notes,
+  type TripComment,
+  type TripCommentInput,
+  type TripCommentSearch,
+  type TripComments,
 } from "./domain.js";
 import {
   NoteConflict,
@@ -30,6 +35,7 @@ import {
 } from "./errors.js";
 import { pgPassword, restoreCredentialFailure } from "./pg-credentials.js";
 import { Settings } from "./settings.js";
+import { makeTripComments } from "./trip-comments.js";
 import { Workspace } from "./workspace.js";
 
 const Credential = Schema.Struct({ token: Schema.NonEmptyString });
@@ -90,6 +96,13 @@ export class Notebook extends Context.Service<
   Notebook,
   {
     readonly availability: Effect.Effect<CapabilityAvailability>;
+    readonly comments: (
+      search: TripCommentSearch,
+    ) => Effect.Effect<TripComments, ServiceError>;
+    readonly addComment: (
+      input: TripCommentInput,
+      author: CurrentUser | null,
+    ) => Effect.Effect<TripComment, ServiceError>;
     readonly list: (search: NoteSearch) => Effect.Effect<Notes, ServiceError>;
     readonly save: (input: NoteInput) => Effect.Effect<Note, ServiceError>;
     readonly pin: (
@@ -118,6 +131,8 @@ export class Notebook extends Context.Service<
       if (!settings.pgHost && !settings.lakebaseEndpoint)
         return {
           availability: capability.availability,
+          comments: () => Effect.fail(failure),
+          addComment: () => Effect.fail(failure),
           list: () => Effect.fail(failure),
           save: () => Effect.fail(failure),
           pin: () => Effect.fail(failure),
@@ -138,6 +153,16 @@ export class Notebook extends Context.Service<
       );
       return {
         availability: capability.availability,
+        comments: (search: TripCommentSearch) =>
+          database.pipe(
+            Effect.flatMap((notebook) => notebook.comments(search)),
+            capability.track,
+          ),
+        addComment: (input: TripCommentInput, author: CurrentUser | null) =>
+          database.pipe(
+            Effect.flatMap((notebook) => notebook.addComment(input, author)),
+            capability.track,
+          ),
         list: (search: NoteSearch) =>
           database.pipe(
             Effect.flatMap((notebook) => notebook.list(search)),
@@ -265,7 +290,7 @@ export const makeNotebook = (
       restoreCredentialFailure,
       Effect.flatMap((rows) => (rows.length ? Effect.void : missingWrite(id))),
     );
-  return { list, save, pin, remove };
+  return { list, save, pin, remove, ...makeTripComments(sql, message) };
 };
 
 // Explicit setup command only. App startup never changes database schemas.
@@ -288,9 +313,21 @@ export const migrateNotebook = (
     )`;
       yield* sql`ALTER TABLE metrocab.notes ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1 CHECK (version > 0)`;
       yield* sql`CREATE INDEX IF NOT EXISTS notes_listing_idx ON metrocab.notes (pinned DESC, updated_at DESC, id DESC)`;
+      yield* sql`CREATE TABLE IF NOT EXISTS metrocab.trip_comments (
+        id uuid PRIMARY KEY,
+        trip_key text NOT NULL,
+        trip jsonb NOT NULL,
+        body text NOT NULL CHECK (length(btrim(body)) BETWEEN 1 AND 4000),
+        author jsonb NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`;
+      // Stable source IDs can have a different length from the old SHA-256 key.
+      yield* sql`ALTER TABLE metrocab.trip_comments DROP CONSTRAINT IF EXISTS trip_comments_trip_key_check`;
+      yield* sql`CREATE INDEX IF NOT EXISTS trip_comments_listing_idx ON metrocab.trip_comments (trip_key, created_at DESC, id DESC)`;
       if (appPrincipal) {
         yield* sql`GRANT USAGE ON SCHEMA metrocab TO ${sql(appPrincipal)}`;
         yield* sql`GRANT SELECT, INSERT, UPDATE, DELETE ON metrocab.notes TO ${sql(appPrincipal)}`;
+        yield* sql`GRANT SELECT, INSERT, UPDATE ON metrocab.trip_comments TO ${sql(appPrincipal)}`;
       }
     }),
   );

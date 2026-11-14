@@ -1,8 +1,9 @@
 # Databricks Apps + Effect
 
 A working NYC taxi analytics workspace with React, Tailwind CSS 4, shadcn/ui and
-Radix UI components, Recharts, and Leaflet. The data is the real
-`samples.nyctaxi.trips` table. No synthetic dashboard data or mock Genie answers.
+Radix UI components, Recharts, and Leaflet. The app starts from the real
+`samples.nyctaxi.trips` data and persists a managed snapshot for stable trip
+identity. No synthetic dashboard data or mock Genie answers.
 
 The UI uses shadcn/ui's New York style with the neutral theme. The sidebar
 collapses to icons on desktop, remembers that preference, and becomes a drawer
@@ -12,19 +13,26 @@ local development uses the current workspace user's profile when available.
 
 - **Overview:** fare and trip metrics, daily trends, hourly activity, top ZIP codes.
 - **Trip explorer:** date/ZIP filters, server-side sorting and pagination, CSV export
-  of the visible page.
+  of the visible page. Open any trip to inspect its details and add shared,
+  attributed comments persisted in Lakebase.
 - **Pickup map:** interactive ZIP-area choropleth using official NYC boundaries.
 - **Contextual Genie helper:** open Ask Genie from any page without leaving the
   data. Explain a chart, analyze visible trips, or ask for further analytics with
   the applied date/ZIP filters. Expand the helper for result tables and generated
   SQL; on mobile it opens as a sheet. The `/genie` conversation view is also available.
-- **Analyst notebook:** shared notes, pinning, editing, deletion, and saved filter
-  views persisted in Lakebase Postgres, with paginated browsing of every note.
+- **Saved views:** save the applied filters with an optional finding directly in
+  Explore; reopen, pin, edit, or delete them from a side panel on the same page.
+  The analyst notebook remains the full shared library, with paginated browsing.
 
-The sample contains 21,932 trips from January–February 2016 in the verified
-workspace. It contains ZIP codes rather than GPS points. Fares exclude tips and
-tolls. All dates and amounts in the UI come from the warehouse. The map groups
-postal ZIPs into NYC Health MODZCTAs and explicitly counts unmapped trips.
+Setup copies `samples.nyctaxi.trips` once per bundle target into a managed Delta
+table and persists a UUID `trip_id` on each row. App analytics read this snapshot;
+re-running setup keeps its IDs and does not refresh its rows. The sample contains
+21,932 trips from January–February 2016 in the verified workspace. It contains ZIP
+codes rather than GPS points. Fares exclude tips and tolls. All dates and amounts
+in the UI come from the warehouse. The map groups postal ZIPs into NYC Health
+MODZCTAs and explicitly counts unmapped trips. Genie remains connected to the
+source sample table; configure its data source alongside `data_catalog` when
+adapting the bundle to a different dataset.
 
 ## Run locally
 
@@ -44,8 +52,10 @@ npm run dev
 Open http://localhost:5173 (frontend). The Effect API runs on port 3000. Setup
 populates the ignored `.env` with resource IDs and connection parameters. Tokens
 are obtained from the CLI locally and from the platform app identity when deployed;
-no token is copied into the frontend. Alternatively, configure the resource IDs in
-`.env` manually and run `npm run db:migrate` once.
+no token is copied into the frontend. For manual setup, configure the warehouse,
+`TRIP_SNAPSHOT_TABLE`, and Lakebase values in `.env`, then run
+`APP_SERVICE_PRINCIPAL_ID=<app-client-id> npm run data:seed:snapshot` and
+`APP_SERVICE_PRINCIPAL_ID=<app-client-id> npm run db:migrate`.
 
 `npm run build && npm start` serves the built frontend and API together on port
 3000. Without data credentials the app shell and `/health` still work; data routes
@@ -58,6 +68,7 @@ return useful configuration errors instead of fabricated results.
 | Resource         | Configuration                                                      |
 | ---------------- | ------------------------------------------------------------------ |
 | SQL warehouse    | Serverless PRO, 2X-Small, one cluster, ten-minute auto-stop        |
+| Unity Catalog    | Target-specific schema with a persistent copy of the taxi sample   |
 | Genie space      | NYC taxi table, sample questions, domain instructions              |
 | Lakebase project | Postgres 17, production branch, 1 CU primary endpoint              |
 | Databricks App   | Existing or new app identity, SQL/Genie/Lakebase resource bindings |
@@ -74,11 +85,14 @@ databricks bundle validate --strict -t dev
 npm run workspace:setup -- dev
 ```
 
-Setup deploys the bundle, discovers the actual resources, runs an explicit,
-idempotent notebook migration, grants the app identity access only to that schema
-and table, and starts the app. Application startup does not run DDL. Re-run setup
-to apply later source or infrastructure changes. The deployer needs resource
-creation permissions and database ownership for migration/grants.
+Setup deploys the bundle, creates a target-specific managed Delta snapshot with
+one persisted UUID per sample row, grants the app identity catalog/schema/table
+read access, runs an explicit idempotent notebook migration, and starts the app.
+Re-running setup preserves the snapshot and IDs; it does not copy newly changed
+source rows. Application startup does not run DDL. The deployer needs permission
+to create the schema in `data_catalog` and grant access to the app identity, plus
+database ownership for the Lakebase migration/grants. Set `data_catalog` in bundle
+overrides when `main` is not the intended catalog.
 
 ### Free workspace / adopting existing resources
 
@@ -147,12 +161,18 @@ The server is an Effect application, including HTTP routing and lifetime:
   OAuth credentials, statement/acquisition deadlines, and shutdown. Notebook saves
   use explicit create/update versions and return conflicts for stale writes.
   Pinning updates only its own field. Migration uses a transaction and advisory
-  lock; run `npm run db:migrate` to add versions to existing notebooks.
+  lock; run `npm run db:migrate` to add note versions and the trip-comments table
+  to existing installations. Comment submissions use a stable draft ID so retrying
+  after a lost response does not create duplicates; authors come from the server's
+  current-viewer identity.
 - `NodeRuntime` manages graceful signal shutdown for HTTP/1.1 locally and HTTP/2
   as an optional transport. The verified workspace deployment uses HTTP/1.1; its proxy returned 502 for an HTTP/2-only listener.
 
 The app uses its service principal for shared access. All app viewers can see and
 edit the shared notebook; per-viewer row-level authorization is not implemented.
+Trip comments are shared and append-only through the API. The replicated sample
+gets a persisted synthetic `trip_id`; future apps should copy a source primary key
+when one exists. See the [interaction design rationale](docs/data-access.md#contextual-workflows).
 
 ## Verify
 
@@ -160,8 +180,10 @@ edit the shared notebook; per-viewer row-level authorization is not implemented.
 npm run check          # lint, types, tests, build, both HTTP protocols, packed SQL adapter
 npm run test:browser   # offline browser checks against the built app; also required in CI
 npm run test:architecture # offline Genie recovery, sidebar/dialog/responsive UI, and service checks
+node scripts/preview-notebook-options.mjs # regenerate the three interactive UX prototypes
 npm run bundle:check   # deployment schema validation without credentials
 npm run data:check     # live SQL reconciliation, Lakebase CRUD, Genie + follow-up
+npm run data:check:comments # live trip comments, safe retries, and temporary-row cleanup
 node scripts/check-deployed.mjs dev  # verify actual hosted APIs and app-identity access
 npx playwright install chromium # required once before either browser suite
 npm start              # separate terminal, with the configured .env

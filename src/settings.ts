@@ -35,6 +35,19 @@ const config = Config.all({
     ),
   ),
   warehouseId: text("DATABRICKS_WAREHOUSE_ID"),
+  tripSnapshotTable: Config.schema(
+    Schema.String.check(
+      Schema.makeFilter(
+        (table) =>
+          table === "" ||
+          /^(?:[A-Za-z_][A-Za-z0-9_-]{0,127}\.){2}[A-Za-z_][A-Za-z0-9_-]{0,127}$/.test(
+            table,
+          ) ||
+          "Expected a three-part Unity Catalog table identifier",
+      ),
+    ),
+    "TRIP_SNAPSHOT_TABLE",
+  ).pipe(Config.withDefault("")),
   warehouseConcurrency: concurrency("WAREHOUSE_MAX_CONCURRENCY", 4),
   genieConcurrency: concurrency("GENIE_MAX_CONCURRENCY", 2),
   profile: text("DATABRICKS_CONFIG_PROFILE"),

@@ -39,7 +39,9 @@ export const notebookFixture = Effect.gen(function* () {
     sql,
     notebook: makeNotebook(
       Object.assign(sql, {
-        json: (value: unknown) => sql`${JSON.stringify(value)}`,
+        // PgClient's top-level null is SQL NULL, not the JSON string "null".
+        json: (value: unknown) =>
+          sql`${value === null ? null : JSON.stringify(value)}`,
       }),
       "Lakebase unavailable",
     ),

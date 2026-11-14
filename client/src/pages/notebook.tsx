@@ -4,6 +4,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  ArrowRight,
   BookOpen,
   ExternalLink,
   Pencil,
@@ -17,6 +18,7 @@ import type { Note, NoteCursor, NoteInput } from "../../../src/domain";
 import { api, apiClient, useFilters } from "../api";
 import { ErrorState, Loading, PageTitle } from "../components/common";
 import { ExploreContext, FilterSummary } from "../components/explore-context";
+import { NoteEditor } from "../components/note-editor";
 import {
   Button,
   Card,
@@ -26,11 +28,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
-  Textarea,
 } from "../components/ui";
-export default function Notebook() {
-  const { filters } = useFilters();
+export default function Notebook({
+  embedded = false,
+  onRestore,
+}: {
+  embedded?: boolean;
+  onRestore?: () => void;
+}) {
+  const { filters, setFilters } = useFilters();
   const client = useQueryClient();
   const navigate = useNavigate();
   const notes = useInfiniteQuery({
@@ -58,14 +64,6 @@ export default function Notebook() {
       : newNoteButton.current
     )?.focus();
   };
-  const save = useMutation({
-    mutationFn: (note: NoteInput) => api(apiClient.saveNote({ payload: note })),
-    onSuccess: () => {
-      setEditing(null);
-      void client.invalidateQueries({ queryKey: ["notes"] });
-    },
-    onError: () => void client.invalidateQueries({ queryKey: ["notes"] }),
-  });
   const pin = useMutation({
     mutationFn: (note: Note) =>
       api(
@@ -95,7 +93,6 @@ export default function Notebook() {
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
-    save.reset();
     setEditing({
       id: note.id,
       title: note.title,
@@ -106,32 +103,38 @@ export default function Notebook() {
   };
   return (
     <>
-      <PageTitle
-        title="Analyst notebook"
-        description="Capture findings and reopen the Explore view behind each note."
-        action={
-          <Button
-            ref={newNoteButton}
-            onClick={() =>
-              open({
-                id: crypto.randomUUID(),
-                title: "",
-                body: "",
-                filters,
-                version: null,
-              })
-            }
-          >
-            <Plus />
-            New note
-          </Button>
-        }
-      />
-      <div className="mb-6">
-        <ExploreContext purpose="note" />
-      </div>
+      {!embedded && (
+        <PageTitle
+          title="Analyst notebook"
+          description="Browse shared findings and saved views. You can also save a view directly from Explore."
+          action={
+            <Button
+              ref={newNoteButton}
+              onClick={() =>
+                open({
+                  id: crypto.randomUUID(),
+                  title: "",
+                  body: "",
+                  filters,
+                  version: null,
+                })
+              }
+            >
+              <Plus />
+              New note
+            </Button>
+          }
+        />
+      )}
+      {!embedded && (
+        <div className="mb-6">
+          <ExploreContext purpose="note" />
+        </div>
+      )}
       {notes.isPending ? (
-        <Loading text="Loading saved notes…" />
+        <Loading
+          text={embedded ? "Loading saved views…" : "Loading saved notes…"}
+        />
       ) : notes.error && !notes.data ? (
         <ErrorState error={notes.error} retry={() => void notes.refetch()} />
       ) : !savedNotes.length ? (
@@ -139,10 +142,13 @@ export default function Notebook() {
           <span className="grid size-14 place-items-center rounded-2xl bg-muted">
             <BookOpen className="size-6 text-primary" />
           </span>
-          <h2 className="mt-5 text-lg font-semibold">No saved notes</h2>
+          <h2 className="mt-5 text-lg font-semibold">
+            {embedded ? "Keep a view worth returning to" : "No saved notes"}
+          </h2>
           <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-            Create a note to save your findings and the Explore view shown
-            above.
+            {embedded
+              ? "Save a view from the filter bar. Add a finding to give your team a starting point."
+              : "Create a note to save your findings and the Explore view shown above."}
           </p>
           <Button
             className="mt-6"
@@ -157,21 +163,33 @@ export default function Notebook() {
             }
           >
             <Plus />
-            Create note
+            {embedded ? "Save this view" : "Create note"}
           </Button>
         </Card>
       ) : (
         <>
           <p aria-live="polite" className="mb-4 text-sm text-muted-foreground">
             {savedNotes.length} saved{" "}
-            {savedNotes.length === 1 ? "note" : "notes"} shown · shared across
-            this app
+            {embedded
+              ? savedNotes.length === 1
+                ? "view"
+                : "views"
+              : savedNotes.length === 1
+                ? "note"
+                : "notes"}{" "}
+            shown · shared across this app
           </p>
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <div
+            className={
+              embedded
+                ? "grid gap-4"
+                : "grid gap-5 md:grid-cols-2 xl:grid-cols-3"
+            }
+          >
             {savedNotes.map((note) => (
               <Card key={note.id} className="gap-0 p-6">
                 <div className="mb-4 flex items-start gap-3">
-                  <h2 className="flex-1 text-base font-semibold tracking-tight">
+                  <h2 className="min-w-0 flex-1 break-words text-base font-semibold tracking-tight">
                     {note.title}
                   </h2>
                   <Button
@@ -189,13 +207,13 @@ export default function Notebook() {
                     />
                   </Button>
                 </div>
-                <p className="mb-5 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                <p className="mb-5 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
                   {note.body || "No additional details."}
                 </p>
                 <div className="mt-auto">
                   <div className="mb-4">
                     <p className="mb-2 text-xs font-medium text-muted-foreground">
-                      Saved Explore view
+                      {embedded ? "Filters" : "Saved Explore view"}
                     </p>
                     <FilterSummary filters={note.filters} />
                     <Button
@@ -203,14 +221,22 @@ export default function Notebook() {
                       size="sm"
                       className="mt-3 h-auto p-0"
                       aria-label={`Open saved view for ${note.title}`}
-                      onClick={() =>
-                        navigate(
-                          `/?${new URLSearchParams(Object.entries(note.filters))}`,
-                        )
-                      }
+                      onClick={() => {
+                        if (embedded) {
+                          setFilters(note.filters);
+                          onRestore?.();
+                        } else
+                          navigate(
+                            `/?${new URLSearchParams(Object.entries(note.filters))}`,
+                          );
+                      }}
                     >
                       Open saved view
-                      <ExternalLink className="size-3.5" />
+                      {embedded ? (
+                        <ArrowRight className="size-3.5" />
+                      ) : (
+                        <ExternalLink className="size-3.5" />
+                      )}
                     </Button>
                   </div>
                   <div className="flex items-center justify-between border-t pt-4">
@@ -267,7 +293,9 @@ export default function Notebook() {
                   ? "Loading notes…"
                   : notes.error
                     ? "Retry loading notes"
-                    : "Load more notes"}
+                    : embedded
+                      ? "Load more views"
+                      : "Load more notes"}
               </Button>
             </div>
           )}
@@ -278,94 +306,15 @@ export default function Notebook() {
           )}
         </>
       )}
-      <Dialog
-        open={!!editing}
-        onOpenChange={(open) => {
-          if (!open && !save.isPending) setEditing(null);
-        }}
-      >
-        <DialogContent
-          className="max-h-[90dvh] overflow-y-auto"
+      {editing && (
+        <NoteEditor
+          key={editing.id}
+          note={editing}
+          view={embedded}
+          onClose={() => setEditing(null)}
           onCloseAutoFocus={restoreDialogFocus}
-        >
-          <DialogHeader>
-            <DialogTitle>
-              {editing?.version !== null ? "Edit note" : "New note"}
-            </DialogTitle>
-            <DialogDescription>
-              Save your findings with a snapshot of this Explore view.
-            </DialogDescription>
-          </DialogHeader>
-          {editing && (
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                save.mutate({ ...editing, title: editing.title.trim() });
-              }}
-              className="space-y-5"
-            >
-              <label htmlFor="note-title" className="block text-sm font-medium">
-                Title
-                <Input
-                  id="note-title"
-                  className="mt-2"
-                  autoFocus
-                  required
-                  maxLength={160}
-                  value={editing.title}
-                  onChange={(e) =>
-                    setEditing({ ...editing, title: e.target.value })
-                  }
-                  placeholder="Analysis title"
-                />
-              </label>
-              <label htmlFor="note-body" className="block text-sm font-medium">
-                Your notes
-                <Textarea
-                  id="note-body"
-                  className="mt-2"
-                  maxLength={10000}
-                  value={editing.body}
-                  onChange={(e) =>
-                    setEditing({ ...editing, body: e.target.value })
-                  }
-                  placeholder="Add context, a question, or a next step…"
-                />
-              </label>
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <p className="mb-2 text-sm font-medium">Saved Explore view</p>
-                <FilterSummary filters={editing.filters} />
-                <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                  {editing.version !== null
-                    ? "This note keeps its original filters, even when your Explore view changes."
-                    : "These filters are saved with your note so you can reopen this view later."}
-                </p>
-              </div>
-              {save.error && (
-                <p role="alert" className="text-sm text-destructive">
-                  {save.error.message}
-                </p>
-              )}
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={save.isPending}
-                  onClick={() => setEditing(null)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={save.isPending || !editing.title.trim()}
-                >
-                  {save.isPending ? "Saving…" : "Save note"}
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
+        />
+      )}
       <Dialog
         open={!!deleting}
         onOpenChange={(open) => {

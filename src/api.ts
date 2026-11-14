@@ -21,6 +21,10 @@ import {
   Notes,
   Overview,
   Status,
+  TripComment,
+  TripCommentInput,
+  TripCommentSearch,
+  TripComments,
   TripSearch,
   Trips,
 } from "./domain.js";
@@ -125,6 +129,14 @@ export const AppApi = HttpApi.make("taxi").add(
       HttpApiEndpoint.get("notes", "/api/notes", {
         query: NoteSearch,
         success: Notes,
+      }),
+      HttpApiEndpoint.get("tripComments", "/api/trip-comments", {
+        query: TripCommentSearch,
+        success: TripComments,
+      }),
+      HttpApiEndpoint.post("addTripComment", "/api/trip-comments", {
+        payload: TripCommentInput,
+        success: TripComment,
       }),
       HttpApiEndpoint.put("saveNote", "/api/notes", {
         payload: NoteInput,

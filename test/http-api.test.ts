@@ -87,6 +87,14 @@ const fixture = () => {
           }),
           Layer.succeed(Notebook, {
             availability: Effect.succeed("unconfigured" as const),
+            comments: (search) =>
+              record("tripComments", search, { rows: [], nextCursor: null }),
+            addComment: (input, author) =>
+              record(
+                "addTripComment",
+                { input, author },
+                { ...input, author, created_at: "2026-11-14T10:00:00Z" },
+              ),
             list: (search) =>
               Effect.sync(() => {
                 if (search.cursor) calls.push(["notes", search]);
@@ -507,4 +515,61 @@ test("UI cancellation aborts a generated-client response body after headers arri
   controller.abort();
   await rejected;
   assert.equal(signal?.aborted, true);
+});
+
+test("trip comment contract round-trips snapshots and attributes the request viewer", async (t) => {
+  const { app, client, calls } = fixture();
+  t.after(app.dispose);
+  const trip = {
+    trip_id: "7b2c6ab2-6f7d-4f8a-a05f-d07e4eb84a19",
+    pickup_at: "2016-01-20 09:42:00",
+    dropoff_at: "2016-01-20 09:56:00",
+    pickup_zip: "10001",
+    dropoff_zip: "10019",
+    distance: 3.2,
+    fare: 18.5,
+    duration: 14,
+  };
+  const cursor = { id: note.id, createdAt: "2026-11-14T10:00:00.123456Z" };
+  assert.deepEqual(
+    await Effect.runPromise(client.tripComments({ query: { trip, cursor } })),
+    { rows: [], nextCursor: null },
+  );
+  assert.deepEqual(calls.at(-1), ["tripComments", { trip, cursor }]);
+  const input = { id: note.id, trip, body: "Check the fare" };
+  const response = await app.handler(
+    new Request("http://localhost/api/trip-comments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Forwarded-Preferred-Username": "Avery Morgan",
+        "X-Forwarded-Email": "avery@example.test",
+      },
+      body: JSON.stringify({
+        ...input,
+        author: { name: "Spoofed author", email: null },
+      }),
+    }),
+  );
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  const author = { name: "Avery Morgan", email: "avery@example.test" };
+  assert.deepEqual(await response.json(), {
+    ...input,
+    author,
+    created_at: "2026-11-14T10:00:00Z",
+  });
+  assert.deepEqual(calls.at(-1), ["addTripComment", { input, author }]);
+  const count = calls.length;
+  for (const body of ["", " \t\n", "x".repeat(4001)]) {
+    const invalid = await app.handler(
+      new Request("http://localhost/api/trip-comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...input, body }),
+      }),
+    );
+    assert.equal(invalid.status, 400);
+  }
+  assert.equal(calls.length, count);
 });

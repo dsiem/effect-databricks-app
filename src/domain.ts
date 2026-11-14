@@ -73,14 +73,16 @@ export const Overview = Schema.Struct({
 });
 export type Overview = typeof Overview.Type;
 export const Trip = Schema.Struct({
-  pickup_at: Schema.String,
-  dropoff_at: Schema.String,
-  pickup_zip: Schema.String,
-  dropoff_zip: Schema.String,
+  trip_id: boundedText(256),
+  pickup_at: boundedText(80),
+  dropoff_at: boundedText(80),
+  pickup_zip: boundedText(32),
+  dropoff_zip: boundedText(32),
   distance: Schema.Number,
   fare: Schema.Number,
   duration: Schema.Number,
 });
+export type Trip = typeof Trip.Type;
 export const Trips = Schema.Struct({
   rows: Schema.Array(Trip),
   total: Schema.Number,
@@ -198,3 +200,33 @@ export const CurrentUser = Schema.Struct({
   email: Schema.NullOr(Schema.NonEmptyString),
 });
 export type CurrentUser = typeof CurrentUser.Type;
+
+export const TripCommentInput = Schema.Struct({
+  id: NoteInput.fields.id,
+  trip: Trip,
+  body: boundedText(4000).check(
+    Schema.makeFilter((body) => body.trim().length > 0),
+  ),
+});
+export type TripCommentInput = typeof TripCommentInput.Type;
+export const TripComment = Schema.Struct({
+  ...TripCommentInput.fields,
+  author: Schema.NullOr(CurrentUser),
+  created_at: Schema.String,
+});
+export type TripComment = typeof TripComment.Type;
+export const TripCommentCursor = Schema.Struct({
+  id: NoteInput.fields.id,
+  createdAt: NoteCursor.fields.updatedAt,
+});
+export type TripCommentCursor = typeof TripCommentCursor.Type;
+export const TripCommentSearch = Schema.Struct({
+  trip: Schema.fromJsonString(Trip),
+  cursor: Schema.optionalKey(Schema.fromJsonString(TripCommentCursor)),
+});
+export type TripCommentSearch = typeof TripCommentSearch.Type;
+export const TripComments = Schema.Struct({
+  rows: Schema.Array(TripComment),
+  nextCursor: Schema.NullOr(TripCommentCursor),
+});
+export type TripComments = typeof TripComments.Type;

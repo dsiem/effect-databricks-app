@@ -12,3 +12,4 @@ coverage/
 client/dist/
 test-results/
 playwright-report/
+output/

@@ -6,13 +6,15 @@ flowchart LR
   API --> Analytics[Analytics service]
   Analytics --> Arrow[Effect SQL Databricks / Arrow]
   Arrow --> Warehouse[SQL warehouse]
-  Warehouse --> Taxi[samples.nyctaxi.trips]
+  Warehouse --> Source[samples.nyctaxi.trips]
+  Setup --> Snapshot[target Unity Catalog snapshot with trip_id]
+  Warehouse --> Snapshot
   API --> Genie[Genie service]
   Genie --> Space[Taxi Genie space]
   Space --> Warehouse
   API --> Notebook[Notebook service]
   Notebook --> Pool[Effect SQL PostgreSQL pool]
-  Pool --> Lakebase[Lakebase metrocab.notes]
+  Pool --> Lakebase[Lakebase notes + trip_comments]
 ```
 
 `src/main.ts` assembles the live service layers once. Routes capture the services
@@ -24,7 +26,7 @@ schemas live in `src/domain.ts`, and the frontend decodes responses using them.
 reports `capabilities` separately. Each is `unconfigured`, `unknown` (configured
 but not yet exercised), `available`, or `unavailable`, based on the last operation
 outcome. Status never probes dependencies. A Lakebase discovery outage affects
-notebook requests only; analytics, static assets, and health remain available.
+saved-view and trip-comment requests only; analytics, static assets, and health remain available.
 Invalid workspace origins and PostgreSQL ports fail at the settings boundary.
 
 ## Analytics
@@ -40,6 +42,18 @@ Concurrent requests for the same filters share one lookup. The four aggregates
 run with concurrency three. Metadata is cached for five minutes. Trip pages have
 25 rows and include the exact matching row count. Ordering includes the source
 columns for stable pagination; identical duplicate source rows remain identical.
+
+Setup materializes the sample with `CREATE TABLE IF NOT EXISTS ... AS SELECT
+uuid() AS trip_id, * FROM samples.nyctaxi.trips`. The UUID is nondeterministic at
+creation time but stored in Delta, so subsequent setup runs preserve each ID.
+Analytics read the configured three-part `TRIP_SNAPSHOT_TABLE`; metadata,
+overview, trip pages, exports, and comment threads all use the same snapshot.
+Validation confirms the snapshot is non-empty and each row has a unique non-null
+ID. Source refreshes do not rewrite it. The app service principal receives
+`USE CATALOG`, `USE SCHEMA`, and `SELECT` on that table. Each bundle target gets
+its own schema under `data_catalog` (default `main`); the deployer needs permission
+to create that schema and grant access. For a future dataset with a source primary
+key, copy that value into `trip_id` instead of generating one.
 
 All metadata, overview, and trip statements share one per-process admission pool,
 including distinct cache keys and trip pages. `WAREHOUSE_MAX_CONCURRENCY` defaults
@@ -96,6 +110,9 @@ selection. Closing and reopening the helper keeps the draft and current selectio
 24,000 characters. The server labels this as client-provided context rather than
 instructions. Additional analytics query the source table with the current
 filters; visible records and ranked subsets are not treated as the full dataset.
+This demo's Genie space is attached directly to the public NYC sample table;
+custom bundle targets should point the Genie data source at their configured
+snapshot when it needs to share the app's frozen data view.
 Each saved turn retains its own filters and context alongside the answer.
 `node scripts/preview-genie-options.mjs` regenerates and checks three interactive
 layout prototypes in `output/`: floating helper, docked panel, and inline answers.
@@ -151,7 +168,8 @@ defects and interruption, including mixed causes, pass through the adapter.
 The bundle declares a project, its existing production branch, and primary
 endpoint. App resource permissions create the app's OAuth database identity. The
 setup script runs the explicit migration as the deployer and grants the app
-`USAGE` on `metrocab` and CRUD on `metrocab.notes`.
+`USAGE` on `metrocab`, CRUD on `metrocab.notes`, and SELECT/INSERT/UPDATE on
+`metrocab.trip_comments` (UPDATE supports idempotent submission, not editing).
 
 `@effect/sql-pg` supplies the scoped pool. The password Effect generates a fresh
 Lakebase credential for each new physical connection. TLS certificate validation
@@ -174,6 +192,58 @@ timestamp precision and remain usable if the boundary note is deleted. The
 explicit migration adds the matching listing index. The notebook's **Load more
 notes** action appends pages, retains visible notes if a later request fails,
 and offers a retry. Saves, pins, and deletes refresh the loaded pages.
+
+`GET /api/trip-comments` accepts a JSON-encoded `trip` snapshot and optional
+`cursor`, decoded by the shared Effect HTTP contract. It returns up to 25 comments
+and a continuation cursor, newest first; ordering and cursors use full PostgreSQL
+timestamp precision. `POST /api/trip-comments` accepts `{ id, trip, body }`. The
+server resolves the author from the same viewer identity as `/api/me`; it never
+accepts an author from the submitted payload. Unknown viewers are labeled as
+workspace viewers, and the existing shared app-access model applies.
+
+Trip comments reuse the notebook service's scoped Lakebase pool, lazy discovery,
+capability reporting, typed errors, and explicit migration. Each thread now keys
+to the persisted `trip_id`, independent of filtering, sorting, page position, or
+other trip fields. The stored trip is client-supplied context, not a verified
+warehouse foreign key; enforce record access at the API boundary when adapting
+this template to user-specific records. The warehouse snapshot remains read-only.
+
+A comment UUID belongs to one draft. Repeating an identical submission returns
+the original comment; reusing the ID with different text, record, or author fails.
+Comments are append-only through the API. The inspector retains drafts while
+closing/reopening or inspecting other records on the current filtered page;
+filter changes, navigation, and reload discard unsent drafts. Failed writes keep
+the text and ID for an explicit retry. Older pages remain readable after a failed
+continuation request. `test/trip-comments.test.ts` runs the production migration
+and queries against embedded Postgres; the browser suite verifies the actual
+inspector, retry, attribution display, and desktop/mobile layouts.
+`npm run data:check:comments` also verifies a real warehouse trip and Lakebase
+round trips with the configured development migration/deployer role, then removes
+its UUID-scoped temporary comments even when an assertion fails.
+
+## Contextual workflows
+
+The UX separates two user intentions: keep an analysis worth returning to, and
+discuss a specific record. Saving and discussing both start beside the data.
+**Save view** captures the applied filters with a name and optional finding; an
+unsubmitted filter edit is not saved. **Saved views** opens the existing shared
+library in a side panel. Reopening a saved view applies its filters to the current
+Explore page. The standalone notebook remains a library rather than a required
+stop in the workflow. Existing notes and optimistic edit versions are preserved.
+
+Trip timestamps and explicit comment actions open a focused inspector with the
+route, timestamps, fare, distance, duration, and shared discussion. The responsive
+sheet keeps the desktop table visible behind it and uses the full mobile width;
+keyboard dismissal restores focus to the selected record. Saving a view and
+posting a comment demonstrate separate Lakebase writes alongside warehouse reads
+and contextual Genie analysis, using the same typed Effect API boundaries.
+
+`node scripts/preview-notebook-options.mjs` regenerates three interactive
+prototypes and a side-by-side PNG in `output/`. The alternatives are an inline
+journal (good narrative, but moves the records away as threads grow), expandable
+rows (direct, but disrupts table scanning and narrow layouts), and a contextual
+panel (chosen: preserves scanning and gives record details and discussion room).
+The script exercises both saving and commenting before capturing the comparison.
 
 ## Deployment verification and workspace constraints
 

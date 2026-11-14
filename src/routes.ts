@@ -93,8 +93,12 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
           lakebase: notebook.availability,
         }).pipe(
           Effect.map((capabilities) => ({
-            dataset: "samples.nyctaxi.trips",
-            warehouse: !!settings.warehouseId,
+            dataset: settings.tripSnapshotTable || "samples.nyctaxi.trips",
+            warehouse: !!(
+              settings.warehouseId &&
+              settings.host &&
+              settings.tripSnapshotTable
+            ),
             genie: !!settings.genieSpaceId,
             lakebase: !!(settings.pgHost || settings.lakebaseEndpoint),
             capabilities,
@@ -116,6 +120,16 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
       .handle("pollGenie", ({ params }) => respond(genie.poll(params)))
       .handle("genieResult", ({ params }) => respond(genie.result(params)))
       .handle("notes", ({ query }) => respond(notebook.list(query)))
+      .handle("tripComments", ({ query }) => respond(notebook.comments(query)))
+      .handle("addTripComment", ({ payload }) =>
+        respond(
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest;
+            const author = yield* currentUser(request.headers);
+            return yield* notebook.addComment(payload, author);
+          }),
+        ),
+      )
       .handle("saveNote", ({ payload }) => respond(notebook.save(payload)))
       .handle("pinNote", ({ params, payload }) =>
         respond(notebook.pin(params.id, payload)),

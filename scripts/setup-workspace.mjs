@@ -21,9 +21,16 @@ const config = cli(["bundle", "validate", "-t", target]);
 const resources = summary.resources;
 const appName = resources.apps.app.name;
 const warehouseId = resources.sql_warehouses.analytics.id;
+const snapshotSchema = resources.schemas.data;
 const genieId = resources.genie_spaces.taxi.id;
 const endpointName = resources.postgres_endpoints.notebook_endpoint.id;
-if (!warehouseId || !genieId || !endpointName)
+if (
+  !warehouseId ||
+  !snapshotSchema?.catalog_name ||
+  !snapshotSchema?.name ||
+  !genieId ||
+  !endpointName
+)
   throw new Error("Bundle resource IDs are missing after deployment.");
 const endpoint = cli(["postgres", "get-endpoint", endpointName]);
 const app = cli(["apps", "get", appName]);
@@ -36,6 +43,7 @@ const values = {
     config.workspace.host ||
     cli(["auth", "describe"]).details.host,
   DATABRICKS_WAREHOUSE_ID: warehouseId,
+  TRIP_SNAPSHOT_TABLE: `${snapshotSchema.catalog_name}.${snapshotSchema.name}.trips`,
   GENIE_SPACE_ID: genieId,
   LAKEBASE_ENDPOINT: endpointName,
   PGHOST: endpoint.status.hosts.host,
@@ -55,6 +63,19 @@ for (const [key, value] of Object.entries(values)) {
 writeFileSync(".env", env, { mode: 0o600 });
 const principal = app.service_principal_client_id;
 if (!principal) throw new Error("App service principal is not available yet.");
+execFileSync(
+  process.execPath,
+  [
+    "--env-file-if-exists=.env",
+    "--import",
+    "tsx",
+    "scripts/seed-trip-snapshot.ts",
+  ],
+  {
+    stdio: "inherit",
+    env: { ...process.env, APP_SERVICE_PRINCIPAL_ID: principal },
+  },
+);
 execFileSync(
   process.execPath,
   ["--env-file-if-exists=.env", "--import", "tsx", "scripts/migrate.ts"],

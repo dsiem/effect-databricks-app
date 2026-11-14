@@ -41,62 +41,64 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-test("Explore hands the applied view to Notebook, and a new note saves that snapshot", async ({
+test("Explore saves applied filters in place, and saved views reopen on the current page", async ({
   page,
 }) => {
   await page.goto(`/trips?${query}`);
   const tripFilters = page.getByRole("form", { name: "Trip filters" });
-  await expect(
-    page
-      .locator("header")
-      .getByRole("button", { name: "Ask Genie", exact: true }),
-  ).toBeVisible();
+  // An unsubmitted ZIP edit must not silently change the saved view.
   await page
     .getByRole("textbox", { name: "Pickup ZIP code", exact: true })
     .fill("10002");
-  await expect(tripFilters).toContainText(
-    "Continue with applied Explore filters",
-  );
-  await tripFilters.getByRole("link", { name: "Open notebook" }).click();
-  const context = page.getByRole("region", {
-    name: "Explore view for new notes",
+  await tripFilters
+    .getByRole("button", { name: "Save view", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "Save this view",
+    exact: true,
   });
-  await expect(context).toContainText("Jan 10, 2016 – Jan 20, 2016");
-  await expect(context).toContainText("Pickup ZIP 10001");
-  await expect(context).toContainText("Saved notes keep their own view.");
-  await expect(
-    context.getByRole("link", { name: "Change in Explore" }),
-  ).toHaveAttribute("href", `/trips?${query}`);
-  // Existing notes remain visible, with their own filters, regardless of this view.
-  await expect(
-    page.getByRole("heading", { name: savedNote.title }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Pickup ZIP 11430", { exact: true }),
-  ).toBeVisible();
-  await page.screenshot({
-    path: "test-results/explore-context-notebook.png",
-    fullPage: true,
-  });
-  await page.getByRole("button", { name: "New note", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "New note", exact: true });
   await expect(dialog).toContainText("Jan 10, 2016 – Jan 20, 2016");
   await expect(dialog).toContainText("Pickup ZIP 10001");
   await dialog
-    .getByRole("textbox", { name: "Title", exact: true })
+    .getByRole("textbox", { name: "View name", exact: true })
     .fill("Weekday pickups");
+  await dialog
+    .getByRole("textbox", { name: "Finding (optional)", exact: true })
+    .fill("Review the unusually high fares.");
   let saved: NoteInput | undefined;
   await page.route("**/api/notes", (route) => {
     if (route.request().method() !== "PUT")
       return route.fulfill({ json: { rows: [savedNote], nextCursor: null } });
     saved = route.request().postDataJSON() as NoteInput;
-    return route.fulfill({
-      json: { ...savedNote, ...saved, version: 1 },
-    });
+    return route.fulfill({ json: { ...savedNote, ...saved, version: 1 } });
   });
-  await dialog.getByRole("button", { name: "Save note", exact: true }).click();
+  await dialog.getByRole("button", { name: "Save view", exact: true }).click();
   await expect(dialog).not.toBeVisible();
   expect(saved?.filters).toEqual(filters);
+  expect(saved?.body).toEqual("Review the unusually high fares.");
+  await expect(page).toHaveURL(`/trips?${query}`);
+  await expect(
+    page.getByRole("textbox", { name: "Pickup ZIP code", exact: true }),
+  ).toHaveValue("10002");
+  await expect(page.getByRole("status")).toContainText(
+    "Saved “Weekday pickups”",
+  );
+  await tripFilters
+    .getByRole("button", { name: "Saved views", exact: true })
+    .click();
+  const views = page.getByRole("dialog", { name: "Saved views", exact: true });
+  await expect(
+    views.getByRole("heading", { name: savedNote.title }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/explore-saved-views.png",
+    fullPage: true,
+  });
+  await views
+    .getByRole("button", { name: `Open saved view for ${savedNote.title}` })
+    .click();
+  await expect(views).not.toBeVisible();
+  await expect(page).toHaveURL("/trips?to=2016-02-20&zip=11430");
 });
 
 test("editing a saved note retains its original view and the visible action restores it", async ({

@@ -1,10 +1,11 @@
-import { BookOpen, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useFilters, useMetadata } from "./api";
 import { AppSidebar, navigation } from "./components/app-sidebar";
 import { DateRangeFilter } from "./components/date-range-filter";
 import { AskGenieButton, GenieHelper } from "./components/genie/helper";
 import { GenieProvider } from "./components/genie/provider";
+import { SavedViews } from "./components/saved-views";
 import { Button, Card, Input } from "./components/ui";
 import {
   Breadcrumb,
@@ -137,14 +138,8 @@ export function Layout() {
                     </Button>
                   )}
                   <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
-                    <span>Continue with applied Explore filters</span>
-                    <Link
-                      to={`/notebook${query ? `?${query}` : ""}`}
-                      className="inline-flex items-center gap-1.5 font-medium text-foreground underline-offset-4 hover:underline"
-                    >
-                      <BookOpen className="size-3.5" />
-                      Open notebook
-                    </Link>
+                    <span>Applied Explore view</span>
+                    <SavedViews />
                   </div>
                 </form>
               )}
