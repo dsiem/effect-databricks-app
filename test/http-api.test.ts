@@ -8,9 +8,8 @@ import {
   HttpServer,
 } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
-import { ApiRequestError, api } from "../client/src/lib/api-client.js";
 import { Analytics } from "../src/analytics.js";
-import { AppApi } from "../src/api.js";
+import { ApiError, AppApi } from "../src/api.js";
 import type { Note, NoteInput } from "../src/domain.js";
 import { Genie } from "../src/genie.js";
 import { Notebook } from "../src/notebook.js";
@@ -407,12 +406,6 @@ test("generated client preserves validation codes and messages at the UI boundar
         message: "Check the request fields, dates, and ZIP code.",
       },
     });
-  await assert.rejects(api(request), (error: unknown) => {
-    assert.ok(error instanceof ApiRequestError);
-    assert.equal(error.code, "invalid_request");
-    assert.match(error.message, /Check the request fields/);
-    return true;
-  });
 });
 
 for (const { status, error } of [
@@ -442,18 +435,17 @@ for (const { status, error } of [
         ),
       ),
     ).app;
-    await assert.rejects(
-      api(client.submitGenie({ payload: { content: "Count trips" } })),
-      (failure: unknown) => {
-        assert.ok(failure instanceof ApiRequestError);
-        assert.equal(failure.code, error.code);
-        assert.equal(failure.message, error.message);
-        assert.equal(
-          failure.upstreamStatus,
-          "upstreamStatus" in error ? error.upstreamStatus : undefined,
-        );
-        return true;
-      },
+    const failure = await Effect.runPromise(
+      Effect.flip(client.submitGenie({ payload: { content: "Count trips" } })),
+    );
+    assert.ok(Schema.is(ApiError)(failure));
+    assert.equal(failure.error.code, error.code);
+    assert.equal(failure.error.message, error.message);
+    assert.equal(
+      "upstreamStatus" in failure.error
+        ? failure.error.upstreamStatus
+        : undefined,
+      "upstreamStatus" in error ? error.upstreamStatus : undefined,
     );
   });
 }
@@ -509,7 +501,9 @@ test("UI cancellation aborts a generated-client response body after headers arri
     ),
   ).app;
   const controller = new AbortController();
-  const pending = api(client.metadata(), controller.signal);
+  const pending = Effect.runPromise(client.metadata().pipe(Effect.scoped), {
+    signal: controller.signal,
+  });
   const rejected = assert.rejects(pending);
   await reading;
   controller.abort();

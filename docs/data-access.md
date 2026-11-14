@@ -2,7 +2,7 @@
 
 ```mermaid
 flowchart LR
-  UI[React / Tailwind / shadcn UI] --> API[Effect HTTP router]
+  UI[Foldkit / Effect / Tailwind UI] --> API[Effect HTTP router]
   API --> Analytics[Analytics service]
   Analytics --> Arrow[Effect SQL Databricks / Arrow]
   Arrow --> Warehouse[SQL warehouse]

@@ -10,7 +10,9 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
   await expect(
     page.getByText("Total fare revenue", { exact: true }),
   ).toBeVisible({ timeout: 120_000 });
-  await expect(page.locator(".recharts-surface").first()).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: "Trips by pickup date", exact: true }),
+  ).toBeVisible();
   await page.getByRole("tab", { name: "Trips", exact: true }).focus();
   await page.keyboard.press("ArrowRight");
   await expect(

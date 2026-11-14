@@ -1,13 +1,13 @@
 # Databricks Apps + Effect
 
-A working NYC taxi analytics workspace with React, Tailwind CSS 4, shadcn/ui and
-Radix UI components, Recharts, and Leaflet. The app starts from the real
+A working NYC taxi analytics workspace with Foldkit, Effect 4, Tailwind CSS 4,
+SVG charts, and Leaflet. The app starts from the real
 `samples.nyctaxi.trips` data and persists a managed snapshot for stable trip
 identity. No synthetic dashboard data or mock Genie answers.
 
-The UI uses shadcn/ui's New York style with the neutral theme. The sidebar
+The UI uses a neutral theme with accessible native dialogs. The sidebar
 collapses to icons on desktop, remembers that preference, and becomes a drawer
-on mobile. Toggle it with the header button, sidebar rail, or **⌘B / Ctrl+B**.
+on mobile. Toggle it with the header button or **⌘B / Ctrl+B**.
 The sidebar shows the viewer's name and email from Databricks Apps proxy headers;
 local development uses the current workspace user's profile when available.
 
@@ -216,6 +216,15 @@ persistence across reloads. Screenshots and traces go to ignored `test-results/`
 The map geometry is bundled for reproducible rendering; the street basemap uses
 OpenStreetMap tiles. See [boundary provenance](client/public/SOURCES.md).
 `node scripts/refresh-geography.mjs` refreshes the official boundary artifact.
+
+Frontend state lives in a Schema-defined Foldkit model. Messages enter the pure
+`update` function, which returns the next model and named Effect commands. URL
+navigation, HTTP requests, persistence, clipboard, and downloads run through
+commands; browser events use a subscription and Leaflet uses a scoped mount.
+There are no component-local stores or hook lifecycles. `client/src/main.ts` boots
+the runtime, while `model.ts`, `message.ts`, `update.ts`, and the stateless views
+can be inspected independently. Run `npm run client:check` to audit the migration
+and `npm run test:browser` to exercise the UI and recovery workflows offline.
 
 Architecture and operational details: [docs/data-access.md](docs/data-access.md).
 Inspiration: [Databricks vacation rentals template](https://developers.databricks.com/templates/vacation-rentals).

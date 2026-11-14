@@ -9,7 +9,7 @@ test("sidebar collapses to icons, keeps filters, persists, and supports the keyb
   const expanded = await navigation.boundingBox();
   expect(expanded?.width).toBeGreaterThan(200);
   await page.screenshot({
-    path: "test-results/shadcn-desktop.png",
+    path: "test-results/foldkit-desktop.png",
     fullPage: true,
     animations: "disabled",
   });
@@ -27,7 +27,7 @@ test("sidebar collapses to icons, keeps filters, persists, and supports the keyb
   await trips.hover();
   await expect(page.getByRole("tooltip")).toHaveText("Trip explorer");
   await page.screenshot({
-    path: "test-results/shadcn-collapsed.png",
+    path: "test-results/foldkit-collapsed.png",
     fullPage: true,
     animations: "disabled",
   });
@@ -70,7 +70,7 @@ test("mobile sidebar traps focus, closes on navigation and Escape, and leaves de
     )
     .toBe(true);
   await page.screenshot({
-    path: "test-results/shadcn-mobile-sidebar.png",
+    path: "test-results/foldkit-mobile-sidebar.png",
     fullPage: true,
     animations: "disabled",
   });
@@ -120,7 +120,7 @@ test("note dialog has labelled fields, keyboard dismissal, and restores focus", 
   ).toBeEnabled();
   await expect(dialog).toContainText("ZIP 10001");
   await page.screenshot({
-    path: "test-results/shadcn-note-dialog.png",
+    path: "test-results/foldkit-note-dialog.png",
     fullPage: true,
     animations: "disabled",
   });
@@ -145,7 +145,7 @@ for (const width of [360, 390, 768, 1024, 1440]) {
       ),
     ).toBe(true);
     await page.screenshot({
-      path: `test-results/shadcn-${width}.png`,
+      path: `test-results/foldkit-${width}.png`,
       fullPage: true,
       animations: "disabled",
     });

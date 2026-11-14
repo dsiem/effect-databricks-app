@@ -258,3 +258,46 @@ test("loading older comments preserves the visible conversation through an outag
     panel.getByText("Recent comment", { exact: true }),
   ).toBeVisible();
 });
+
+test("typing while a comment posts keeps the new draft with a distinct retry identity", async ({
+  page,
+}) => {
+  let release: () => void = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const submitted: TripCommentInput[] = [];
+  const stored: TripComment[] = [];
+  await page.route("**/api/trip-comments**", async (route) => {
+    if (route.request().method() === "GET")
+      return route.fulfill({ json: { rows: stored, nextCursor: null } });
+    const input = route.request().postDataJSON() as TripCommentInput;
+    submitted.push(input);
+    if (submitted.length === 1) await pending;
+    const saved = { ...input, author, created_at: "2026-11-14T10:00:00Z" };
+    stored.push(saved);
+    return route.fulfill({ json: saved });
+  });
+  await page.goto("/trips");
+  await page
+    .getByRole("button", { name: /^Details and comments for trip/ })
+    .first()
+    .click();
+  const panel = page.getByRole("dialog", { name: "Trip details" });
+  const field = panel.getByRole("textbox", { name: "Add a comment" });
+  await field.fill("First finding");
+  await panel
+    .getByRole("button", { name: "Post comment", exact: true })
+    .click();
+  await expect.poll(() => submitted.length).toBe(1);
+  await field.fill("Next finding, typed while posting");
+  release();
+  await expect(panel.getByRole("status")).toHaveText("Comment posted");
+  await expect(field).toHaveValue("Next finding, typed while posting");
+  await panel
+    .getByRole("button", { name: "Post comment", exact: true })
+    .click();
+  await expect(field).toHaveValue("");
+  expect(submitted).toHaveLength(2);
+  expect(submitted[1]?.id).not.toBe(submitted[0]?.id);
+});
