@@ -338,8 +338,7 @@ button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
-select:focus-visible,
-[role="grid"]:focus-visible {
+select:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
@@ -420,11 +419,6 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-.date-trigger {
-  min-width: 280px;
-  justify-content: start;
-  font-weight: 400;
 }
 .zip-filter {
   width: 208px;
@@ -724,47 +718,6 @@ h2 {
   border: 0;
   height: 100%;
 }
-.date-dialog {
-  width: 650px;
-}
-.calendar-months {
-  display: flex;
-  gap: 24px;
-  padding: 16px;
-  justify-content: center;
-}
-.calendar-grid {
-  table-layout: fixed;
-  width: 280px;
-}
-.calendar-heading {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 12px;
-}
-.calendar-grid th {
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--muted-foreground);
-  height: 28px;
-}
-.calendar-grid td {
-  text-align: center;
-  height: 36px;
-}
-.calendar-day {
-  width: 34px;
-  height: 34px;
-  border-radius: 6px;
-  font-size: 13px;
-}
-.calendar-day:hover {
-  background: var(--muted);
-}
-.calendar-day.selected {
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
 .genie-panel {
   position: fixed;
   inset: auto 20px 20px auto;
@@ -915,9 +868,6 @@ h2 {
   .genie-full {
     height: calc(100dvh - 96px);
   }
-  .calendar-months {
-    padding: 12px 8px;
-  }
 }
 @media (max-width: 639px) {
   .metrics {
@@ -926,10 +876,6 @@ h2 {
   .date-filter,
   .zip-filter {
     width: 100%;
-  }
-  .date-trigger {
-    width: 100%;
-    min-width: 0;
   }
   .map-panel {
     height: 420px;
@@ -971,13 +917,4 @@ h2 {
 }
 .tooltip-anchor {
   min-width: 0;
-}
-.calendar-grid td[data-focused] .calendar-day {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
-
-.calendar-day[aria-disabled="true"] {
-  opacity: 0.5;
-  cursor: default;
 }

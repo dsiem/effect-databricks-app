@@ -1,7 +1,6 @@
 import { Button, Input, Nav, Tooltip } from "@foldkit/ui";
 import { Array as Arr } from "effect";
 import type { Document } from "foldkit/html";
-import { calendarView } from "../features/filters/calendar";
 import { filterError, filtersFromQuery, href } from "../features/filters/query";
 import { genieHelperView, genieView } from "../features/genie/view";
 import { pickupMapView } from "../features/map/view";
@@ -14,7 +13,6 @@ import {
 import { inspectorView } from "../features/trips/inspector";
 import { tripsView } from "../features/trips/view";
 import { featureView } from "../lib/feature-view";
-import { dateLabel } from "../lib/format";
 import { dialog } from "../ui/dialog";
 import { icon } from "../ui/icons";
 import { button, type Child, card } from "../ui/primitives";
@@ -165,15 +163,6 @@ function sidebar(h: H, model: Model) {
   });
 }
 function filters(h: H, model: Model) {
-  const date = dateLabel({
-    ...(model.filtersState.filterDraft.from
-      ? { from: model.filtersState.filterDraft.from }
-      : {}),
-    ...(model.filtersState.filterDraft.to
-      ? { to: model.filtersState.filterDraft.to }
-      : {}),
-  });
-  const label = date === "All dates" ? "Select date range" : date;
   return h.form(
     [
       h.AriaLabel("Trip filters"),
@@ -181,33 +170,42 @@ function filters(h: H, model: Model) {
       h.OnSubmit(M.ApplyFilters()),
     ],
     [
-      h.div(
-        [h.Class("date-filter")],
+      ...(
         [
-          h.label(
-            [h.For("date-trigger"), h.Class("field-label text-xs")],
-            ["Pickup date range"],
-          ),
-          h.input([
-            h.Type("hidden"),
-            h.Name("from"),
-            h.Value(model.filtersState.filterDraft.from),
-          ]),
-          h.input([
-            h.Type("hidden"),
-            h.Name("to"),
-            h.Value(model.filtersState.filterDraft.to),
-          ]),
-          button(h, {
-            label: label,
-            onClick: M.OpenCalendar(),
-            attributes: [
-              h.Id("date-trigger"),
-              h.AriaLabel(`Pickup date range: ${label}`),
-            ],
-            className: " date-trigger",
-          }),
-        ],
+          ["from", "Pickup start date"],
+          ["to", "Pickup end date"],
+        ] as const
+      ).map(([field, label]) =>
+        Input.view(
+          {
+            id: `pickup-${field}`,
+            name: field,
+            type: "date",
+            value: model.filtersState.filterDraft[field],
+            onInput: (value) => M.FilterChanged({ field, value }),
+            toView: (attributes) =>
+              h.div(
+                [h.Class("date-filter")],
+                [
+                  h.label(
+                    [...attributes.label, h.Class("field-label text-xs")],
+                    [label],
+                  ),
+                  h.input([
+                    ...attributes.input,
+                    h.Class("input"),
+                    ...(model.metadata.data
+                      ? [
+                          h.Min(model.metadata.data.from),
+                          h.Max(model.metadata.data.to),
+                        ]
+                      : []),
+                  ]),
+                ],
+              ),
+          },
+          h,
+        ),
       ),
       h.div(
         [h.Class("zip-filter")],
@@ -472,16 +470,6 @@ export function view(model: Model, h: H): Document {
               featureView(h, "inspector", inspectorView, {
                 ...model.tripsState,
                 dialogs: model.dialogs,
-              }),
-            ]
-          : []),
-        ...(model.filtersState.calendar
-          ? [
-              featureView(h, "calendar", calendarView, {
-                ...model.filtersState,
-                dialogs: model.dialogs,
-                metadata: model.metadata,
-                mobile: model.mobile,
               }),
             ]
           : []),

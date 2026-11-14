@@ -1,6 +1,5 @@
 import { Effect, Schema } from "effect";
 import { Command, Navigation } from "foldkit";
-import * as CalendarDate from "foldkit/calendar";
 import { History, turnBase } from "../features/genie/model";
 import { request } from "../lib/api-client";
 import { done, result } from "../lib/command-result";
@@ -37,7 +36,6 @@ export const Boot = Command.define("RestoreWorkspace", {
     return M.Booted({
       turns,
       persistenceError,
-      today: CalendarDate.fromDateLocal(new Date()),
       sidebar: !document.cookie.split("; ").includes("sidebar_state=false"),
       mobile: matchMedia("(max-width: 767px)").matches,
     });

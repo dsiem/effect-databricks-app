@@ -1,6 +1,5 @@
 import { Tooltip } from "@foldkit/ui";
 import { Schema } from "effect";
-import * as CalendarDate from "foldkit/calendar";
 import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../shared/domain";
 import * as Filters from "../features/filters/messages";
@@ -20,7 +19,6 @@ export const Message = defineMessageUnion({
     persistenceError: Schema.String,
     sidebar: Schema.Boolean,
     mobile: Schema.Boolean,
-    today: CalendarDate.CalendarDate,
   },
   Resized: { mobile: Schema.Boolean },
   ToggleSidebar: {},

@@ -18,138 +18,108 @@ for (const timezoneId of ["Europe/Berlin", "America/Los_Angeles"]) {
   test.describe(timezoneId, () => {
     test.use({ timezoneId });
 
-    test("selects a bounded range and applies the same calendar dates to the URL", async ({
+    test("applies native date inputs without shifting dates and restores them on reload", async ({
       page,
     }) => {
-      await page.setViewportSize({ width: 1440, height: 1000 });
       await openTrips(page);
-      const trigger = page.getByRole("button", {
-        name: "Pickup date range: Select date range",
-      });
-      await trigger.click();
-      const picker = page.getByRole("dialog", { name: "Pickup dates" });
-      const january = picker.getByRole("grid", { name: "January 2016" });
-      const february = picker.getByRole("grid", { name: "February 2016" });
-      await expect(january).toBeVisible();
-      await expect(february).toBeVisible();
-      await expect(
-        january.getByRole("button", { name: /January 2, 2016/ }),
-      ).toBeDisabled();
-      await expect(
-        february.getByRole("button", { name: /February 26, 2016/ }),
-      ).toBeDisabled();
-      await january.getByRole("button", { name: /January 10, 2016/ }).click();
-      await february.getByRole("button", { name: /February 20, 2016/ }).click();
+      const start = page.getByLabel("Pickup start date", { exact: true });
+      const end = page.getByLabel("Pickup end date", { exact: true });
+      await expect(start).toHaveAttribute("type", "date");
+      await expect(end).toHaveAttribute("type", "date");
+      await start.fill("2016-01-10");
+      await end.fill("2016-02-20");
       await expect(page).toHaveURL(/\/trips\?zip=10001$/);
-      await page.screenshot({
-        path: `test-results/date-range-${timezoneId.replace("/", "-")}.png`,
-        animations: "disabled",
-      });
-      await picker.getByRole("button", { name: "Done", exact: true }).click();
-      await expect(picker).not.toBeVisible();
-      const selected = page.getByRole("button", {
-        name: "Pickup date range: Jan 10, 2016 – Feb 20, 2016",
-      });
-      await expect(selected).toBeFocused();
       await page.getByRole("button", { name: "Apply", exact: true }).click();
       await expect(page).toHaveURL(
         /\/trips\?from=2016-01-10&to=2016-02-20&zip=10001$/,
       );
       await page.reload();
-      await expect(selected).toBeVisible();
+      await expect(start).toHaveValue("2016-01-10");
+      await expect(end).toHaveValue("2016-02-20");
       await page.getByRole("button", { name: "Reset", exact: true }).click();
       await expect(page).toHaveURL(/\/trips$/);
-      await expect(trigger).toBeVisible();
+      await expect(start).toHaveValue("");
+      await expect(end).toHaveValue("");
+      await expect(page.getByLabel("Pickup ZIP code")).toHaveValue("");
     });
   });
 }
 
 test("clears dates while preserving the ZIP filter", async ({ page }) => {
   await openTrips(page, "from=2016-01-10&to=2016-01-20&zip=10001");
-  await page.getByRole("button", { name: /^Pickup date range:/ }).click();
-  const picker = page.getByRole("dialog", { name: "Pickup dates" });
-  await picker.getByRole("button", { name: "Clear dates" }).click();
-  await picker.getByRole("button", { name: "Done", exact: true }).click();
+  await page.getByLabel("Pickup start date").fill("");
+  await page.getByLabel("Pickup end date").fill("");
   await page.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(page).toHaveURL(/\/trips\?zip=10001$/);
-  await expect(
-    page.getByRole("button", { name: "Pickup date range: Select date range" }),
-  ).toBeVisible();
+  await expect(page.getByLabel("Pickup start date")).toHaveValue("");
+  await expect(page.getByLabel("Pickup end date")).toHaveValue("");
 });
 
-for (const [query, label] of [
-  ["from=2016-01-10", "From Jan 10, 2016"],
-  ["to=2016-02-20", "Through Feb 20, 2016"],
-]) {
+for (const [query, from, to] of [
+  ["from=2016-01-10", "2016-01-10", ""],
+  ["to=2016-02-20", "", "2016-02-20"],
+] as const) {
   test(`preserves an open range: ${query}`, async ({ page }) => {
     await openTrips(page, query);
-    await expect(
-      page.getByRole("button", { name: `Pickup date range: ${label}` }),
-    ).toBeVisible();
+    await expect(page.getByLabel("Pickup start date")).toHaveValue(from);
+    await expect(page.getByLabel("Pickup end date")).toHaveValue(to);
     await page.getByRole("button", { name: "Apply", exact: true }).click();
     await expect(page).toHaveURL(`/trips?${query}`);
   });
 }
 
-test("mobile picker fits the screen and supports keyboard selection and dismissal", async ({
+test("rejects dates outside the dataset bounds before applying filters", async ({
+  page,
+}) => {
+  await openTrips(page);
+  await page.getByLabel("Pickup start date").fill("2016-01-02");
+  await page.getByLabel("Pickup end date").fill("2016-02-26");
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(page).toHaveURL(/\/trips\?zip=10001$/);
+  await page.getByLabel("Pickup start date").fill("2016-01-03");
+  await page.getByLabel("Pickup end date").fill("2016-02-25");
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(page).toHaveURL(
+    /\/trips\?from=2016-01-03&to=2016-02-25&zip=10001$/,
+  );
+});
+
+test("keeps date-order validation when dates are entered directly", async ({
+  page,
+}) => {
+  await openTrips(page);
+  await page.getByLabel("Pickup start date").fill("2016-02-20");
+  await page.getByLabel("Pickup end date").fill("2016-01-10");
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Invalid Explore filters" }),
+  ).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText(
+    "start date must be on or before the end date",
+  );
+});
+
+test("native date inputs fit a mobile screen and apply a range", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await openTrips(page);
-  const trigger = page.getByRole("button", { name: /^Pickup date range:/ });
-  await trigger.focus();
-  await page.keyboard.press("Enter");
-  const picker = page.getByRole("dialog", { name: "Pickup dates" });
-  await expect(picker.getByRole("grid")).toHaveCount(1);
-  const day = picker.getByRole("button", { name: /January 10, 2016/ });
-  await day.click();
-  const grid = picker.getByRole("grid");
-  await grid.focus();
-  await page.keyboard.press("ArrowRight");
-  const next = picker.getByRole("gridcell", { name: /January 11, 2016/ });
-  await expect(grid).toBeFocused();
-  await expect(grid).toHaveAttribute(
-    "aria-activedescendant",
-    (await next.getAttribute("id")) ?? "",
-  );
-  await page.keyboard.press("Space");
+  for (const label of ["Pickup start date", "Pickup end date"]) {
+    const input = page.getByLabel(label);
+    await expect(input).toBeVisible();
+    const bounds = await input.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds?.x).toBeGreaterThanOrEqual(0);
+    expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeLessThanOrEqual(360);
+  }
+  await page.getByLabel("Pickup start date").fill("2016-01-31");
+  await page.getByLabel("Pickup end date").fill("2016-02-01");
   await page.screenshot({
     path: "test-results/date-range-mobile.png",
     animations: "disabled",
   });
-  const bounds = await picker.boundingBox();
-  expect(bounds).not.toBeNull();
-  expect(bounds?.x).toBeGreaterThanOrEqual(0);
-  expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeLessThanOrEqual(360);
-  await page.keyboard.press("Escape");
-  await expect(picker).not.toBeVisible();
-  await expect(trigger).toBeFocused();
   await page.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(page).toHaveURL(
-    /\/trips\?from=2016-01-10&to=2016-01-11&zip=10001$/,
-  );
-});
-
-test("keyboard selection crosses a month boundary without losing the calendar cursor", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 360, height: 800 });
-  await openTrips(page, "from=2016-01-31&to=2016-01-31&zip=10001");
-  await page.getByRole("button", { name: /^Pickup date range:/ }).click();
-  const picker = page.getByRole("dialog", { name: "Pickup dates" });
-  const grid = picker.getByRole("grid");
-  await expect(grid).toBeFocused();
-  await page.keyboard.press("ArrowRight");
-  await expect(grid).toHaveAccessibleName("February 2016");
-  const day = picker.getByRole("gridcell", { name: /February 1, 2016/ });
-  await expect(grid).toHaveAttribute(
-    "aria-activedescendant",
-    (await day.getAttribute("id")) ?? "",
-  );
-  await page.keyboard.press("Space");
-  await picker.getByRole("button", { name: "Done", exact: true }).click();
-  await page.getByRole("button", { name: "Apply", exact: true }).click();
-  await expect(page).toHaveURL(
-    /\/trips\?from=2016-02-01&to=2016-02-01&zip=10001$/,
+    /\/trips\?from=2016-01-31&to=2016-02-01&zip=10001$/,
   );
 });

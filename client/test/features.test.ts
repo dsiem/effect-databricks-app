@@ -50,7 +50,7 @@ test("filters request navigation without owning routing state", () => {
   const changed = updateFilters(
     Filters.init(),
     FilterMessage.PickZip({ zip: "10001" }),
-    { query: "from=2016-01-01", metadata: null },
+    { query: "from=2016-01-01" },
   );
   assert.deepEqual(changed.outMessage, {
     _tag: "Navigate",

@@ -269,10 +269,11 @@ can be inspected independently. Run `npm run client:check` to check UI conventio
 and `npm run test:browser` to exercise the UI and recovery workflows offline.
 
 Interactive controls use `@foldkit/ui`: Nav for route links, Select for trip
-sorting, Tabs for chart metrics, Tooltip for the collapsed sidebar, Calendar for
-date navigation, and Dialog for modal sheets and editors. Button, Input, and
-Textarea render helpers supply the form controls. Keep their interaction behavior in Foldkit UI and apply
-app styling through the components' attribute bundles. `client:check` rejects
+sorting, Tabs for chart metrics, Tooltip for the collapsed sidebar, and Dialog
+for modal sheets and editors. Date filters use native date inputs. Button, Input,
+and Textarea render helpers supply the form controls. Keep their interaction
+behavior in Foldkit UI and apply app styling through the components' attribute
+bundles. `client:check` rejects
 hand-built widget roles.
 
 Architecture and operational details: [docs/data-access.md](docs/data-access.md).

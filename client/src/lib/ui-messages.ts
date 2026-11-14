@@ -5,7 +5,6 @@ export const DialogId = Schema.Literals([
   "note",
   "delete",
   "trip",
-  "calendar",
   "navigation",
   "genie",
 ]);

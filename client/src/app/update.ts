@@ -84,7 +84,6 @@ function updateApplication(
             to: filters.to ?? "",
             zip: filters.zip ?? "",
           },
-          calendar: false,
         },
         tripsState: {
           ...model.tripsState,
@@ -105,13 +104,6 @@ function updateApplication(
             ...model.genieState,
             turns: message.turns,
             persistenceError: message.persistenceError,
-          },
-          filtersState: {
-            ...model.filtersState,
-            calendars: [
-              { ...model.filtersState.calendars[0], today: message.today },
-              { ...model.filtersState.calendars[1], today: message.today },
-            ],
           },
         },
         commands: message.turns.flatMap<
@@ -164,13 +156,6 @@ function updateApplication(
           model: {
             ...model,
             tripsState: { ...model.tripsState, selectedTrip: null },
-          },
-        };
-      if (model.filtersState.calendar)
-        return {
-          model: {
-            ...model,
-            filtersState: { ...model.filtersState, calendar: false },
           },
         };
       if (model.savedViewsState.savedViews)
@@ -266,18 +251,12 @@ function updateApplication(
       return { model: { ...model, user: message.user } };
     case "LoadPage":
       return loadPage(model);
-    case "Calendar":
     case "FilterChanged":
     case "ApplyFilters":
     case "ResetFilters":
-    case "PickZip":
-    case "OpenCalendar":
-    case "CalendarMonth":
-    case "CalendarDay":
-    case "ClearDates": {
+    case "PickZip": {
       const changed = updateFilters(model.filtersState, message, {
         query: model.query,
-        metadata: model.metadata.data,
       });
       const next = { ...model, filtersState: changed.model };
       return changed.outMessage
@@ -423,11 +402,6 @@ function dismissDialog(model: Model, id: DialogId): Model {
         ...model,
         tripsState: { ...model.tripsState, selectedTrip: null },
       };
-    case "calendar":
-      return {
-        ...model,
-        filtersState: { ...model.filtersState, calendar: false },
-      };
     case "views":
       return {
         ...model,
@@ -456,7 +430,6 @@ export function update(
     note: next.savedViewsState.editor !== null,
     delete: next.savedViewsState.deleting !== null,
     trip: next.tripsState.selectedTrip !== null,
-    calendar: next.filtersState.calendar,
     navigation: next.mobile && next.mobileNavigation,
     genie: next.mobile && next.genieState.genieOpen && next.path !== "/genie",
   };
