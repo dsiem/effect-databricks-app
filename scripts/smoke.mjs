@@ -47,9 +47,16 @@ try {
   const root = await request("/");
   assert.equal(root.status, 200);
   assert.match(root.body, /<div id="root"><\/div>/);
-  const asset = root.body.match(/src="([^"]+\.js)"/);
-  assert.ok(asset, "Built HTML references its JavaScript bundle");
-  assert.equal((await request(asset[1])).status, 200);
+  const assets = [...root.body.matchAll(/src="([^"]+\.js)"/g)];
+  assert.ok(
+    assets.length >= 2,
+    "Built HTML references theme initialization and the application bundle",
+  );
+  for (const [, asset] of assets) {
+    const response = await request(asset);
+    assert.equal(response.status, 200, `${asset} is served`);
+    assert.doesNotMatch(response.body, /<!doctype html>/i);
+  }
   for (const path of ["/trips", "/map", "/genie"]) {
     assert.equal((await request(path)).status, 200);
   }

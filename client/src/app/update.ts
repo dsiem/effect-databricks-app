@@ -1,4 +1,4 @@
-import { Dialog, Tooltip } from "@foldkit/ui";
+import { Dialog, Menu, Tooltip } from "@foldkit/ui";
 import { Option } from "effect";
 import { Command, Update } from "foldkit";
 import type { Url } from "foldkit/url";
@@ -23,6 +23,7 @@ import * as AppCommands from "./commands";
 import { Message as M, type Message } from "./message";
 import { type Model, pageContext, requestKey } from "./model";
 import { loadPage } from "./navigation";
+import { ThemeMenu } from "./theme";
 import { DialogId, initDialogs, initTooltip } from "./ui-state";
 
 export function init(url: Url): Update.Return<Model, Message, ApiClient> {
@@ -32,6 +33,8 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
     path: url.pathname,
     query,
     sidebar: true,
+    themePreference: "System",
+    themeMenu: Menu.init({ id: "theme" }),
     mobile: false,
     mobileNavigation: false,
     tooltips: {},
@@ -100,21 +103,54 @@ function updateApplication(
           ...model,
           sidebar: message.sidebar,
           mobile: message.mobile,
+          themePreference: message.themePreference,
           genieState: {
             ...model.genieState,
             turns: message.turns,
             persistenceError: message.persistenceError,
           },
         },
-        commands: message.turns.flatMap<
-          Command.Command<Message, never, ApiClient>
-        >((turn) =>
-          turn.state === "waiting"
-            ? [GenieCommands.PollQuestion({ turn })]
-            : turn.state === "retrieving"
-              ? [GenieCommands.RetrieveQuestion({ turn })]
-              : [],
-        ),
+        commands: [
+          AppCommands.SetTheme({
+            preference: message.themePreference,
+            persist: false,
+          }),
+          ...message.turns.flatMap<Command.Command<Message, never, ApiClient>>(
+            (turn) =>
+              turn.state === "waiting"
+                ? [GenieCommands.PollQuestion({ turn })]
+                : turn.state === "retrieving"
+                  ? [GenieCommands.RetrieveQuestion({ turn })]
+                  : [],
+          ),
+        ],
+      };
+    case "ThemeMenu": {
+      const changed = ThemeMenu.update(model.themeMenu, message.message);
+      const preference = changed.outMessage?.value;
+      return {
+        model: {
+          ...model,
+          themeMenu: changed.model,
+          themePreference: preference ?? model.themePreference,
+        },
+        commands: [
+          ...(changed.commands ?? []).map((command) =>
+            Command.mapMessage(command, (message) => M.ThemeMenu({ message })),
+          ),
+          ...(preference
+            ? [AppCommands.SetTheme({ preference, persist: true })]
+            : []),
+        ],
+      };
+    }
+    case "SystemThemeChanged":
+      return {
+        model,
+        commands:
+          model.themePreference === "System"
+            ? [AppCommands.SetTheme({ preference: "System", persist: false })]
+            : [],
       };
     case "Resized":
       return {
@@ -424,6 +460,16 @@ export function update(
   const result = updateApplication(model, message);
   let next = result.model;
   const commands = [...(result.commands ?? [])];
+  // Release the child menu's resources when the mobile drawer is removed.
+  if (next.mobile && !next.mobileNavigation && next.themeMenu.isOpen) {
+    const closed = ThemeMenu.close(next.themeMenu);
+    next = { ...next, themeMenu: closed.model };
+    commands.push(
+      ...(closed.commands ?? []).map((command) =>
+        Command.mapMessage(command, (message) => M.ThemeMenu({ message })),
+      ),
+    );
+  }
   // Domain state controls visibility; Foldkit owns each dialog's lifecycle.
   const visibility = {
     views: next.savedViewsState.savedViews,

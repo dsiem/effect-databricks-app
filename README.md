@@ -11,6 +11,9 @@ Theme tokens and component styles live in `client/src/styles.css`; generic view
 helpers live in `client/src/ui/`. The sidebar
 collapses to icons on desktop, remembers that preference, and becomes a drawer
 on mobile. Toggle it with the header button or **⌘B / Ctrl+B**.
+The Appearance menu above the sidebar profile follows Foldkit's Dark / Light / System selector. It
+remembers your choice in this browser, defaults to the system theme, and applies
+it before the app loads. System mode follows appearance changes automatically.
 The sidebar shows the viewer's name and email from Databricks Apps proxy headers;
 local development uses the current workspace user's profile when available.
 
@@ -210,7 +213,7 @@ structure. These helpers are generic over the caller's message type and contain
 no dataset or application state. Stateful interactions remain Foldkit submodels.
 
 Change the brand palette in `@theme` and the surface, text, border, radius, and
-chart tokens in `:root`. Component classes define appearance; feature utilities
+chart tokens in `:root` and `:root.dark`. Component classes define appearance; feature utilities
 compose layouts. Tabs style `aria-selected` and navigation styles `aria-current`
 directly, so visual state follows Foldkit's actual state. Chart `width` controls
 the SVG coordinate space (400 for the compact hourly panel, 700 by default),

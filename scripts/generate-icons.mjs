@@ -21,6 +21,7 @@ const names = [
   "x",
   "chevron-left",
   "chevron-right",
+  "chevron-down",
   "maximize-2",
   "minimize-2",
   "plus",
@@ -30,6 +31,10 @@ const names = [
   "arrow-up",
   "pin",
   "pin-off",
+  "sun",
+  "moon",
+  "monitor",
+  "check",
 ];
 async function download(path) {
   const response = await fetch(`${source}/${path}`);

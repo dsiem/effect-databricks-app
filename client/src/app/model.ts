@@ -1,4 +1,4 @@
-import { Tooltip } from "@foldkit/ui";
+import { Menu, Tooltip } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as D from "../../../shared/domain";
 import * as Filters from "../features/filters/model";
@@ -9,11 +9,14 @@ import * as Overview from "../features/overview/model";
 import * as SavedViews from "../features/saved-views/model";
 import * as Trips from "../features/trips/model";
 import { request } from "../lib/request-state";
+import { ThemePreference } from "./theme";
 import { Dialogs } from "./ui-state";
 export const Model = Schema.Struct({
   path: Schema.String,
   query: Schema.String,
   sidebar: Schema.Boolean,
+  themePreference: ThemePreference,
+  themeMenu: Menu.Model,
   mobile: Schema.Boolean,
   mobileNavigation: Schema.Boolean,
   tooltips: Schema.Record(Schema.String, Tooltip.Model),

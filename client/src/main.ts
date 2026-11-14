@@ -7,7 +7,6 @@ import { init, update } from "./app/update";
 import { view } from "./app/view";
 import { ApiClient } from "./lib/api-client";
 import "./styles.css";
-import "leaflet/dist/leaflet.css";
 
 Runtime.run(
   Runtime.makeApplication({

@@ -136,7 +136,7 @@ export const error = <Message>(h: H<Message>, text: string, retry?: Message) =>
     "p-8",
   );
 export const alert = <Message>(h: H<Message>, text: string) =>
-  h.p([h.Role("alert"), h.Class("text-sm text-red-700")], [text]);
+  h.p([h.Role("alert"), h.Class("text-sm error-text")], [text]);
 export const table = <Message>(
   h: H<Message>,
   options: {

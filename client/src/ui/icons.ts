@@ -216,6 +216,9 @@ const shapes = {
   "chevron-right": <Message>(h: H<Message>) => [
     h.path([h.Attribute("d", "m9 18 6-6-6-6")], []),
   ],
+  "chevron-down": <Message>(h: H<Message>) => [
+    h.path([h.Attribute("d", "m6 9 6 6 6-6")], []),
+  ],
   "maximize-2": <Message>(h: H<Message>) => [
     h.polyline([h.Attribute("points", "15 3 21 3 21 9")], []),
     h.polyline([h.Attribute("points", "9 21 3 21 3 15")], []),
@@ -335,6 +338,56 @@ const shapes = {
       ],
       [],
     ),
+  ],
+  sun: <Message>(h: H<Message>) => [
+    h.circle(
+      [h.Attribute("cx", "12"), h.Attribute("cy", "12"), h.Attribute("r", "4")],
+      [],
+    ),
+    h.path([h.Attribute("d", "M12 2v2")], []),
+    h.path([h.Attribute("d", "M12 20v2")], []),
+    h.path([h.Attribute("d", "m4.93 4.93 1.41 1.41")], []),
+    h.path([h.Attribute("d", "m17.66 17.66 1.41 1.41")], []),
+    h.path([h.Attribute("d", "M2 12h2")], []),
+    h.path([h.Attribute("d", "M20 12h2")], []),
+    h.path([h.Attribute("d", "m6.34 17.66-1.41 1.41")], []),
+    h.path([h.Attribute("d", "m19.07 4.93-1.41 1.41")], []),
+  ],
+  moon: <Message>(h: H<Message>) => [
+    h.path([h.Attribute("d", "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z")], []),
+  ],
+  monitor: <Message>(h: H<Message>) => [
+    h.rect(
+      [
+        h.Attribute("width", "20"),
+        h.Attribute("height", "14"),
+        h.Attribute("x", "2"),
+        h.Attribute("y", "3"),
+        h.Attribute("rx", "2"),
+      ],
+      [],
+    ),
+    h.line(
+      [
+        h.Attribute("x1", "8"),
+        h.Attribute("x2", "16"),
+        h.Attribute("y1", "21"),
+        h.Attribute("y2", "21"),
+      ],
+      [],
+    ),
+    h.line(
+      [
+        h.Attribute("x1", "12"),
+        h.Attribute("x2", "12"),
+        h.Attribute("y1", "17"),
+        h.Attribute("y2", "21"),
+      ],
+      [],
+    ),
+  ],
+  check: <Message>(h: H<Message>) => [
+    h.path([h.Attribute("d", "M20 6 9 17l-5-5")], []),
   ],
 };
 

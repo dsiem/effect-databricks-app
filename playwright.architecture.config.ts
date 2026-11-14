@@ -5,6 +5,7 @@ const port = process.env.PLAYWRIGHT_PORT ?? "3011";
 export default defineConfig({
   testDir: "e2e",
   testMatch: [
+    "theme.spec.ts",
     "browser-compat.spec.ts",
     "foldkit.spec.ts",
     "map.spec.ts",

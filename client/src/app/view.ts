@@ -19,6 +19,7 @@ import { icon } from "../ui/icons";
 import { button, type Child, card } from "../ui/primitives";
 import { Message as M } from "./message";
 import { type Model, navigation, pageContext } from "./model";
+import { themeSelector } from "./theme-view";
 import { initTooltip } from "./ui-state";
 import type { H } from "./view-types";
 
@@ -124,6 +125,7 @@ function sidebar(h: H, model: Model) {
           h.div(
             [h.Class("sidebar-bottom")],
             [
+              themeSelector(h, model),
               ...(user
                 ? [
                     tooltip(
@@ -370,11 +372,11 @@ export function view(model: Model, h: H): Document {
                 ),
                 h.span([h.Class("hidden sm:block muted text-sm")], ["/ "]),
                 h.span([h.Class("text-sm")], [current]),
-                ...(model.path !== "/genie"
-                  ? [
-                      h.div(
-                        [h.Class("ml-auto")],
-                        [
+                h.div(
+                  [h.Class("ml-auto flex items-center gap-2")],
+                  [
+                    ...(model.path !== "/genie"
+                      ? [
                           button(h, {
                             label: h.span(
                               [h.Class("inline-flex items-center gap-2")],
@@ -387,10 +389,10 @@ export function view(model: Model, h: H): Document {
                             disabled: !filtersFromQuery(model.query),
                             attributes: [h.Id("genie-trigger")],
                           }),
-                        ],
-                      ),
-                    ]
-                  : []),
+                        ]
+                      : []),
+                  ],
+                ),
               ],
             ),
             h.main(

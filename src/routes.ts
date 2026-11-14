@@ -175,6 +175,11 @@ const StaticRoutes = HttpRouter.use((router) =>
       "/nyc-zips.geojson",
       serveFile(resolve(webRoot, "nyc-zips.geojson")),
     );
+    yield* router.add(
+      "GET",
+      "/theme-init.js",
+      serveFile(resolve(webRoot, "theme-init.js")),
+    );
     for (const path of [
       "/",
       "/trips",

@@ -2,6 +2,7 @@ import { Effect, Queue, Stream } from "effect";
 import { Subscription } from "foldkit";
 import { Message as M, type Message } from "./message";
 import type { Model } from "./model";
+import { systemThemeQuery } from "./theme";
 
 export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
   browser: entry(
@@ -24,11 +25,16 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
               const media = matchMedia("(max-width: 767px)");
               const resize = () =>
                 Queue.offerUnsafe(queue, M.Resized({ mobile: media.matches }));
+              const themeMedia = matchMedia(systemThemeQuery);
+              const themeChanged = () =>
+                Queue.offerUnsafe(queue, M.SystemThemeChanged());
               window.addEventListener("keydown", keydown);
               media.addEventListener("change", resize);
+              themeMedia.addEventListener("change", themeChanged);
               return () => {
                 window.removeEventListener("keydown", keydown);
                 media.removeEventListener("change", resize);
+                themeMedia.removeEventListener("change", themeChanged);
               };
             }),
             (cleanup) => Effect.sync(cleanup),

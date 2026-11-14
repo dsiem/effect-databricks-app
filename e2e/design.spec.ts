@@ -168,109 +168,137 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-for (const width of [390, 1440]) {
-  test(`populated workspace and overlays at ${width}px`, async ({
-    page,
-  }, info) => {
-    await page.setViewportSize({ width, height: 1000 });
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto(`/${query}`);
-    await expect(
-      page.getByRole("table", { name: "Top pickup ZIP codes", exact: true }),
-    ).toBeVisible();
-    await primaryIsDistinct(page);
-    await fitsViewport(page);
-    const tickHeights = await page
-      .locator(".chart-tick")
-      .evaluateAll((elements) =>
-        elements.map((element) => element.getBoundingClientRect().height),
+for (const colorScheme of ["light", "dark"] as const) {
+  for (const width of [390, 1440]) {
+    test(`populated workspace and overlays in ${colorScheme} at ${width}px`, async ({
+      page,
+    }, info) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.emulateMedia({ colorScheme });
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.goto(`/${query}`);
+      await expect(
+        page.getByRole("table", { name: "Top pickup ZIP codes", exact: true }),
+      ).toBeVisible();
+      await primaryIsDistinct(page);
+      await fitsViewport(page);
+      const tickHeights = await page
+        .locator(".chart-tick")
+        .evaluateAll((elements) =>
+          elements.map((element) => element.getBoundingClientRect().height),
+        );
+      expect(tickHeights.every((height) => height >= 8)).toBe(true);
+      const metrics = page.locator(".metrics > .card");
+      await expect(metrics).toHaveCount(4);
+      const bounds = await metrics.evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().y),
       );
-    expect(tickHeights.every((height) => height >= 8)).toBe(true);
-    const metrics = page.locator(".metrics > .card");
-    await expect(metrics).toHaveCount(4);
-    const bounds = await metrics.evaluateAll((elements) =>
-      elements.map((element) => element.getBoundingClientRect().y),
-    );
-    expect(new Set(bounds).size).toBe(width === 390 ? 2 : 1);
-    await capture(page, info, "overview");
-    await page
-      .locator("header")
-      .getByRole("button", { name: "Ask Genie", exact: true })
-      .click();
-    const helper = page.getByRole("dialog", { name: "Genie", exact: true });
-    await expect(
-      helper.getByRole("button", {
-        name: "Explain the main patterns in this view.",
+      expect(new Set(bounds).size).toBe(width === 390 ? 2 : 1);
+      await capture(page, info, "overview");
+      if (width === 390) {
+        await page
+          .getByRole("button", { name: "Open navigation", exact: true })
+          .click();
+      }
+      await page
+        .getByRole("button", { name: "Theme: System", exact: true })
+        .click();
+      await expect(page.getByRole("menu")).toBeFocused();
+      await fitsViewport(page);
+      await capture(page, info, "theme-menu", false);
+      await page.keyboard.press("Escape");
+      await expect(
+        page.getByRole("button", { name: "Theme: System", exact: true }),
+      ).toBeFocused();
+      if (width === 390) {
+        await page.keyboard.press("Escape");
+        await expect(
+          page.getByRole("dialog", { name: "Sidebar", exact: true }),
+        ).not.toBeVisible();
+      }
+      await page
+        .locator("header")
+        .getByRole("button", { name: "Ask Genie", exact: true })
+        .click();
+      const helper = page.getByRole("dialog", { name: "Genie", exact: true });
+      await expect(
+        helper.getByRole("button", {
+          name: "Explain the main patterns in this view.",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await capture(page, info, "genie-helper", false);
+      await helper
+        .getByRole("button", { name: "Close Genie", exact: true })
+        .click();
+      await page.goto(`/trips${query}`);
+      const table = page.getByRole("table", {
+        name: "Matching trips",
         exact: true,
-      }),
-    ).toBeVisible();
-    await capture(page, info, "genie-helper", false);
-    await helper
-      .getByRole("button", { name: "Close Genie", exact: true })
-      .click();
-    await page.goto(`/trips${query}`);
-    const table = page.getByRole("table", {
-      name: "Matching trips",
-      exact: true,
-    });
-    await expect(table.getByRole("row")).toHaveCount(9);
-    await fitsViewport(page);
-    await capture(page, info, "trips");
-    await table
-      .getByRole("button", { name: trips[0]?.pickup_at, exact: true })
-      .click();
-    const inspector = page.getByRole("dialog", {
-      name: "Trip details",
-      exact: true,
-    });
-    await expect(
-      inspector.getByText("Jordan Lee", { exact: true }),
-    ).toBeVisible();
-    const sheet = await inspector.locator(".sheet").boundingBox();
-    expect(
-      Math.abs((sheet?.x ?? 0) + (sheet?.width ?? 0) - width),
-    ).toBeLessThan(20);
-    await capture(page, info, "trip-inspector", false);
-    await page.keyboard.press("Escape");
-    await page
-      .getByRole("button", { name: "Saved views", exact: true })
-      .click();
-    await expect(
-      page.getByRole("heading", {
-        name: "Midtown evening pickups",
+      });
+      await expect(table.getByRole("row")).toHaveCount(9);
+      await fitsViewport(page);
+      await capture(page, info, "trips");
+      await table
+        .getByRole("button", { name: trips[0]?.pickup_at, exact: true })
+        .click();
+      const inspector = page.getByRole("dialog", {
+        name: "Trip details",
         exact: true,
-      }),
-    ).toBeVisible();
-    await capture(page, info, "saved-views", false);
-    await page
-      .getByRole("button", { name: "Save this view", exact: true })
-      .click();
-    const editor = page.getByRole("dialog", {
-      name: "Save this view",
-      exact: true,
+      });
+      await expect(
+        inspector.getByText("Jordan Lee", { exact: true }),
+      ).toBeVisible();
+      const sheet = await inspector.locator(".sheet").boundingBox();
+      expect(
+        Math.abs((sheet?.x ?? 0) + (sheet?.width ?? 0) - width),
+      ).toBeLessThan(20);
+      await capture(page, info, "trip-inspector", false);
+      await page.keyboard.press("Escape");
+      await page
+        .getByRole("button", { name: "Saved views", exact: true })
+        .click();
+      await expect(
+        page.getByRole("heading", {
+          name: "Midtown evening pickups",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await capture(page, info, "saved-views", false);
+      await page
+        .getByRole("button", { name: "Save this view", exact: true })
+        .click();
+      const editor = page.getByRole("dialog", {
+        name: "Save this view",
+        exact: true,
+      });
+      await editor
+        .getByRole("textbox", { name: "View name", exact: true })
+        .fill("January fare review");
+      await capture(page, info, "save-view", false);
+      await page.goto(`/map${query}`);
+      const map = page.locator(".map-panel");
+      await expect(
+        page.locator(".leaflet-overlay-pane path").first(),
+      ).toBeVisible();
+      // Leaflet adds its class to the mount itself. A 100% height override collapsed it.
+      expect((await map.boundingBox())?.height).toBeGreaterThanOrEqual(350);
+      await expect(map.locator(".leaflet-control-zoom-in")).toHaveCSS(
+        "background-color",
+        colorScheme === "dark" ? "rgb(27, 32, 44)" : "rgb(255, 255, 255)",
+      );
+      await fitsViewport(page);
+      await capture(page, info, "pickup-map");
+      await page.goto(`/genie${query}`);
+      await expect(
+        page.getByRole("heading", { name: "Go deeper into this view" }),
+      ).toBeVisible();
+      await fitsViewport(page);
+      await capture(page, info, "genie-page");
+      expect(errors).toEqual([]);
     });
-    await editor
-      .getByRole("textbox", { name: "View name", exact: true })
-      .fill("January fare review");
-    await capture(page, info, "save-view", false);
-    await page.goto(`/map${query}`);
-    const map = page.locator(".map-panel");
-    await expect(
-      page.locator(".leaflet-overlay-pane path").first(),
-    ).toBeVisible();
-    // Leaflet adds its class to the mount itself. A 100% height override collapsed it.
-    expect((await map.boundingBox())?.height).toBeGreaterThanOrEqual(350);
-    await fitsViewport(page);
-    await capture(page, info, "pickup-map");
-    await page.goto(`/genie${query}`);
-    await expect(
-      page.getByRole("heading", { name: "Go deeper into this view" }),
-    ).toBeVisible();
-    await fitsViewport(page);
-    await capture(page, info, "genie-page");
-    expect(errors).toEqual([]);
-  });
+  }
 }
 
 test("loading, empty, and error states retain the workspace layout", async ({

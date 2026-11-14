@@ -4,6 +4,12 @@ import { History, turnBase } from "../features/genie/model";
 import { request } from "../lib/api-client";
 import { done, result } from "../lib/command-result";
 import { Message as M } from "./message";
+import {
+  applyTheme,
+  readThemePreference,
+  ThemePreference,
+  themeStorageKey,
+} from "./theme";
 export const Navigate = Command.define("Navigate", {
   args: { href: Schema.String, external: Schema.Boolean },
   messages: [M.Idle],
@@ -38,8 +44,26 @@ export const Boot = Command.define("RestoreWorkspace", {
       persistenceError,
       sidebar: !document.cookie.split("; ").includes("sidebar_state=false"),
       mobile: matchMedia("(max-width: 767px)").matches,
+      themePreference: readThemePreference(),
     });
   }),
+});
+export const SetTheme = Command.define("SetTheme", {
+  args: { preference: ThemePreference, persist: Schema.Boolean },
+  messages: [M.Idle],
+  execute: ({ preference, persist }) =>
+    done(
+      Effect.sync(() => {
+        applyTheme(preference);
+        if (persist) {
+          try {
+            localStorage.setItem(themeStorageKey, preference);
+          } catch {
+            // Keep the selected theme for this session even without storage.
+          }
+        }
+      }),
+    ),
 });
 export const PersistSidebar = Command.define("PersistSidebar", {
   args: { open: Schema.Boolean },

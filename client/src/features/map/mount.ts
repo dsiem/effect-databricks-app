@@ -31,7 +31,8 @@ const Geography = Schema.Struct({
   ),
 });
 export const activityColors = [20, 40, 60, 80, 100].map(
-  (amount) => `color-mix(in oklab, var(--chart-color) ${amount}%, white)`,
+  (amount) =>
+    `color-mix(in oklab, var(--chart-color) ${amount}%, var(--surface))`,
 );
 export const MapMount = Mount.defineStream("PickupMap", {
   args: { zones: Schema.Array(D.Zone), query: Schema.String },
@@ -76,7 +77,7 @@ export const MapMount = Mount.defineStream("PickupMap", {
               style: (feature) => {
                 const trips = count(feature?.properties.zcta ?? "");
                 return {
-                  color: "white",
+                  color: "var(--surface)",
                   weight: 1,
                   fillOpacity: 0.85,
                   fillColor:
