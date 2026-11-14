@@ -118,8 +118,8 @@ databricks bundle deployment bind analytics EXISTING_WAREHOUSE_ID -t dev
 npm run workspace:setup -- dev
 ```
 
-The local override preserves the pre-existing `effect-daniel-siemssen-dev` app in
-the verified workspace. Bundle teardown also manages the adopted warehouse; review
+The local override preserves the existing app in your workspace. Bundle teardown
+also manages the adopted warehouse; review
 `databricks bundle plan` before infrastructure changes or destroying a bundle.
 
 The **Deploy** GitHub workflow uses the same setup command and GitHub OIDC.
