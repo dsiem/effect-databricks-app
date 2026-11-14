@@ -1,8 +1,10 @@
-import { BookOpen, SlidersHorizontal, Sparkles } from "lucide-react";
+import { BookOpen, SlidersHorizontal } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useFilters, useMetadata } from "./api";
 import { AppSidebar, navigation } from "./components/app-sidebar";
 import { DateRangeFilter } from "./components/date-range-filter";
+import { AskGenieButton, GenieHelper } from "./components/genie/helper";
+import { GenieProvider } from "./components/genie/provider";
 import { Button, Card, Input } from "./components/ui";
 import {
   Breadcrumb,
@@ -58,6 +60,7 @@ function WorkspaceHeader() {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
+      {pathname !== "/genie" && <AskGenieButton className="ml-auto" />}
     </header>
   );
 }
@@ -67,105 +70,105 @@ export function Layout() {
   const { filters, query, filterError, setFilters } = useFilters();
   const metadata = useMetadata();
   return (
-    <SidebarProvider
-      defaultOpen={!document.cookie.split("; ").includes("sidebar_state=false")}
-    >
-      <AppSidebar />
-      <SidebarInset className="min-w-0">
-        <WorkspaceHeader />
-        <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6 lg:p-8">
-          {location.pathname !== "/genie" &&
-            location.pathname !== "/notebook" && (
-              <form
-                key={query}
-                aria-label="Trip filters"
-                className="mb-8 flex flex-wrap items-end gap-3 rounded-lg border bg-muted/30 p-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const data = new FormData(event.currentTarget);
-                  setFilters({
-                    ...(data.get("from")
-                      ? { from: String(data.get("from")) }
-                      : {}),
-                    ...(data.get("to") ? { to: String(data.get("to")) } : {}),
-                    ...(data.get("zip")
-                      ? { zip: String(data.get("zip")) }
-                      : {}),
-                  });
-                }}
-              >
-                <SlidersHorizontal className="mx-1 mb-2.5 hidden size-4 text-muted-foreground xl:block" />
-                <DateRangeFilter
-                  from={filters.from}
-                  to={filters.to}
-                  min={metadata.data?.from}
-                  max={metadata.data?.to}
-                />
-                <Separator
-                  orientation="vertical"
-                  className="mx-1 mb-2 hidden data-[orientation=vertical]:h-5 md:block"
-                />
-                <div className="flex w-full flex-col gap-1.5 sm:w-52">
-                  <label className="text-xs font-medium" htmlFor="pickup-zip">
-                    Pickup ZIP code
-                  </label>
-                  <Input
-                    id="pickup-zip"
-                    name="zip"
-                    placeholder="Enter ZIP (optional)"
-                    defaultValue={filters.zip ?? ""}
-                    inputMode="numeric"
-                    pattern="[0-9]{5}"
-                    maxLength={5}
-                    className="bg-background"
+    <GenieProvider>
+      <SidebarProvider
+        defaultOpen={
+          !document.cookie.split("; ").includes("sidebar_state=false")
+        }
+      >
+        <AppSidebar />
+        <SidebarInset className="min-w-0">
+          <WorkspaceHeader />
+          <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6 lg:p-8">
+            {location.pathname !== "/genie" &&
+              location.pathname !== "/notebook" && (
+                <form
+                  key={query}
+                  aria-label="Trip filters"
+                  className="mb-8 flex flex-wrap items-end gap-3 rounded-lg border bg-muted/30 p-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const data = new FormData(event.currentTarget);
+                    setFilters({
+                      ...(data.get("from")
+                        ? { from: String(data.get("from")) }
+                        : {}),
+                      ...(data.get("to") ? { to: String(data.get("to")) } : {}),
+                      ...(data.get("zip")
+                        ? { zip: String(data.get("zip")) }
+                        : {}),
+                    });
+                  }}
+                >
+                  <SlidersHorizontal className="mx-1 mb-2.5 hidden size-4 text-muted-foreground xl:block" />
+                  <DateRangeFilter
+                    from={filters.from}
+                    to={filters.to}
+                    min={metadata.data?.from}
+                    max={metadata.data?.to}
                   />
-                </div>
-                <Button type="submit">Apply</Button>
-                {query && (
-                  <Button
-                    variant="ghost"
-                    type="button"
-                    onClick={() => setFilters({})}
-                  >
-                    Reset
-                  </Button>
-                )}
-                <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
-                  <span>Continue with applied Explore filters</span>
-                  <Link
-                    to={`/genie${query ? `?${query}` : ""}`}
-                    className="inline-flex items-center gap-1.5 font-medium text-foreground underline-offset-4 hover:underline"
-                  >
-                    <Sparkles className="size-3.5" />
-                    Ask Genie
-                  </Link>
-                  <Link
-                    to={`/notebook${query ? `?${query}` : ""}`}
-                    className="inline-flex items-center gap-1.5 font-medium text-foreground underline-offset-4 hover:underline"
-                  >
-                    <BookOpen className="size-3.5" />
-                    Open notebook
-                  </Link>
-                </div>
-              </form>
+                  <Separator
+                    orientation="vertical"
+                    className="mx-1 mb-2 hidden data-[orientation=vertical]:h-5 md:block"
+                  />
+                  <div className="flex w-full flex-col gap-1.5 sm:w-52">
+                    <label className="text-xs font-medium" htmlFor="pickup-zip">
+                      Pickup ZIP code
+                    </label>
+                    <Input
+                      id="pickup-zip"
+                      name="zip"
+                      placeholder="Enter ZIP (optional)"
+                      defaultValue={filters.zip ?? ""}
+                      inputMode="numeric"
+                      pattern="[0-9]{5}"
+                      maxLength={5}
+                      className="bg-background"
+                    />
+                  </div>
+                  <Button type="submit">Apply</Button>
+                  {query && (
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      onClick={() => setFilters({})}
+                    >
+                      Reset
+                    </Button>
+                  )}
+                  <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
+                    <span>Continue with applied Explore filters</span>
+                    <Link
+                      to={`/notebook${query ? `?${query}` : ""}`}
+                      className="inline-flex items-center gap-1.5 font-medium text-foreground underline-offset-4 hover:underline"
+                    >
+                      <BookOpen className="size-3.5" />
+                      Open notebook
+                    </Link>
+                  </div>
+                </form>
+              )}
+            {filterError ? (
+              <Card role="alert" className="gap-3 p-8">
+                <h1 className="text-lg font-semibold">
+                  Invalid Explore filters
+                </h1>
+                <p className="text-sm text-muted-foreground">{filterError}</p>
+                <Button
+                  className="w-fit"
+                  variant="outline"
+                  onClick={() => setFilters({})}
+                >
+                  Clear invalid filters
+                </Button>
+              </Card>
+            ) : (
+              <Outlet />
             )}
-          {filterError ? (
-            <Card role="alert" className="gap-3 p-8">
-              <h1 className="text-lg font-semibold">Invalid Explore filters</h1>
-              <p className="text-sm text-muted-foreground">{filterError}</p>
-              <Button
-                className="w-fit"
-                variant="outline"
-                onClick={() => setFilters({})}
-              >
-                Clear invalid filters
-              </Button>
-            </Card>
-          ) : (
-            <Outlet />
-          )}
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+          </div>
+        </SidebarInset>
+        <GenieHelper />
+      </SidebarProvider>
+    </GenieProvider>
   );
 }

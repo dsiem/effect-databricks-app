@@ -1,6 +1,5 @@
 import {
   Activity,
-  ArrowRight,
   ArrowUpRight,
   CarTaxiFront,
   CircleDollarSign,
@@ -27,8 +26,9 @@ import {
   Loading,
   PageTitle,
 } from "../components/common";
+import { AskGenieButton } from "../components/genie/helper";
+import { useGeniePage } from "../components/genie/provider";
 import {
-  Badge,
   Button,
   Card,
   CardAction,
@@ -65,6 +65,22 @@ export default function Overview() {
   const { query: filters } = useFilters();
   const [series, setSeries] = useState<"trips" | "revenue">("trips");
   const suffix = filters ? `?${filters}` : "";
+  useGeniePage({
+    page: "overview",
+    title: "Trip overview",
+    ...(query.data && !query.error
+      ? {
+          data: JSON.stringify({
+            summary: query.data.summary,
+            dailyMetric: series,
+            daily: query.data.daily,
+            hourly: query.data.hourly,
+            topPickupZIPs: query.data.zones.slice(0, 5),
+            queriedAt: query.data.queriedAt,
+          }),
+        }
+      : {}),
+  });
   if (query.isPending)
     return (
       <>
@@ -111,15 +127,6 @@ export default function Overview() {
       <PageTitle
         title="Trip overview"
         description="Trip activity, fares, and pickup patterns at a glance."
-        action={
-          <Button variant="outline" asChild>
-            <Link to={`/genie${suffix}`}>
-              <Sparkles />
-              Open Genie
-              <ArrowUpRight />
-            </Link>
-          </Button>
-        }
       />
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map(({ title, value, detail, icon: Icon }) => (
@@ -163,10 +170,29 @@ export default function Overview() {
                     Activity over the selected period
                   </CardDescription>
                   <CardAction>
-                    <TabsList aria-label="Daily chart metric">
-                      <TabsTrigger value="trips">Trips</TabsTrigger>
-                      <TabsTrigger value="revenue">Revenue</TabsTrigger>
-                    </TabsList>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <AskGenieButton
+                        context={{
+                          page: "overview",
+                          title:
+                            series === "trips"
+                              ? "Trips by pickup date"
+                              : "Fare revenue by pickup date",
+                          data: JSON.stringify({
+                            metric: series,
+                            daily,
+                            queriedAt: query.data.queriedAt,
+                          }),
+                        }}
+                        question="Explain the pattern in this chart and highlight any unusual days."
+                      >
+                        Explain
+                      </AskGenieButton>
+                      <TabsList aria-label="Daily chart metric">
+                        <TabsTrigger value="trips">Trips</TabsTrigger>
+                        <TabsTrigger value="revenue">Revenue</TabsTrigger>
+                      </TabsList>
+                    </div>
                   </CardAction>
                 </CardHeader>
                 <TabsContent value={series} className="px-6">
@@ -250,7 +276,19 @@ export default function Overview() {
                 </CardTitle>
                 <CardDescription>Distribution across the day</CardDescription>
                 <CardAction>
-                  <Badge variant="secondary">24 hours</Badge>
+                  <AskGenieButton
+                    context={{
+                      page: "overview",
+                      title: "Trips by pickup hour",
+                      data: JSON.stringify({
+                        hourly,
+                        queriedAt: query.data.queriedAt,
+                      }),
+                    }}
+                    question="Explain this hourly pickup pattern. Which hours stand out?"
+                  >
+                    Explain
+                  </AskGenieButton>
                 </CardAction>
               </CardHeader>
               <CardContent>
@@ -306,9 +344,24 @@ export default function Overview() {
                   Pickup areas ranked by trip volume
                 </CardDescription>
                 <CardAction>
-                  <ExploreLink to={`/map${suffix}`}>
-                    View pickup map
-                  </ExploreLink>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <AskGenieButton
+                      context={{
+                        page: "overview",
+                        title: "Top pickup ZIP codes",
+                        data: JSON.stringify({
+                          topPickupZIPs: zones.slice(0, 5),
+                          queriedAt: query.data.queriedAt,
+                        }),
+                      }}
+                      question="Compare these pickup ZIP codes by trip volume and average fare."
+                    >
+                      Compare
+                    </AskGenieButton>
+                    <ExploreLink to={`/map${suffix}`}>
+                      View pickup map
+                    </ExploreLink>
+                  </div>
                 </CardAction>
               </CardHeader>
               <CardContent>
@@ -364,24 +417,21 @@ export default function Overview() {
                   <Sparkles className="size-5" />
                 </div>
                 <CardTitle role="heading" aria-level={2}>
-                  Ask your data a question
+                  Take the next analytical step
                 </CardTitle>
                 <CardDescription>
-                  Explore trip counts, fares, and pickup patterns in natural
-                  language with Databricks Genie.
+                  Ask Genie to explain this view or explore a new angle with the
+                  same filters.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex-1 text-sm text-muted-foreground">
-                Start with a question. Follow up with context. Inspect the SQL
-                behind each answer.
+                Compare periods, investigate unusual fares, or break down a
+                pattern. Review the results and SQL alongside your dashboard.
               </CardContent>
               <CardFooter>
-                <Button variant="outline" asChild>
-                  <Link to={`/genie${suffix}`}>
-                    Open Genie
-                    <ArrowRight />
-                  </Link>
-                </Button>
+                <AskGenieButton question="Compare weekday and weekend trip activity for this view.">
+                  Explore with Genie
+                </AskGenieButton>
               </CardFooter>
             </Card>
           </div>

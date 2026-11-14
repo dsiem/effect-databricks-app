@@ -47,8 +47,10 @@ test("Explore hands the applied view to Notebook, and a new note saves that snap
   await page.goto(`/trips?${query}`);
   const tripFilters = page.getByRole("form", { name: "Trip filters" });
   await expect(
-    tripFilters.getByRole("link", { name: "Ask Genie", exact: true }),
-  ).toHaveAttribute("href", `/genie?${query}`);
+    page
+      .locator("header")
+      .getByRole("button", { name: "Ask Genie", exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("textbox", { name: "Pickup ZIP code", exact: true })
     .fill("10002");
@@ -140,17 +142,15 @@ test("Genie shows the actual view beside the composer and sends it with the ques
   );
   await page.goto(`/trips?${query}`);
   await page
-    .getByRole("form", { name: "Trip filters" })
-    .getByRole("link", { name: "Ask Genie", exact: true })
+    .locator("header")
+    .getByRole("button", { name: "Ask Genie", exact: true })
     .click();
   const context = page.getByRole("region", {
     name: "Explore view for your next question",
   });
   await expect(context).toContainText("Jan 10, 2016 – Jan 20, 2016");
   await expect(context).toContainText("Pickup ZIP 10001");
-  await expect(context).toContainText(
-    "These filters are sent with each new question.",
-  );
+  await expect(context).toContainText("Applied filters included.");
   await page
     .getByRole("textbox", { name: "Ask a question about taxi data" })
     .fill("Count trips");
@@ -164,8 +164,12 @@ test("Genie shows the actual view beside the composer and sends it with the ques
   await expect(
     page.getByText("Filtered trip count", { exact: true }),
   ).toBeVisible();
-  expect(submitted).toEqual({ content: "Count trips", filters });
-  await context.getByRole("link", { name: "Change in Explore" }).click();
+  expect(submitted).toMatchObject({
+    content: "Count trips",
+    filters,
+    context: { page: "trips" },
+  });
+  await page.getByRole("button", { name: "Close Genie" }).click();
   await expect(page).toHaveURL(`/trips?${query}`);
 });
 

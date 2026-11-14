@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useCurrentUser, useFilters } from "../api";
+import { useGenie } from "./genie/provider";
 import { Button } from "./ui/button";
 import {
   Sidebar,
@@ -39,6 +40,7 @@ export function AppSidebar() {
   const { query } = useFilters();
   const { pathname } = useLocation();
   const { setOpenMobile } = useSidebar();
+  const { openHelper, filterError } = useGenie();
   const suffix = query ? `?${query}` : "";
 
   return (
@@ -84,19 +86,35 @@ export function AppSidebar() {
                   {group.items.map(({ to, label, icon: Icon }) => (
                     <SidebarMenuItem key={to}>
                       <SidebarMenuButton
-                        asChild
+                        asChild={to !== "/genie"}
                         isActive={pathname === to}
                         tooltip={label}
+                        disabled={to === "/genie" && !!filterError}
+                        onClick={
+                          to === "/genie"
+                            ? () => {
+                                setOpenMobile(false);
+                                openHelper();
+                              }
+                            : undefined
+                        }
                       >
-                        <NavLink
-                          end={to === "/"}
-                          to={`${to}${suffix}`}
-                          aria-label={label}
-                          onClick={() => setOpenMobile(false)}
-                        >
-                          <Icon />
-                          <span>{label}</span>
-                        </NavLink>
+                        {to === "/genie" ? (
+                          <>
+                            <Icon />
+                            <span>{label}</span>
+                          </>
+                        ) : (
+                          <NavLink
+                            end={to === "/"}
+                            to={`${to}${suffix}`}
+                            aria-label={label}
+                            onClick={() => setOpenMobile(false)}
+                          >
+                            <Icon />
+                            <span>{label}</span>
+                          </NavLink>
+                        )}
                       </SidebarMenuButton>
                       {to === "/genie" && (
                         <SidebarMenuBadge>AI</SidebarMenuBadge>

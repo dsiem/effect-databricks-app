@@ -12,6 +12,8 @@ import {
   Loading,
   PageTitle,
 } from "../components/common";
+import { AskGenieButton } from "../components/genie/helper";
+import { useGeniePage } from "../components/genie/provider";
 import { Badge, Card, cn } from "../components/ui";
 import "leaflet/dist/leaflet.css";
 
@@ -59,6 +61,22 @@ export default function PickupMap() {
       : activityColors[Math.min(4, Math.floor(Math.sqrt(count / maximum) * 5))];
   const mapped =
     geography.data?.features.reduce((sum, f) => sum + featureTrips(f), 0) ?? 0;
+  useGeniePage({
+    page: "map",
+    title: "Pickup activity by ZIP area",
+    ...(overview.data && geography.data && !overview.error && !geography.error
+      ? {
+          data: JSON.stringify({
+            topPickupZIPs: zones.slice(0, 10),
+            totalTrips: overview.data.summary.trips,
+            mappedTrips: geography.data ? mapped : null,
+            geography:
+              "NYC Health MODZCTA; postal ZIPs may be grouped; trips outside boundaries are not drawn.",
+            queriedAt: overview.data.queriedAt,
+          }),
+        }
+      : {}),
+  });
   if (overview.isPending || geography.isPending)
     return (
       <>
@@ -102,7 +120,12 @@ export default function PickupMap() {
                 Scroll to zoom. Select an area to filter.
               </p>
             </div>
-            <Badge variant="secondary">{compact(mapped)} mapped trips</Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{compact(mapped)} mapped trips</Badge>
+              <AskGenieButton question="Explain the pickup distribution in this map and compare the busiest areas.">
+                Explain map
+              </AskGenieButton>
+            </div>
           </div>
           <div className="map-panel h-[420px] shrink-0 sm:h-[570px]">
             <MapContainer center={[40.743, -73.94]} zoom={11} scrollWheelZoom>

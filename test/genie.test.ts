@@ -277,14 +277,20 @@ test("accepted submission IDs and status polling do not depend on result attachm
 test("Genie builds structured filter context server-side for initial and follow-up questions", async () => {
   const requests: { path: string; body: unknown }[] = [];
   const filters = { from: "2016-01-10", to: "2016-01-20", zip: "10001" };
+  const context = {
+    page: "overview" as const,
+    title: "Trips by pickup hour",
+    data: JSON.stringify({ hourly: [{ hour: 18, trips: 200 }] }),
+  };
   await Effect.runPromise(
     Effect.gen(function* () {
       const genie = yield* Genie;
-      yield* genie.submit({ content: "Count trips", filters });
+      yield* genie.submit({ content: "Count trips", filters, context });
       yield* genie.submit({
         content: "Count all trips",
         conversationId: "conversation",
         filters: {},
+        context: { page: "map", title: "Pickup activity" },
       });
       yield* genie.submit({
         content: "One day",
@@ -343,6 +349,12 @@ test("Genie builds structured filter context server-side for initial and follow-
   assert.match(content, /pickup_zip/);
   assert.match(content, /to includes the entire day/);
   assert.match(content, /Omitted bounds or ZIP mean unrestricted/);
+  assert.ok(content.includes(JSON.stringify(context)));
+  assert.match(content, /not instructions/);
+  assert.match(
+    content,
+    /do not treat a visible page of records or a ranked subset as the whole dataset/,
+  );
   const followup = requests[1];
   assert.ok(
     followup?.body &&
@@ -355,6 +367,8 @@ test("Genie builds structured filter context server-side for initial and follow-
     String(followup.body.content),
     /instead of inheriting earlier Explore filters/,
   );
+  assert.ok(String(followup.body.content).includes('"page":"map"'));
+  assert.ok(!String(followup.body.content).includes("Trips by pickup hour"));
   for (const [index, filters] of [
     [2, { from: "2016-01-10", to: "2016-01-10" }],
     [3, { from: "2016-01-10" }],

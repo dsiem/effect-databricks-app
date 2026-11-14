@@ -161,6 +161,6 @@ test("Genie renders real answers, result tables, generated SQL and follow-up con
     .getByRole("button", { name: "New conversation", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Example queries" }),
+    page.getByRole("heading", { name: "Go deeper into this view" }),
   ).toBeVisible();
 });

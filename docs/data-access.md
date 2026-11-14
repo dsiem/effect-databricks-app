@@ -84,6 +84,23 @@ waiting for an answer. Status polling (`GET
 The frontend bounds each polling attempt to three minutes; result retrieval also
 has a three-minute server deadline. A timed-out attempt can be resumed by ID.
 
+Ask Genie opens a contextual helper over the current page. Desktop users can
+continue interacting with the page or expand the helper for wider query results;
+mobile uses a modal sheet. Chart actions select a specific visualization, while
+the page action includes the overview, visible trip records and their sort/page,
+or the map's ranked ZIPs and coverage. Applied filters are shown before sending.
+Changing the page, filters, chart metric, or trip pagination invalidates a chart
+selection. Closing and reopening the helper keeps the draft and current selection.
+
+`GenieInput.context` carries a page, title, and optional JSON snapshot bounded to
+24,000 characters. The server labels this as client-provided context rather than
+instructions. Additional analytics query the source table with the current
+filters; visible records and ranked subsets are not treated as the full dataset.
+Each saved turn retains its own filters and context alongside the answer.
+`node scripts/preview-genie-options.mjs` regenerates and checks three interactive
+layout prototypes in `output/`: floating helper, docked panel, and inline answers.
+The floating helper preserves the existing chart widths and page position.
+
 `GENIE_MAX_CONCURRENCY` independently limits concurrent submission requests to two
 by default. The 30-second submission deadline includes admission waiting. Polling
 and result retrieval do not consume submission permits, and a permit is released
@@ -92,8 +109,9 @@ initial questions nor follow-ups are automatically replayed after a timeout.
 Both concurrency settings must be positive integers; invalid values fail startup.
 
 The frontend saves the question, IDs, recovery stage, and completed answers in
-`sessionStorage`, validates that history on reload, and resumes outstanding reads
-after navigation. A failed result download exposes a download retry that never
+`sessionStorage`, validates that history on reload, and resumes outstanding reads.
+The layout owns polling, which continues across navigation and while the helper
+is closed. A failed result download exposes a download retry that never
 submits the question again. Submission responses continue to be saved while
 navigating within the app. A reload that loses a submission response explicitly
 reports an uncertain submission and never automatically resubmits it. Recovery

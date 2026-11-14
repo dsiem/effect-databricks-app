@@ -133,9 +133,17 @@ export const Notes = Schema.Struct({
 });
 export type Notes = typeof Notes.Type;
 const GenieId = Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9-]{1,100}$/));
+export const GenieContext = Schema.Struct({
+  page: Schema.Literals(["overview", "trips", "map", "notebook", "genie"]),
+  title: boundedText(160),
+  // A bounded snapshot of the displayed aggregates or visible records.
+  data: Schema.optionalKey(boundedText(24000)),
+});
+export type GenieContext = typeof GenieContext.Type;
 export const GenieInput = Schema.Struct({
   content: boundedText(4000),
   filters: Schema.optionalKey(Filters),
+  context: Schema.optionalKey(GenieContext),
   conversationId: Schema.optionalKey(GenieId),
 });
 export const GenieOperation = Schema.Struct({

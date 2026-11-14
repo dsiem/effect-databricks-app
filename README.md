@@ -14,8 +14,10 @@ local development uses the current workspace user's profile when available.
 - **Trip explorer:** date/ZIP filters, server-side sorting and pagination, CSV export
   of the visible page.
 - **Pickup map:** interactive ZIP-area choropleth using official NYC boundaries.
-- **Ask Genie:** real conversations, follow-up questions, query results, generated
-  SQL, and explicit date/ZIP filter context.
+- **Contextual Genie helper:** open Ask Genie from any page without leaving the
+  data. Explain a chart, analyze visible trips, or ask for further analytics with
+  the applied date/ZIP filters. Expand the helper for result tables and generated
+  SQL; on mobile it opens as a sheet. The `/genie` conversation view is also available.
 - **Analyst notebook:** shared notes, pinning, editing, deletion, and saved filter
   views persisted in Lakebase Postgres, with paginated browsing of every note.
 
@@ -135,6 +137,12 @@ The server is an Effect application, including HTTP routing and lifetime:
   recovery survives navigation and reload. Failed downloads can be retried using
   the same IDs. The UI shows at most 100 result rows and labels partial previews.
   Writes and conversation submissions are not automatically retried.
+- Genie questions carry the current page or selected chart's bounded data
+  snapshot and applied filters. Each turn retains its original scope; navigation,
+  changed filters, and changed trip sorting update the next question's context.
+  The layout owns polling so answers continue while the helper is closed.
+  Client snapshots provide explanatory context; additional analytics query the
+  source table rather than extrapolating from visible rows or ranked subsets.
 - `@effect/sql-pg` owns a scoped PostgreSQL pool, TLS, per-connection fresh Lakebase
   OAuth credentials, statement/acquisition deadlines, and shutdown. Notebook saves
   use explicit create/update versions and return conflicts for stale writes.

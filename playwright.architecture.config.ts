@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: "e2e",
   testMatch: [
     "genie-recovery.spec.ts",
+    "genie-helper.spec.ts",
     "notebook-conflicts.spec.ts",
     "notebook-pagination.spec.ts",
     "filter-validation.spec.ts",

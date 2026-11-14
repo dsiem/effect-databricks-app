@@ -58,6 +58,23 @@ test("bounds notebook writes and conversational input", () => {
     }),
   );
 });
+test("accepts bounded page context and rejects oversized or unknown Genie views", () => {
+  const input = {
+    content: "Explain this chart",
+    filters: {},
+    context: { page: "overview", title: "Daily trips", data: '{"trips":12}' },
+  };
+  assert.deepEqual(Schema.decodeUnknownSync(GenieInput)(input), input);
+  for (const context of [
+    { ...input.context, page: "unknown" },
+    { ...input.context, title: "" },
+    { ...input.context, data: "x".repeat(24001) },
+  ]) {
+    assert.throws(() =>
+      Schema.decodeUnknownSync(GenieInput)({ ...input, context }),
+    );
+  }
+});
 test("bundled map boundaries have unique ZIP memberships, avoiding double-counted trips", () => {
   const geo = JSON.parse(
     readFileSync("client/public/nyc-zips.geojson", "utf8"),

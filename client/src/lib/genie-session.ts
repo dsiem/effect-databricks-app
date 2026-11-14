@@ -1,7 +1,17 @@
 import { Schema } from "effect";
-import { GenieOperation, GenieReply } from "../../../src/domain";
+import {
+  Filters,
+  GenieContext,
+  GenieOperation,
+  GenieReply,
+} from "../../../src/domain";
 
-const Base = { id: Schema.String, question: Schema.String };
+const Base = {
+  id: Schema.String,
+  question: Schema.String,
+  filters: Schema.optionalKey(Filters),
+  context: Schema.optionalKey(GenieContext),
+};
 export const Turn = Schema.Union([
   Schema.Struct({ ...Base, state: Schema.Literal("submitting") }),
   Schema.Struct({
@@ -44,6 +54,12 @@ export const Turn = Schema.Union([
   }),
 ]);
 export type Turn = typeof Turn.Type;
+export const turnBase = ({ id, question, filters, context }: Turn) => ({
+  id,
+  question,
+  ...(filters ? { filters } : {}),
+  ...(context ? { context } : {}),
+});
 const History = Schema.Array(Turn);
 const key = "metrocab.genie.v1";
 const listeners = new Set<() => void>();

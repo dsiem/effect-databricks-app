@@ -74,9 +74,13 @@ test("result retry survives navigation and reload, and follow-ups reuse the conv
   await page.getByRole("link", { name: "Trip explorer", exact: true }).click();
   await page
     .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("link", { name: "Ask Genie", exact: true })
+    .getByRole("button", { name: "Ask Genie", exact: true })
     .click();
   await page.reload();
+  await page
+    .locator("header")
+    .getByRole("button", { name: "Ask Genie", exact: true })
+    .click();
   await expect(page.getByText("Count trips", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Retry result download" }).click();
   await expect(
@@ -94,8 +98,12 @@ test("result retry survives navigation and reload, and follow-ups reuse the conv
     .getByRole("button", { name: "New conversation", exact: true })
     .click();
   await page.reload();
+  await page
+    .locator("header")
+    .getByRole("button", { name: "Ask Genie", exact: true })
+    .click();
   await expect(
-    page.getByRole("heading", { name: "Example queries" }),
+    page.getByRole("heading", { name: "Go deeper into this view" }),
   ).toBeVisible();
 });
 
@@ -170,7 +178,7 @@ test("submission responses are saved when navigating away before acceptance", as
     .toContain('"messageId":"message"');
   await page
     .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("link", { name: "Ask Genie", exact: true })
+    .getByRole("button", { name: "Ask Genie", exact: true })
     .click();
   await expect(
     page.getByRole("cell", { name: "21932", exact: true }),

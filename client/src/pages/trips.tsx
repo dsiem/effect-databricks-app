@@ -4,6 +4,8 @@ import { useState } from "react";
 import type { TripSearch } from "../../../src/domain";
 import { api, apiClient, money, number, useFilters } from "../api";
 import { ErrorState, Loading, PageTitle } from "../components/common";
+import { AskGenieButton } from "../components/genie/helper";
+import { useGeniePage } from "../components/genie/provider";
 import {
   Badge,
   Button,
@@ -41,6 +43,22 @@ function TripTable({
       api(apiClient.trips({ query: { ...filters, page, sort } }), signal),
     staleTime: 60_000,
   });
+  const context = {
+    page: "trips" as const,
+    title: `Trip records · page ${page}`,
+    ...(trips.data && !trips.error
+      ? {
+          data: JSON.stringify({
+            page,
+            sort,
+            totalMatchingTrips: trips.data.total,
+            pageSize: trips.data.pageSize,
+            visibleRows: trips.data.rows,
+          }),
+        }
+      : {}),
+  };
+  useGeniePage(context);
   const exportCsv = () => {
     if (!trips.data) return;
     const fields = [
@@ -75,14 +93,22 @@ function TripTable({
         title="Trip records"
         description="Filter trip records by pickup date and ZIP code, sort results, and export the current page as CSV."
         action={
-          <Button
-            variant="outline"
-            disabled={!trips.data?.rows.length}
-            onClick={exportCsv}
-          >
-            <Download />
-            Export this page
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <AskGenieButton
+              context={context}
+              question="Summarize the visible trips and point out unusual fares or distances."
+            >
+              Analyze these trips
+            </AskGenieButton>
+            <Button
+              variant="outline"
+              disabled={!trips.data?.rows.length}
+              onClick={exportCsv}
+            >
+              <Download />
+              Export this page
+            </Button>
+          </div>
         }
       />
       {trips.isPending ? (
