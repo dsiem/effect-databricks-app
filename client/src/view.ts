@@ -95,10 +95,6 @@ function sidebar(h: H, model: Model) {
       h.div(
         [h.Class("sidebar-bottom")],
         [
-          h.p(
-            [h.Class("sidebar-label text-xs muted px-3 mb-4 leading-5")],
-            ["NYC yellow taxi trips", h.br([]), "samples.nyctaxi.trips"],
-          ),
           ...(user
             ? [
                 h.div(
