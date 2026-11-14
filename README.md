@@ -266,7 +266,7 @@ navigation, HTTP requests, persistence, clipboard, and downloads run through
 commands; browser events use a subscription and Leaflet uses a scoped mount.
 There are no component-local stores or hook lifecycles. `client/src/main.ts` boots
 the runtime, while `app/model.ts`, `app/message.ts`, `app/update.ts`, and the stateless views
-can be inspected independently. Run `npm run client:check` to audit the migration
+can be inspected independently. Run `npm run client:check` to check UI conventions
 and `npm run test:browser` to exercise the UI and recovery workflows offline.
 
 Interactive controls use `@foldkit/ui`: Nav for route links, Select for trip
@@ -274,7 +274,7 @@ sorting, Tabs for chart metrics, Tooltip for the collapsed sidebar, Calendar for
 date navigation, and Dialog for modal sheets and editors. Button, Input, and
 Textarea render helpers supply the form controls. Keep their interaction behavior in Foldkit UI and apply
 app styling through the components' attribute bundles. `client:check` rejects
-hand-built widget roles and custom dialog focus traps.
+hand-built widget roles.
 
 Architecture and operational details: [docs/data-access.md](docs/data-access.md).
 Inspiration: [Databricks vacation rentals template](https://developers.databricks.com/templates/vacation-rentals).
