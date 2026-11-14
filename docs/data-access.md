@@ -209,7 +209,9 @@ warehouse foreign key; enforce record access at the API boundary when adapting
 this template to user-specific records. The warehouse snapshot remains read-only.
 
 A comment UUID belongs to one draft. Repeating an identical submission returns
-the original comment; reusing the ID with different text, record, or author fails.
+the original comment; reusing the ID with different text, trip ID, or author fails.
+Reads and retries retain the originally stored trip context even if other fields
+in the submitted snapshot change.
 Comments are append-only through the API. The inspector retains drafts while
 closing/reopening or inspecting other records on the current filtered page;
 filter changes, navigation, and reload discard unsent drafts. Failed writes keep

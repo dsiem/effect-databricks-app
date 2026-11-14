@@ -12,7 +12,7 @@ const trip: Trip = {
   fare: 18.5,
   duration: 14,
 };
-const otherTrip = { ...trip, fare: 25 };
+const otherTrip = { ...trip, trip_id: randomUUID() };
 const author = { name: "Avery Morgan", email: "avery@example.test" };
 const makeComment = (body: string): TripComment => ({
   id: randomUUID(),
@@ -53,7 +53,9 @@ for (const width of [1440, 360]) {
       ) as Trip;
       return route.fulfill({
         json: {
-          rows: stored.filter((comment) => comment.trip.fare === selected.fare),
+          rows: stored.filter(
+            (comment) => comment.trip.trip_id === selected.trip_id,
+          ),
           nextCursor: null,
         },
       });
@@ -107,7 +109,7 @@ for (const width of [1440, 360]) {
     ).toBeVisible();
     await page.keyboard.press("Escape");
     await inspect.nth(1).click();
-    await expect(panel).toContainText("$25.00");
+    await expect(panel).toContainText("$18.50");
     await expect(panel).toContainText("Start the conversation");
     await expect(
       panel.getByText("Check this fare against nearby trips.", { exact: true }),
@@ -115,6 +117,41 @@ for (const width of [1440, 360]) {
     expect(stored).toHaveLength(1);
   });
 }
+
+test("drafts follow the trip ID when refreshed record details change", async ({
+  page,
+}) => {
+  await page.route("**/api/trip-comments**", (route) =>
+    route.fulfill({ json: { rows: [], nextCursor: null } }),
+  );
+  await page.goto("/trips");
+  const inspect = page.getByRole("button", {
+    name: /^Details and comments for trip/,
+  });
+  await inspect.first().click();
+  const panel = page.getByRole("dialog", { name: "Trip details", exact: true });
+  const field = panel.getByRole("textbox", { name: "Add a comment" });
+  await field.fill("Keep investigating this trip");
+  await page.keyboard.press("Escape");
+  await page.route("**/api/trips**", (route) =>
+    route.fulfill({
+      json: {
+        rows: [{ ...trip, fare: 25 }],
+        total: 1,
+        page: 1,
+        pageSize: 25,
+      },
+    }),
+  );
+  await page.getByRole("combobox", { name: "Sort trips" }).click();
+  await page.getByRole("option", { name: "Highest fare" }).click();
+  await expect(
+    page.getByRole("cell", { name: "$25.00", exact: true }),
+  ).toBeVisible();
+  await inspect.first().click();
+  await expect(panel).toContainText("$25.00");
+  await expect(field).toHaveValue("Keep investigating this trip");
+});
 
 test("failed posts keep the draft across inspection and retry the same submission", async ({
   page,

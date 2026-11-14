@@ -40,13 +40,16 @@ export class Analytics extends Context.Service<
     Effect.gen(function* () {
       const settings = yield* Settings;
       const workspace = yield* Workspace;
+      const configured = !!(
+        settings.warehouseId &&
+        settings.host &&
+        settings.tripSnapshotTable
+      );
       const [catalog = "unconfigured", schema = "snapshot", table = "trips"] =
         settings.tripSnapshotTable
           ? settings.tripSnapshotTable.split(".")
           : ["unconfigured", "snapshot", "trips"];
-      const capability = makeCapability(
-        !!(settings.warehouseId && settings.host && settings.tripSnapshotTable),
-      );
+      const capability = makeCapability(configured);
       const admit = makeAdmission({
         service: "warehouse",
         concurrency: settings.warehouseConcurrency,
@@ -54,7 +57,7 @@ export class Analytics extends Context.Service<
       });
       const error = unavailable(
         "warehouse",
-        settings.warehouseId && settings.host && settings.tripSnapshotTable
+        configured
           ? "The NYC taxi query failed. Check warehouse access and SELECT permission on the configured trip snapshot."
           : "Set DATABRICKS_WAREHOUSE_ID and TRIP_SNAPSHOT_TABLE to connect the NYC taxi dataset.",
       );
@@ -91,7 +94,7 @@ export class Analytics extends Context.Service<
         schema: Schema.Decoder<A>,
         statement: Effect.Effect<ReadonlyArray<unknown>, unknown>,
       ) =>
-        (settings.warehouseId && settings.host && settings.tripSnapshotTable
+        (configured
           ? SqlSchema.findAll({
               Request: Schema.Void,
               Result: schema,

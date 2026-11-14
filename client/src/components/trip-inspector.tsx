@@ -39,10 +39,10 @@ export function TripInspector({
     Record<string, { id: string; body: string }>
   >({});
   const [posted, setPosted] = useState<string>();
-  const key = JSON.stringify(trip);
-  const draft = drafts[key];
+  const key = trip?.trip_id;
+  const draft = key ? drafts[key] : undefined;
   const comments = useInfiniteQuery({
-    queryKey: ["trip-comments", trip],
+    queryKey: ["trip-comments", key],
     enabled: !!trip && open,
     initialPageParam: undefined as TripCommentCursor | undefined,
     queryFn: ({ signal, pageParam }) => {
@@ -61,7 +61,7 @@ export function TripInspector({
     mutationFn: (input: TripCommentInput) =>
       api(apiClient.addTripComment({ payload: input })),
     onSuccess: (_, input) => {
-      const savedKey = JSON.stringify(input.trip);
+      const savedKey = input.trip.trip_id;
       setDrafts((previous) => {
         // Never clear text typed while a previous submission was in flight.
         if (previous[savedKey]?.id !== input.id) return previous;
@@ -71,15 +71,13 @@ export function TripInspector({
       });
       setPosted(savedKey);
       void client.invalidateQueries({
-        queryKey: ["trip-comments", input.trip],
+        queryKey: ["trip-comments", savedKey],
       });
     },
   });
   const rows = comments.data?.pages.flatMap((page) => page.rows) ?? [];
   const currentError =
-    post.error && JSON.stringify(post.variables?.trip) === key
-      ? post.error
-      : null;
+    post.error && post.variables?.trip.trip_id === key ? post.error : null;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -213,7 +211,6 @@ export function TripInspector({
               )}
               <p className="mt-5 text-xs leading-5 text-muted-foreground">
                 Comments stay with this record across filters and sorting.
-                Identical trip records share a conversation.
               </p>
             </div>
             <form
@@ -241,7 +238,7 @@ export function TripInspector({
                 onChange={(event) => {
                   setDrafts((previous) => ({
                     ...previous,
-                    [key]: {
+                    [trip.trip_id]: {
                       id: crypto.randomUUID(),
                       body: event.target.value,
                     },

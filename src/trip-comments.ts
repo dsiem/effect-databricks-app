@@ -4,7 +4,6 @@ import type * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import {
   type CurrentUser,
-  type Trip,
   TripComment,
   TripCommentCursor,
   type TripCommentInput,
@@ -13,9 +12,6 @@ import {
 } from "./domain.js";
 import { InvalidRequest, unavailable } from "./errors.js";
 import { restoreCredentialFailure } from "./pg-credentials.js";
-
-// Comment threads use the stable source ID persisted with each trip.
-export const tripSnapshotKey = (trip: Trip) => trip.trip_id;
 
 export const makeTripComments = (
   sql: SqlClient.SqlClient & Pick<PgClient.PgClient, "json">,
@@ -32,13 +28,10 @@ export const makeTripComments = (
         ...TripComment.fields,
         cursor_created_at: TripCommentCursor.fields.createdAt,
       }),
-      execute:
-        () => sql`SELECT id::text AS id, ${sql.json(search.trip)} AS trip,
-        body, author,
-        to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
+      execute: () => sql`SELECT ${columns},
         to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at
         FROM metrocab.trip_comments AS comments
-        WHERE trip_key=${tripSnapshotKey(search.trip)}
+        WHERE trip_key=${search.trip.trip_id}
         ${
           search.cursor
             ? sql`AND (created_at, id) <
@@ -70,7 +63,7 @@ export const makeTripComments = (
       // An existing ID can never replace another comment's content or author.
       execute:
         () => sql`INSERT INTO metrocab.trip_comments AS existing (id,trip_key,trip,body,author)
-        VALUES (${input.id}::uuid,${tripSnapshotKey(input.trip)},${sql.json(input.trip)},${input.body},${author === null ? sql`'null'::jsonb` : sql.json(author)})
+        VALUES (${input.id}::uuid,${input.trip.trip_id},${sql.json(input.trip)},${input.body},${author === null ? sql`'null'::jsonb` : sql.json(author)})
         ON CONFLICT (id) DO UPDATE SET id=existing.id
         WHERE existing.trip_key=EXCLUDED.trip_key AND existing.body=EXCLUDED.body
           AND existing.author=EXCLUDED.author

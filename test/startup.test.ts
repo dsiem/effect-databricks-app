@@ -15,6 +15,7 @@ const config = Layer.succeed(
   ConfigProvider.fromEnvRecord({
     DATABRICKS_HOST: "https://workspace.invalid",
     DATABRICKS_WAREHOUSE_ID: "warehouse",
+    TRIP_SNAPSHOT_TABLE: "test.snapshot.trips",
     LAKEBASE_ENDPOINT: "projects/test/branches/main/endpoints/primary",
   }),
 );

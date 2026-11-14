@@ -41,12 +41,18 @@ await Effect.runPromise(
       );
       assert.deepEqual(saved.trip, trip);
       assert.deepEqual(saved.author, author);
+      assert.deepEqual(
+        (yield* comments({ trip: { ...trip, fare: trip.fare + 1 } })).rows.find(
+          (row) => row.id === id,
+        ),
+        saved,
+      );
       const unknown = yield* addComment({ ...input, id: unknownId }, null);
       assert.equal(unknown.author, null);
       assert.deepEqual(yield* addComment(unknown, null), unknown);
       assert.ok(
         !(yield* comments({
-          trip: { ...trip, fare: trip.fare + 1 },
+          trip: { ...trip, trip_id: randomUUID() },
         })).rows.some((row) => row.id === id),
       );
     }).pipe(

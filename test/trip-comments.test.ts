@@ -9,7 +9,6 @@ import {
   type TripCommentSearch,
 } from "../src/domain.js";
 import { migrateNotebook } from "../src/notebook.js";
-import { tripSnapshotKey } from "../src/trip-comments.js";
 import { notebookFixture } from "./notebook-fixture.js";
 
 const trip: Trip = {
@@ -45,19 +44,7 @@ test("comment boundaries reject empty, oversized and invalid record payloads", (
   );
 });
 
-test("trip threads use persisted IDs", () => {
-  assert.equal(
-    tripSnapshotKey(trip),
-    tripSnapshotKey(Object.fromEntries(Object.entries(trip).reverse()) as Trip),
-  );
-  assert.equal(tripSnapshotKey(trip), trip.trip_id);
-  assert.notEqual(
-    tripSnapshotKey(trip),
-    tripSnapshotKey({ ...trip, trip_id: "another-source-id" }),
-  );
-});
-
-test("comments persist per snapshot, preserve authors, and safely replay a lost response", async () => {
+test("comments persist per trip ID, preserve snapshots and authors, and safely replay a lost response", async () => {
   await Effect.runPromise(
     Effect.gen(function* () {
       const { notebook, sql } = yield* notebookFixture;
@@ -79,7 +66,7 @@ test("comments persist per snapshot, preserve authors, and safely replay a lost 
       assert.deepEqual(saved.trip, trip);
       for (const [changed, viewer] of [
         [{ ...input, body: "Different" }, author],
-        [{ ...input, trip: { ...trip, fare: 25 } }, author],
+        [{ ...input, trip: { ...trip, trip_id: randomUUID() } }, author],
         [input, { name: "Other", email: null }],
       ] as const) {
         const result = yield* Effect.result(
@@ -91,6 +78,17 @@ test("comments persist per snapshot, preserve authors, and safely replay a lost 
       }
       assert.deepEqual(
         yield* notebook.comments({ trip: { ...trip, fare: 25 } }),
+        { rows: [saved], nextCursor: null },
+      );
+      assert.deepEqual(
+        yield* notebook.addComment(
+          { ...input, trip: { ...trip, fare: 25 } },
+          author,
+        ),
+        saved,
+      );
+      assert.deepEqual(
+        yield* notebook.comments({ trip: { ...trip, trip_id: randomUUID() } }),
         { rows: [], nextCursor: null },
       );
       const anonymous = yield* notebook.addComment(
