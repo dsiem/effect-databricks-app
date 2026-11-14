@@ -121,7 +121,7 @@ function answer(h: H, model: Model, reply: GenieReply): Child[] {
         [h.Class("query-result")],
         [
           h.p(
-            [h.Class("text-xs font-medium px-3 py-2 border-b bg-muted/50")],
+            [h.Class("text-xs font-medium px-3 py-2 border-b bg-gray-100/50")],
             [result.description],
           ),
           h.div(
@@ -464,7 +464,7 @@ function genie(h: H, model: Model, floating = false) {
                       h.button(
                         [
                           ...attributes.button,
-                          h.Class("btn primary"),
+                          h.Class("btn btn-primary"),
                           h.AriaLabel("Send question"),
                         ],
                         [icon(h, "arrow-up")],

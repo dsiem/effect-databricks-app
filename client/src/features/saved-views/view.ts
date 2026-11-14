@@ -296,7 +296,7 @@ function editor(h: H, model: Model) {
                   isDisabled: saving || !draft.title.trim(),
                   toView: (attributes) =>
                     h.button(
-                      [...attributes.button, h.Class("btn primary")],
+                      [...attributes.button, h.Class("btn btn-primary")],
                       [saving ? "Saving…" : "Save view"],
                     ),
                 },

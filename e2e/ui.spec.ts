@@ -1,5 +1,56 @@
 import { expect, test } from "@playwright/test";
 
+test("wide trip tables scroll within a narrow viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/trips**", (route) =>
+    route.fulfill({
+      json: {
+        rows: [
+          {
+            trip_id: "stable-trip",
+            pickup_at: "2016-01-01 10:00:00",
+            dropoff_at: "2016-01-01 10:15:00",
+            pickup_zip: "10001",
+            dropoff_zip: "10019",
+            distance: 3,
+            fare: 12,
+            duration: 15,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 25,
+      },
+    }),
+  );
+  await page.goto("/trips");
+  const table = page.getByRole("table", {
+    name: "Matching trips",
+    exact: true,
+  });
+  await expect(table.getByRole("row")).toHaveCount(2);
+  const scroll = table.locator("..");
+  expect(
+    await scroll.evaluate(
+      (element) => element.scrollWidth > element.clientWidth,
+    ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await scroll.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth;
+  });
+  const inspect = table.getByRole("button", { name: /^Details and comments/ });
+  await expect(inspect).toBeInViewport();
+  await inspect.click();
+  await expect(
+    page.getByRole("dialog", { name: "Trip details" }),
+  ).toBeVisible();
+});
+
 test("sidebar collapses to icons, keeps filters, persists, and supports the keyboard shortcut", async ({
   page,
 }) => {

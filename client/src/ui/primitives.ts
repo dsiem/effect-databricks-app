@@ -27,7 +27,7 @@ export const button = <Message>(
             ...button,
             ...(options.attributes ?? []),
             h.Class(
-              `btn ${options.variant ?? "outline"} ${options.className ?? ""}`,
+              `btn btn-${options.variant ?? "outline"} ${options.className ?? ""}`,
             ),
           ],
           [options.label],
@@ -58,14 +58,7 @@ export const title = <Message>(
     ],
   );
 export const loading = <Message>(h: H<Message>, text = "Loading…") =>
-  card(
-    h,
-    [
-      h.span([h.Class("loading-dot"), h.AriaHidden(true)], []),
-      h.p([h.Role("status")], [text]),
-    ],
-    "loading",
-  );
+  card(h, [h.p([h.Role("status")], [text])], "loading");
 export const error = <Message>(h: H<Message>, text: string, retry?: Message) =>
   card(
     h,
@@ -85,7 +78,7 @@ export const error = <Message>(h: H<Message>, text: string, retry?: Message) =>
     "p-8",
   );
 export const alert = <Message>(h: H<Message>, text: string) =>
-  h.p([h.Role("alert"), h.Class("text-sm text-destructive")], [text]);
+  h.p([h.Role("alert"), h.Class("text-sm text-red-700")], [text]);
 export const table = <Message>(
   h: H<Message>,
   options: {

@@ -5,7 +5,10 @@ SVG charts, and Leaflet. The app starts from the real
 `samples.nyctaxi.trips` data and persists a managed snapshot for stable trip
 identity. No synthetic dashboard data or mock Genie answers.
 
-The UI uses a neutral theme with accessible native dialogs. The sidebar
+The UI uses Tailwind's stock palette, system fonts, and accessible native dialogs.
+The shared stylesheet supplies basic controls, responsive layout, and overlay
+positioning; feature views use utilities without a custom theme. Leaflet keeps its
+default appearance. The sidebar
 collapses to icons on desktop, remembers that preference, and becomes a drawer
 on mobile. Toggle it with the header button or **⌘B / Ctrl+B**.
 The sidebar shows the viewer's name and email from Databricks Apps proxy headers;

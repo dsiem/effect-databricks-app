@@ -212,7 +212,7 @@ function inspector(h: H, model: Model) {
               isDisabled: !!model.posting || !draft?.id || !draft.body.trim(),
               toView: (attributes) =>
                 h.button(
-                  [...attributes.button, h.Class("btn primary")],
+                  [...attributes.button, h.Class("btn btn-primary")],
                   [
                     model.posting?.trip.trip_id === trip.trip_id
                       ? "Posting…"

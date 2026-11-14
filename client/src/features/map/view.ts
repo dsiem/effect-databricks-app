@@ -207,10 +207,7 @@ function pickupMap(h: H, model: Model): Child[] {
                   ["NYC Health boundary source"],
                 ),
                 h.a(
-                  [
-                    h.Href(href("/trips", model.query)),
-                    h.Class("btn outline mt-4"),
-                  ],
+                  [h.Href(href("/trips", model.query)), h.Class("btn mt-4")],
                   ["Explore these trips"],
                 ),
               ],
@@ -229,7 +226,7 @@ function pickupMap(h: H, model: Model): Child[] {
                       h.a(
                         [
                           h.Href(href("/trips", model.query)),
-                          h.Class("btn outline mt-4"),
+                          h.Class("btn mt-4"),
                         ],
                         ["View trip records"],
                       ),

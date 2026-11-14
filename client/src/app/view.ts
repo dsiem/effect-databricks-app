@@ -238,7 +238,10 @@ function filters(h: H, model: Model) {
         {
           type: "submit",
           toView: (attributes) =>
-            h.button([...attributes.button, h.Class("btn primary")], ["Apply"]),
+            h.button(
+              [...attributes.button, h.Class("btn btn-primary")],
+              ["Apply"],
+            ),
         },
         h,
       ),
@@ -409,7 +412,7 @@ export function view(model: Model, h: H): Document {
                                   [
                                     ...attributes.button,
                                     h.Id("genie-trigger"),
-                                    h.Class("btn outline"),
+                                    h.Class("btn"),
                                   ],
                                   [
                                     icon(h, "sparkles"),

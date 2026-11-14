@@ -310,6 +310,12 @@ for (const width of [360, 768, 1024]) {
     await page.goto(`/?${query}`);
     const helper = await openHelper(page);
     await expect(helper).toBeInViewport();
+    const expand = helper.getByRole("button", {
+      name: "Expand Genie",
+      exact: true,
+    });
+    if (width < 768) await expect(expand).toBeHidden();
+    else await expect(expand).toBeVisible();
     const textbox = helper.getByRole("textbox");
     await expect(textbox).toBeFocused();
     await textbox.fill("Compare these fares");

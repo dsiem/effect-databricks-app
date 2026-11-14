@@ -254,7 +254,7 @@ function overview(h: H, model: Model): Child[] {
                         h.a(
                           [
                             h.Href(href("/map", model.query)),
-                            h.Class("btn outline"),
+                            h.Class("btn"),
                             h.AriaLabel("View pickup map"),
                           ],
                           [icon(h, "map"), h.span([], ["Pickup map"])],
