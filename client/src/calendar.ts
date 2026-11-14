@@ -8,6 +8,7 @@ import {
 } from "date-fns";
 import { Option } from "effect";
 import { DialogMount } from "./browser";
+import { icon } from "./icons";
 import { Message as M } from "./message";
 import type { Model } from "./model";
 import { button, type H } from "./ui";
@@ -125,7 +126,7 @@ export function calendar(h: H, model: Model) {
         [
           button(
             h,
-            "‹",
+            icon(h, "chevron-left"),
             M.CalendarMonth({
               month: format(addMonths(current, -1), "yyyy-MM"),
             }),
@@ -148,7 +149,7 @@ export function calendar(h: H, model: Model) {
           ]),
           button(
             h,
-            "›",
+            icon(h, "chevron-right"),
             M.CalendarMonth({
               month: format(addMonths(current, 1), "yyyy-MM"),
             }),

@@ -2,6 +2,7 @@ import { Option } from "effect";
 import { Lexer, type MarkedToken, type Token } from "marked";
 import type { GenieReply } from "../../src/domain";
 import { DialogMount } from "./browser";
+import { icon } from "./icons";
 import { Message as M } from "./message";
 import { busy, filtersFromQuery, type Model, pageContext } from "./model";
 import { alert, button, type Child, filterSummary, type H, table } from "./ui";
@@ -175,7 +176,7 @@ export function genie(h: H, model: Model, floating = false) {
         h.div(
           [h.Class("flex items-center gap-3")],
           [
-            h.span([h.Class("brand-icon")], ["✧"]),
+            h.span([h.Class("brand-icon")], [icon(h, "sparkles")]),
             h.div(
               [],
               [
@@ -190,7 +191,7 @@ export function genie(h: H, model: Model, floating = false) {
           [
             button(
               h,
-              "＋",
+              icon(h, "plus"),
               M.NewConversation(),
               [
                 h.AriaLabel("New conversation"),
@@ -200,15 +201,20 @@ export function genie(h: H, model: Model, floating = false) {
             ),
             ...(floating
               ? [
-                  button(h, model.genieExpanded ? "↙" : "↗", M.ExpandGenie(), [
-                    h.AriaLabel(
-                      model.genieExpanded ? "Minimize Genie" : "Expand Genie",
-                    ),
-                    h.Class("btn ghost hidden md:inline-flex"),
-                  ]),
                   button(
                     h,
-                    "×",
+                    icon(h, model.genieExpanded ? "minimize-2" : "maximize-2"),
+                    M.ExpandGenie(),
+                    [
+                      h.AriaLabel(
+                        model.genieExpanded ? "Minimize Genie" : "Expand Genie",
+                      ),
+                      h.Class("btn ghost hidden md:inline-flex"),
+                    ],
+                  ),
+                  button(
+                    h,
+                    icon(h, "x"),
                     M.CloseOverlay(),
                     [h.AriaLabel("Close Genie")],
                     "ghost",
@@ -242,7 +248,7 @@ export function genie(h: H, model: Model, floating = false) {
               ? [
                   button(
                     h,
-                    "×",
+                    icon(h, "x"),
                     M.ClearSelection(),
                     [h.AriaLabel("Use whole page")],
                     "ghost",
@@ -337,7 +343,14 @@ export function genie(h: H, model: Model, floating = false) {
                       : []),
                   ],
                 ),
-                h.p([h.Class("text-xs font-semibold mb-2")], ["✧ Genie"]),
+                h.p(
+                  [
+                    h.Class(
+                      "text-xs font-semibold mb-2 flex items-center gap-2",
+                    ),
+                  ],
+                  [icon(h, "sparkles"), "Genie"],
+                ),
                 ...(turn.state === "complete"
                   ? answer(h, model, turn.reply)
                   : "error" in turn
@@ -421,7 +434,7 @@ export function genie(h: H, model: Model, floating = false) {
                     h.AriaLabel("Send question"),
                     h.Disabled(!enabled || working || !model.genieDraft.trim()),
                   ],
-                  ["↑"],
+                  [icon(h, "arrow-up")],
                 ),
               ],
             ),

@@ -1,6 +1,7 @@
 import { Option } from "effect";
 import type * as D from "../../src/domain";
 import { activityColors, MapMount } from "./browser";
+import { icon } from "./icons";
 import { Message as M } from "./message";
 import { filtersFromQuery, href, type Model, queryFor } from "./model";
 import {
@@ -409,7 +410,7 @@ export function overview(h: H, model: Model): Child[] {
                         h.AriaLabel(`View trips in ${zone.zip}`),
                         h.Class("btn ghost"),
                       ],
-                      ["↗"],
+                      [icon(h, "arrow-up-right")],
                     ),
                   ]),
                 ),
@@ -418,7 +419,7 @@ export function overview(h: H, model: Model): Child[] {
                 h.div(
                   [h.Class("p-6 space-y-4")],
                   [
-                    h.span([h.Class("brand-icon")], ["✧"]),
+                    h.span([h.Class("brand-icon")], [icon(h, "sparkles")]),
                     h.h2([], ["Take the next analytical step"]),
                     h.p(
                       [h.Class("muted text-sm leading-6")],
@@ -595,15 +596,22 @@ export function trips(h: H, model: Model): Child[] {
           h.div(
             [h.Class("flex items-center gap-3")],
             [
-              button(h, "‹", M.SetPage({ page: model.page - 1 }), [
-                h.AriaLabel("Previous page"),
-                h.Disabled(model.page === 1),
-              ]),
+              button(
+                h,
+                icon(h, "chevron-left"),
+                M.SetPage({ page: model.page - 1 }),
+                [h.AriaLabel("Previous page"), h.Disabled(model.page === 1)],
+              ),
               h.span([], [`Page ${model.page}`]),
-              button(h, "›", M.SetPage({ page: model.page + 1 }), [
-                h.AriaLabel("Next page"),
-                h.Disabled(model.page * data.pageSize >= data.total),
-              ]),
+              button(
+                h,
+                icon(h, "chevron-right"),
+                M.SetPage({ page: model.page + 1 }),
+                [
+                  h.AriaLabel("Next page"),
+                  h.Disabled(model.page * data.pageSize >= data.total),
+                ],
+              ),
             ],
           ),
         ],
@@ -938,7 +946,7 @@ export function notebook(h: H, model: Model, embedded = false): Child[] {
                 h.h2([h.Class("flex-1 min-w-0 break-words")], [note.title]),
                 button(
                   h,
-                  note.pinned ? "◆" : "◇",
+                  icon(h, note.pinned ? "pin" : "pin-off"),
                   M.PinNote({ note }),
                   [
                     h.AriaLabel(
@@ -993,14 +1001,14 @@ export function notebook(h: H, model: Model, embedded = false): Child[] {
                       [
                         button(
                           h,
-                          "✎",
+                          icon(h, "pencil"),
                           M.EditNote({ note, view: embedded }),
                           [h.AriaLabel(`Edit ${note.title}`)],
                           "ghost",
                         ),
                         button(
                           h,
-                          "×",
+                          icon(h, "trash-2"),
                           M.DeleteNote({ note }),
                           [h.AriaLabel(`Delete ${note.title}`)],
                           "ghost",

@@ -1,4 +1,5 @@
 import { DialogMount } from "./browser";
+import { icon } from "./icons";
 import { Message as M } from "./message";
 import type { Model } from "./model";
 import { notebook } from "./pages";
@@ -15,7 +16,7 @@ import {
 } from "./ui";
 
 const close = (h: H, label = "Close") =>
-  button(h, "×", M.CloseOverlay(), [
+  button(h, icon(h, "x"), M.CloseOverlay(), [
     h.AriaLabel(label),
     h.Class("btn ghost dialog-close"),
   ]);

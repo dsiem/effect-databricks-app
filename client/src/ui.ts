@@ -42,7 +42,7 @@ export const filterSummary = (h: H, filters: Filters) =>
 export const badge = (h: H, text: string) => h.span([h.Class("badge")], [text]);
 export const button = (
   h: H,
-  label: string,
+  label: Child,
   message: Message,
   attrs: A[] = [],
   variant = "outline",

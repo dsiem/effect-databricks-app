@@ -136,11 +136,11 @@ export const busy = (model: Model) =>
     ["submitting", "waiting", "retrieving"].includes(turn.state),
   );
 export const navigation = [
-  { path: "/", label: "Overview", icon: "◫" },
-  { path: "/trips", label: "Trip explorer", icon: "↗" },
-  { path: "/map", label: "Pickup map", icon: "⌖" },
-  { path: "/notebook", label: "Analyst notebook", icon: "▤" },
-];
+  { path: "/", label: "Overview", icon: "layout-dashboard" },
+  { path: "/trips", label: "Trip explorer", icon: "table-2" },
+  { path: "/map", label: "Pickup map", icon: "map" },
+  { path: "/notebook", label: "Analyst notebook", icon: "book-open" },
+] as const;
 export const pageContext = (model: Model): D.GenieContext => {
   const overview = model.overview.data;
   const trips = model.trips.data;

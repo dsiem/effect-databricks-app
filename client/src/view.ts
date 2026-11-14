@@ -2,6 +2,7 @@ import type { Document } from "foldkit/html";
 import { DialogMount } from "./browser";
 import { calendar } from "./calendar";
 import { genie } from "./genie";
+import { icon } from "./icons";
 import { Message as M } from "./message";
 import {
   filterError,
@@ -39,7 +40,7 @@ function sidebar(h: H, model: Model) {
       h.a(
         [h.Href(href("/", model.query)), h.Class("sidebar-brand")],
         [
-          h.span([h.Class("brand-icon")], ["↗"]),
+          h.span([h.Class("brand-icon")], [icon(h, "car-taxi-front")]),
           h.div(
             [h.Class("sidebar-label")],
             [
@@ -51,7 +52,7 @@ function sidebar(h: H, model: Model) {
       ),
       ...(model.mobile
         ? [
-            button(h, "×", M.CloseOverlay(), [
+            button(h, icon(h, "x"), M.CloseOverlay(), [
               h.AriaLabel("Close navigation"),
               h.Class("btn ghost absolute right-2 top-4"),
             ]),
@@ -71,7 +72,7 @@ function sidebar(h: H, model: Model) {
                 ...tooltip(item.label),
               ],
               [
-                h.span([h.Class("nav-icon"), h.AriaHidden(true)], [item.icon]),
+                h.span([h.Class("nav-icon")], [icon(h, item.icon)]),
                 h.span([h.Class("sidebar-label")], [item.label]),
               ],
             ),
@@ -86,7 +87,7 @@ function sidebar(h: H, model: Model) {
               ...tooltip("Ask Genie"),
             ],
             [
-              h.span([h.Class("nav-icon"), h.AriaHidden(true)], ["✧"]),
+              h.span([h.Class("nav-icon")], [icon(h, "sparkles")]),
               h.span([h.Class("sidebar-label")], ["Ask Genie"]),
             ],
           ),
@@ -269,7 +270,7 @@ export function view(model: Model, h: H): Document {
               [
                 button(
                   h,
-                  "☷",
+                  icon(h, model.mobile ? "menu" : "panel-left"),
                   M.ToggleSidebar(),
                   [
                     h.Id("navigation-trigger"),
