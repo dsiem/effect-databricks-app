@@ -1,13 +1,13 @@
 import { Context, Effect, Layer, Schema } from "effect";
-import { makeAdmission } from "./admission.js";
-import { makeCapability } from "./capability.js";
 import {
   type CapabilityAvailability,
   type GenieInput,
   GenieOperation,
   type GenieProgress,
   type GenieReply,
-} from "./domain.js";
+} from "../shared/domain.js";
+import { makeAdmission } from "./admission.js";
+import { makeCapability } from "./capability.js";
 import {
   GenieFailed,
   OperationTimeout,

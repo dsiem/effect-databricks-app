@@ -128,11 +128,12 @@ test("late trip responses cannot overwrite a newer filter selection", async ({
 test("saved views sheet creates, edits, reloads, and deletes views with their filters", async ({
   page,
 }) => {
-  const stored: import("../src/domain").Note[] = [];
+  const stored: import("../shared/domain").Note[] = [];
   await page.route("**/api/notes**", (route) => {
     const request = route.request();
     if (request.method() === "PUT") {
-      const input = request.postDataJSON() as import("../src/domain").NoteInput;
+      const input =
+        request.postDataJSON() as import("../shared/domain").NoteInput;
       expect(input.filters).toEqual({ zip: "10001" });
       const previous = stored.find((note) => note.id === input.id);
       expect(input.version).toBe(previous?.version ?? null);

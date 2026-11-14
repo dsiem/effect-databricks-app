@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import type { Trip, TripComment, TripCommentInput } from "../src/domain";
+import type { Trip, TripComment, TripCommentInput } from "../shared/domain";
 
 const trip: Trip = {
   trip_id: "7b2c6ab2-6f7d-4f8a-a05f-d07e4eb84a19",

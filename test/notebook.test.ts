@@ -15,7 +15,7 @@ import * as Reactivity from "effect/reactivity/Reactivity";
 import * as SqlClient from "effect/sql/SqlClient";
 import type { Connection } from "effect/sql/SqlConnection";
 import { SqlError, UnknownError } from "effect/sql/SqlError";
-import type { Note, NoteSearch } from "../src/domain.js";
+import type { Note, NoteSearch } from "../shared/domain.js";
 import { type ServiceError, UpstreamError } from "../src/errors.js";
 import { makeNotebook, migrateNotebook, Notebook } from "../src/notebook.js";
 import { pgPassword, restoreCredentialFailure } from "../src/pg-credentials.js";

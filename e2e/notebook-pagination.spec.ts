@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import type { Note, NoteCursor } from "../src/domain";
+import type { Note, NoteCursor } from "../shared/domain";
 
 const makeNotes = (count: number): Note[] =>
   Array.from({ length: count }, (_, index) => ({

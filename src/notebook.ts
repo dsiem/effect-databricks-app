@@ -12,7 +12,6 @@ import * as Reactivity from "effect/reactivity/Reactivity";
 import type * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import type { Statement } from "effect/sql/Statement";
-import { makeCapability } from "./capability.js";
 import {
   type CapabilityAvailability,
   type CurrentUser,
@@ -26,7 +25,8 @@ import {
   type TripCommentInput,
   type TripCommentSearch,
   type TripComments,
-} from "./domain.js";
+} from "../shared/domain.js";
+import { makeCapability } from "./capability.js";
 import {
   NoteConflict,
   NoteNotFound,

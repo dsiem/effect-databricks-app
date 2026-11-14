@@ -21,7 +21,7 @@ flowchart LR
 `src/main.ts` assembles the live service layers once. Routes capture the services
 at construction; no request creates a new runtime. The notebook initializes one
 shared database pool on first use and retries failed discovery on later requests. Shared domain
-schemas live in `src/domain.ts`, and the frontend decodes responses using them.
+schemas live in `shared/domain.ts`, and the frontend decodes responses using them.
 
 `/api/status` retains the warehouse, Genie, and Lakebase configuration flags and
 reports `capabilities` separately. Each is `unconfigured`, `unknown` (configured

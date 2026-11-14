@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { Note, NoteInput } from "../src/domain";
+import type { Note, NoteInput } from "../shared/domain";
 
 const filters = { from: "2016-01-10", to: "2016-01-20", zip: "10001" };
 const query = new URLSearchParams(filters).toString();

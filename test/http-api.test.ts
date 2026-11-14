@@ -8,9 +8,9 @@ import {
   HttpServer,
 } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
+import { ApiError, AppApi } from "../shared/api.js";
+import type { Note, NoteInput } from "../shared/domain.js";
 import { Analytics } from "../src/analytics.js";
-import { ApiError, AppApi } from "../src/api.js";
-import type { Note, NoteInput } from "../src/domain.js";
 import { Genie } from "../src/genie.js";
 import { Notebook } from "../src/notebook.js";
 import { Routes } from "../src/routes.js";

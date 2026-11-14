@@ -1,11 +1,11 @@
 import { Option } from "effect";
 import { Runtime, Url } from "foldkit";
-import { subscriptions } from "./browser";
+import { subscriptions } from "./app/browser";
+import { Message } from "./app/message";
+import { Model } from "./app/model";
+import { init, update } from "./app/update";
+import { view } from "./app/view";
 import { ApiClient } from "./lib/api-client";
-import { Message } from "./message";
-import { Model } from "./model";
-import { init, update } from "./update";
-import { view } from "./view";
 import "./styles.css";
 import "leaflet/dist/leaflet.css";
 

@@ -9,7 +9,7 @@ import {
   type TripCommentInput,
   type TripCommentSearch,
   type TripComments,
-} from "./domain.js";
+} from "../shared/domain.js";
 import { InvalidRequest, unavailable } from "./errors.js";
 import { restoreCredentialFailure } from "./pg-credentials.js";
 

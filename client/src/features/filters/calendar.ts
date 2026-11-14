@@ -1,12 +1,13 @@
 import { Calendar, Dialog, Input } from "@foldkit/ui";
 import { Option } from "effect";
 import * as CalendarDate from "foldkit/calendar";
-import { icon } from "./icons";
-import { Message as M } from "./message";
-import type { Model } from "./model";
-import { button, type H } from "./ui";
-import { dialog } from "./ui-dialog";
-import { isoDate, parseDate } from "./ui-state";
+import { Message as M } from "../../app/message";
+import type { Model } from "../../app/model";
+import { isoDate, parseDate } from "../../app/ui-state";
+import type { H } from "../../app/view-types";
+import { dialog } from "../../ui/dialog";
+import { icon } from "../../ui/icons";
+import { button } from "../../ui/primitives";
 
 export function calendar(h: H, model: Model) {
   const current = parseDate(`${model.calendarMonth}-01`);
@@ -88,74 +89,85 @@ export function calendar(h: H, model: Model) {
         },
       },
     });
-  return dialog(h, model, "calendar", "workspace-dialog date-dialog", [
-    h.div(
-      [h.Class("dialog-header")],
-      [
-        h.h2([h.Id(Dialog.titleId(model.dialogs.calendar))], ["Pickup dates"]),
-        h.p([h.Class("muted text-xs")], ["Select a start and end date."]),
-      ],
-    ),
-    h.div(
-      [h.Class("flex items-center justify-between px-4 pt-3")],
-      [
-        button(
-          h,
-          icon(h, "chevron-left"),
-          M.CalendarMonth({
-            month: isoDate(CalendarDate.addMonths(current, -1)).slice(0, 7),
+  return dialog(h, {
+    model: model.dialogs.calendar,
+    onMessage: (message) => M.Dialog({ id: "calendar", message }),
+    className: "workspace-dialog date-dialog",
+    children: [
+      h.div(
+        [h.Class("dialog-header")],
+        [
+          h.h2(
+            [h.Id(Dialog.titleId(model.dialogs.calendar))],
+            ["Pickup dates"],
+          ),
+          h.p([h.Class("muted text-xs")], ["Select a start and end date."]),
+        ],
+      ),
+      h.div(
+        [h.Class("flex items-center justify-between px-4 pt-3")],
+        [
+          button(h, {
+            label: icon(h, "chevron-left"),
+            onClick: M.CalendarMonth({
+              month: isoDate(CalendarDate.addMonths(current, -1)).slice(0, 7),
+            }),
+            attributes: [
+              h.AriaLabel("Previous month"),
+              h.Disabled(!!min && model.calendarMonth <= min.slice(0, 7)),
+            ],
           }),
-          [
-            h.AriaLabel("Previous month"),
-            h.Disabled(!!min && model.calendarMonth <= min.slice(0, 7)),
-          ],
-        ),
-        Input.view(
-          {
-            id: "calendar-month",
-            type: "month",
-            value: model.calendarMonth,
-            onInput: (value) =>
-              M.CalendarMonth({ month: value || model.calendarMonth }),
-            toView: ({ input }) =>
-              h.input([
-                ...input,
-                h.AriaLabel("Calendar month"),
-                ...(min ? [h.Min(min.slice(0, 7))] : []),
-                ...(max ? [h.Max(max.slice(0, 7))] : []),
-              ]),
-          },
-          h,
-        ),
-        button(
-          h,
-          icon(h, "chevron-right"),
-          M.CalendarMonth({
-            month: isoDate(CalendarDate.addMonths(current, 1)).slice(0, 7),
+          Input.view(
+            {
+              id: "calendar-month",
+              type: "month",
+              value: model.calendarMonth,
+              onInput: (value) =>
+                M.CalendarMonth({ month: value || model.calendarMonth }),
+              toView: ({ input }) =>
+                h.input([
+                  ...input,
+                  h.AriaLabel("Calendar month"),
+                  ...(min ? [h.Min(min.slice(0, 7))] : []),
+                  ...(max ? [h.Max(max.slice(0, 7))] : []),
+                ]),
+            },
+            h,
+          ),
+          button(h, {
+            label: icon(h, "chevron-right"),
+            onClick: M.CalendarMonth({
+              month: isoDate(CalendarDate.addMonths(current, 1)).slice(0, 7),
+            }),
+            attributes: [
+              h.AriaLabel("Next month"),
+              h.Disabled(!!max && model.calendarMonth >= max.slice(0, 7)),
+            ],
           }),
-          [
-            h.AriaLabel("Next month"),
-            h.Disabled(!!max && model.calendarMonth >= max.slice(0, 7)),
-          ],
-        ),
-      ],
-    ),
-    h.div(
-      [h.Class("calendar-months")],
-      [month(0), ...(!model.mobile ? [month(1)] : [])],
-    ),
-    h.div(
-      [h.Class("dialog-footer justify-between")],
-      [
-        button(
-          h,
-          "Clear dates",
-          M.ClearDates(),
-          [h.Disabled(!model.filterDraft.from && !model.filterDraft.to)],
-          "ghost",
-        ),
-        button(h, "Done", M.CloseOverlay(), [], "primary"),
-      ],
-    ),
-  ]);
+        ],
+      ),
+      h.div(
+        [h.Class("calendar-months")],
+        [month(0), ...(!model.mobile ? [month(1)] : [])],
+      ),
+      h.div(
+        [h.Class("dialog-footer justify-between")],
+        [
+          button(h, {
+            label: "Clear dates",
+            onClick: M.ClearDates(),
+            attributes: [
+              h.Disabled(!model.filterDraft.from && !model.filterDraft.to),
+            ],
+            variant: "ghost",
+          }),
+          button(h, {
+            label: "Done",
+            onClick: M.CloseOverlay(),
+            variant: "primary",
+          }),
+        ],
+      ),
+    ],
+  });
 }

@@ -7,7 +7,7 @@ import {
   type Trip,
   TripCommentInput,
   type TripCommentSearch,
-} from "../src/domain.js";
+} from "../shared/domain.js";
 import { migrateNotebook } from "../src/notebook.js";
 import { notebookFixture } from "./notebook-fixture.js";
 

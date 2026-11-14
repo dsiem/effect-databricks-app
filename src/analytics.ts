@@ -3,8 +3,6 @@ import * as Reactivity from "effect/reactivity/Reactivity";
 import { AuthenticationError, SqlError } from "effect/sql/SqlError";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import { DatabricksClient } from "effect-sql-databricks";
-import { makeAdmission } from "./admission.js";
-import { makeCapability } from "./capability.js";
 import {
   type CapabilityAvailability,
   Daily,
@@ -17,7 +15,9 @@ import {
   type TripSearch,
   type Trips,
   Zone,
-} from "./domain.js";
+} from "../shared/domain.js";
+import { makeAdmission } from "./admission.js";
+import { makeCapability } from "./capability.js";
 import { OperationTimeout, type ServiceError, unavailable } from "./errors.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";

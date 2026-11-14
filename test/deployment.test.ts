@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
 import { parse } from "yaml";
-import type { Note } from "../src/domain.js";
+import type { Note } from "../shared/domain.js";
 
 const run = promisify(execFile);
 

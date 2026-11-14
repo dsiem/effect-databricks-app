@@ -1,13 +1,20 @@
 import { Button, Dialog, Textarea } from "@foldkit/ui";
 import { Option } from "effect";
 import { Lexer, type MarkedToken, type Token } from "marked";
-import type { GenieReply } from "../../src/domain";
-import { PanelReturnFocus } from "./browser";
-import { icon } from "./icons";
-import { Message as M } from "./message";
-import { busy, filtersFromQuery, type Model, pageContext } from "./model";
-import { alert, button, type Child, filterSummary, type H, table } from "./ui";
-import { dialog } from "./ui-dialog";
+import type { GenieReply } from "../../../../shared/domain";
+import { Message as M } from "../../app/message";
+import {
+  busy,
+  filtersFromQuery,
+  type Model,
+  pageContext,
+} from "../../app/model";
+import type { H } from "../../app/view-types";
+import { dialog } from "../../ui/dialog";
+import { icon } from "../../ui/icons";
+import { alert, button, type Child, table } from "../../ui/primitives";
+import { filterSummary } from "../filters/summary";
+import { PanelReturnFocus } from "./focus";
 
 // Render Markdown as VNodes. Raw HTML is text and link protocols are constrained.
 function markdown(h: H, tokens: Token[]): Child[] {
@@ -150,12 +157,12 @@ function answer(h: H, model: Model, reply: GenieReply): Child[] {
                 ],
                 [result.sql],
               ),
-              button(
-                h,
-                model.clipboard === "Copied" ? "Copied" : "Copy SQL",
-                M.CopySql({ sql: result.sql }),
-                [h.Class("btn ghost mt-2")],
-              ),
+              button(h, {
+                label: model.clipboard === "Copied" ? "Copied" : "Copy SQL",
+                onClick: M.CopySql({ sql: result.sql }),
+                className: " mt-2",
+                variant: "ghost",
+              }),
               ...(model.clipboard && model.clipboard !== "Copied"
                 ? [alert(h, model.clipboard)]
                 : []),
@@ -200,36 +207,37 @@ export function genie(h: H, model: Model, floating = false) {
         h.div(
           [h.Class("flex items-center gap-1")],
           [
-            button(
-              h,
-              icon(h, "plus"),
-              M.NewConversation(),
-              [
+            button(h, {
+              label: icon(h, "plus"),
+              onClick: M.NewConversation(),
+              attributes: [
                 h.AriaLabel("New conversation"),
                 h.Disabled(working || !model.turns.length),
               ],
-              "ghost",
-            ),
+              variant: "ghost",
+            }),
             ...(floating
               ? [
-                  button(
-                    h,
-                    icon(h, model.genieExpanded ? "minimize-2" : "maximize-2"),
-                    M.ExpandGenie(),
-                    [
+                  button(h, {
+                    label: icon(
+                      h,
+                      model.genieExpanded ? "minimize-2" : "maximize-2",
+                    ),
+                    onClick: M.ExpandGenie(),
+                    attributes: [
                       h.AriaLabel(
                         model.genieExpanded ? "Minimize Genie" : "Expand Genie",
                       ),
-                      h.Class("btn ghost hidden md:inline-flex"),
                     ],
-                  ),
-                  button(
-                    h,
-                    icon(h, "x"),
-                    M.CloseOverlay(),
-                    [h.AriaLabel("Close Genie")],
-                    "ghost",
-                  ),
+                    className: " hidden md:inline-flex",
+                    variant: "ghost",
+                  }),
+                  button(h, {
+                    label: icon(h, "x"),
+                    onClick: M.CloseOverlay(),
+                    attributes: [h.AriaLabel("Close Genie")],
+                    variant: "ghost",
+                  }),
                 ]
               : []),
           ],
@@ -257,13 +265,12 @@ export function genie(h: H, model: Model, floating = false) {
             ),
             ...(model.genieSelection
               ? [
-                  button(
-                    h,
-                    icon(h, "x"),
-                    M.ClearSelection(),
-                    [h.AriaLabel("Use whole page")],
-                    "ghost",
-                  ),
+                  button(h, {
+                    label: icon(h, "x"),
+                    onClick: M.ClearSelection(),
+                    attributes: [h.AriaLabel("Use whole page")],
+                    variant: "ghost",
+                  }),
                 ]
               : []),
           ],
@@ -318,9 +325,11 @@ export function genie(h: H, model: Model, floating = false) {
               h.div(
                 [h.Class("space-y-2 mb-5")],
                 questions[context.page].map((question) =>
-                  button(h, question, M.SendQuestion({ question }), [
-                    h.Class("btn outline suggestion"),
-                  ]),
+                  button(h, {
+                    label: question,
+                    onClick: M.SendQuestion({ question }),
+                    className: " suggestion",
+                  }),
                 ),
               ),
             ]
@@ -369,29 +378,26 @@ export function genie(h: H, model: Model, floating = false) {
                         alert(h, turn.error),
                         ...(turn.state === "submission-rejected"
                           ? [
-                              button(
-                                h,
-                                "Edit question",
-                                M.EditQuestion({ question: turn.question }),
-                                [
-                                  h.Disabled(working),
-                                  h.Class("btn outline mt-3"),
-                                ],
-                              ),
+                              button(h, {
+                                label: "Edit question",
+                                onClick: M.EditQuestion({
+                                  question: turn.question,
+                                }),
+                                attributes: [h.Disabled(working)],
+                                className: " mt-3",
+                              }),
                             ]
                           : turn.state === "paused"
                             ? [
-                                button(
-                                  h,
-                                  turn.stage === "retrieving"
-                                    ? "Retry result download"
-                                    : "Resume answer",
-                                  M.ResumeTurn({ id: turn.id }),
-                                  [
-                                    h.Disabled(working),
-                                    h.Class("btn outline mt-3"),
-                                  ],
-                                ),
+                                button(h, {
+                                  label:
+                                    turn.stage === "retrieving"
+                                      ? "Retry result download"
+                                      : "Resume answer",
+                                  onClick: M.ResumeTurn({ id: turn.id }),
+                                  attributes: [h.Disabled(working)],
+                                  className: " mt-3",
+                                }),
                               ]
                             : []),
                       ]
@@ -476,7 +482,13 @@ export function genie(h: H, model: Model, floating = false) {
   ];
   if (!floating) return h.div([h.Class("genie-full")], content);
   const classes = `genie-panel ${model.genieExpanded ? "expanded" : ""}`;
-  if (model.mobile) return dialog(h, model, "genie", classes, content);
+  if (model.mobile)
+    return dialog(h, {
+      model: model.dialogs.genie,
+      onMessage: (message) => M.Dialog({ id: "genie", message }),
+      className: classes,
+      children: content,
+    });
   // The desktop helper stays non-modal so the user can explore alongside it.
   return h.dialog(
     [

@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import type { CapabilityAvailability } from "./domain.js";
+import type { CapabilityAvailability } from "../shared/domain.js";
 import type { ServiceError } from "./errors.js";
 
 // Availability records the last dependency outcome; it is not a health probe.

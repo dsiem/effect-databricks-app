@@ -1,0 +1,88 @@
+import { Effect, Schema } from "effect";
+import { Command, Navigation } from "foldkit";
+import * as CalendarDate from "foldkit/calendar";
+import { History, turnBase } from "../features/genie/model";
+import { request } from "../lib/api-client";
+import { done, result } from "../lib/command-result";
+import { Message as M } from "./message";
+export const Navigate = Command.define("Navigate", {
+  args: { href: Schema.String, external: Schema.Boolean },
+  messages: [M.Idle],
+  execute: ({ href, external }) =>
+    done(external ? Navigation.load(href) : Navigation.pushUrl(href)),
+});
+export const Boot = Command.define("RestoreWorkspace", {
+  messages: [M.Booted],
+  execute: Effect.sync(() => {
+    let turns: typeof History.Type = [];
+    let persistenceError = "";
+    try {
+      const stored = sessionStorage.getItem("metrocab.genie.v1");
+      if (stored)
+        turns = Schema.decodeUnknownSync(History)(JSON.parse(stored)).map(
+          (turn) =>
+            turn.state === "submitting"
+              ? {
+                  ...turnBase(turn),
+                  state: "submission-unknown" as const,
+                  error:
+                    "The submission response was lost. The question may have been accepted. Check Genie before submitting it again.",
+                }
+              : turn,
+        );
+    } catch {
+      persistenceError =
+        "Conversation recovery is unavailable in this browser session.";
+    }
+    return M.Booted({
+      turns,
+      persistenceError,
+      today: CalendarDate.fromDateLocal(new Date()),
+      sidebar: !document.cookie.split("; ").includes("sidebar_state=false"),
+      mobile: matchMedia("(max-width: 767px)").matches,
+    });
+  }),
+});
+export const PersistSidebar = Command.define("PersistSidebar", {
+  args: { open: Schema.Boolean },
+  messages: [M.Idle],
+  execute: ({ open }) =>
+    done(
+      Effect.sync(() => {
+        // biome-ignore lint/suspicious/noDocumentCookie: persist the existing boolean sidebar preference across reloads.
+        document.cookie = `sidebar_state=${open}; path=/; max-age=604800; SameSite=Lax`;
+      }),
+    ),
+});
+export const Focus = Command.define("Focus", {
+  args: { selector: Schema.String },
+  messages: [M.Idle],
+  execute: ({ selector }) =>
+    done(
+      Effect.sleep("20 millis").pipe(
+        Effect.andThen(
+          Effect.sync(() =>
+            document.querySelector<HTMLElement>(selector)?.focus(),
+          ),
+        ),
+      ),
+    ),
+});
+export const LoadMetadata = Command.define("LoadMetadata", {
+  messages: [M.LoadedMetadata],
+  execute: result(request((client) => client.metadata())).pipe(
+    Effect.map(M.LoadedMetadata),
+  ),
+});
+export const LoadStatus = Command.define("LoadStatus", {
+  messages: [M.LoadedStatus],
+  execute: result(request((client) => client.status())).pipe(
+    Effect.map(M.LoadedStatus),
+  ),
+});
+export const LoadUser = Command.define("LoadUser", {
+  messages: [M.LoadedUser],
+  execute: result(request((client) => client.currentUser())).pipe(
+    Effect.map(({ data }) => M.LoadedUser({ user: data })),
+  ),
+});

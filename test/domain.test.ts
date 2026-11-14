@@ -9,7 +9,7 @@ import {
   Note,
   NoteInput,
   TripSearch,
-} from "../src/domain.js";
+} from "../shared/domain.js";
 
 test("accepts real historical dates and rejects impossible dates", () => {
   assert.equal(Schema.decodeUnknownSync(Day)("2016-02-29"), "2016-02-29");

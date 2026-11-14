@@ -1,62 +1,8 @@
 import { Effect, Queue, Schema, Stream } from "effect";
-import { Mount, Subscription } from "foldkit";
+import { Mount } from "foldkit";
 import type { FeatureCollection } from "geojson";
-import * as D from "../../src/domain";
-import { Message as M, type Message } from "./message";
-import type { Model } from "./model";
-
-export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
-  browser: entry(
-    {},
-    {
-      modelToDependencies: () => ({}),
-      dependenciesToStream: () =>
-        Stream.callback<Message>((queue) =>
-          Effect.acquireRelease(
-            Effect.sync(() => {
-              const keydown = (event: KeyboardEvent) => {
-                if (
-                  (event.metaKey || event.ctrlKey) &&
-                  event.key.toLowerCase() === "b"
-                ) {
-                  event.preventDefault();
-                  Queue.offerUnsafe(queue, M.ToggleSidebar());
-                }
-              };
-              const media = matchMedia("(max-width: 767px)");
-              const resize = () =>
-                Queue.offerUnsafe(queue, M.Resized({ mobile: media.matches }));
-              window.addEventListener("keydown", keydown);
-              media.addEventListener("change", resize);
-              return () => {
-                window.removeEventListener("keydown", keydown);
-                media.removeEventListener("change", resize);
-              };
-            }),
-            (cleanup) => Effect.sync(cleanup),
-          ),
-        ),
-    },
-  ),
-}));
-
-// The desktop assistant is a persistent non-modal panel, rather than a modal Dialog.
-export const PanelReturnFocus = Mount.define("PanelReturnFocus", {
-  messages: [M.Idle],
-  execute: () =>
-    Effect.acquireRelease(
-      Effect.sync(() =>
-        document.activeElement instanceof HTMLElement
-          ? document.activeElement
-          : null,
-      ),
-      (opener) =>
-        Effect.sync(() => {
-          if (opener?.isConnected) opener.focus();
-          else document.querySelector<HTMLElement>("#genie-trigger")?.focus();
-        }),
-    ).pipe(Effect.as(M.Idle())),
-});
+import * as D from "../../../../shared/domain";
+import { Message as M } from "../../app/message";
 
 const Position = Schema.Array(Schema.Number);
 const PolygonCoordinates = Schema.Array(Schema.Array(Position));

@@ -1,0 +1,165 @@
+import { Effect, Schema } from "effect";
+import { Command } from "foldkit";
+import { ApiError } from "../../../../shared/api";
+import { Message as M } from "../../app/message";
+import { request } from "../../lib/api-client";
+import { failure, result } from "../../lib/command-result";
+import { History, Turn, turnBase } from "./model";
+export const CreateTurn = Command.define("CreateQuestion", {
+  args: { question: Schema.String },
+  messages: [M.CreatedTurn],
+  execute: ({ question }) =>
+    Effect.sync(() => M.CreatedTurn({ id: crypto.randomUUID(), question })),
+});
+export const SubmitQuestion = Command.define("SubmitQuestion", {
+  args: { turn: Turn, conversationId: Schema.NullOr(Schema.String) },
+  messages: [M.ChangedTurn],
+  execute: ({ turn, conversationId }) =>
+    request((client) =>
+      client.submitGenie({
+        payload: {
+          content: turn.question,
+          ...(turn.filters ? { filters: turn.filters } : {}),
+          ...(turn.context ? { context: turn.context } : {}),
+          ...(conversationId ? { conversationId } : {}),
+        },
+      }),
+    ).pipe(
+      Effect.scoped,
+      Effect.match({
+        onSuccess: (operation) =>
+          M.ChangedTurn({
+            turn: { ...turnBase(turn), state: "waiting", operation },
+          }),
+        onFailure: (error) => {
+          const rejected =
+            Schema.is(ApiError)(error) &&
+            (error.error.code === "invalid_request" ||
+              ("upstreamStatus" in error.error &&
+                [400, 401, 403, 404, 409, 422, 429].includes(
+                  error.error.upstreamStatus ?? 0,
+                )));
+          return M.ChangedTurn({
+            turn: {
+              ...turnBase(turn),
+              state: rejected ? "submission-rejected" : "submission-unknown",
+              error: rejected
+                ? `The question was rejected. ${failure(error)}`
+                : `${failure(error)} The question may have been accepted. Check Genie before submitting it again.`,
+            },
+          });
+        },
+      }),
+    ),
+});
+export const PollQuestion = Command.define("PollQuestion", {
+  args: { turn: Turn },
+  messages: [M.ChangedTurn],
+  execute: ({ turn }) => {
+    if (!("operation" in turn)) return Effect.succeed(M.ChangedTurn({ turn }));
+    const operation = turn.operation;
+    return Effect.gen(function* () {
+      const deadline = Date.now() + 180_000;
+      while (true) {
+        const progress = yield* request((client) =>
+          client.pollGenie({ params: operation }),
+        );
+        if (progress.state === "failed")
+          return M.ChangedTurn({
+            turn: {
+              ...turnBase(turn),
+              operation,
+              state: "failed",
+              error: `Genie could not complete this question (${progress.status}).`,
+            },
+          });
+        if (progress.state === "completed")
+          return M.ChangedTurn({
+            turn: { ...turnBase(turn), operation, state: "retrieving" },
+          });
+        if (Date.now() >= deadline)
+          return M.ChangedTurn({
+            turn: {
+              ...turnBase(turn),
+              operation,
+              state: "paused",
+              stage: "waiting",
+              error:
+                "Genie is taking longer than expected. Resume waiting for this answer.",
+            },
+          });
+        yield* Effect.sleep("1 second");
+      }
+    }).pipe(
+      Effect.scoped,
+      Effect.catch((error) =>
+        Effect.succeed(
+          M.ChangedTurn({
+            turn: {
+              ...turnBase(turn),
+              operation,
+              state: "paused",
+              stage: "waiting",
+              error: failure(error),
+            },
+          }),
+        ),
+      ),
+    );
+  },
+});
+export const RetrieveQuestion = Command.define("RetrieveQuestion", {
+  args: { turn: Turn },
+  messages: [M.ChangedTurn],
+  execute: ({ turn }) => {
+    if (!("operation" in turn)) return Effect.succeed(M.ChangedTurn({ turn }));
+    const operation = turn.operation;
+    return result(
+      request((client) => client.genieResult({ params: operation })),
+    ).pipe(
+      Effect.map(({ data, error }) =>
+        M.ChangedTurn({
+          turn: data
+            ? { ...turnBase(turn), state: "complete", reply: data }
+            : {
+                ...turnBase(turn),
+                operation,
+                state: "paused",
+                stage: "retrieving",
+                error,
+              },
+        }),
+      ),
+    );
+  },
+});
+export const PersistTurns = Command.define("PersistConversation", {
+  args: { turns: History },
+  messages: [M.Persisted],
+  execute: ({ turns }) =>
+    Effect.sync(() => {
+      try {
+        sessionStorage.setItem("metrocab.genie.v1", JSON.stringify(turns));
+        return M.Persisted({ error: "" });
+      } catch {
+        return M.Persisted({
+          error:
+            "Conversation recovery could not be saved. Keep this tab open to retain the answer.",
+        });
+      }
+    }),
+});
+export const CopySql = Command.define("CopySql", {
+  args: { sql: Schema.String },
+  messages: [M.CopiedSql],
+  execute: ({ sql }) =>
+    Effect.tryPromise(() => navigator.clipboard.writeText(sql)).pipe(
+      Effect.match({
+        onSuccess: () => M.CopiedSql({ text: "Copied" }),
+        onFailure: () =>
+          M.CopiedSql({
+            text: "Unable to copy. Select the SQL above to copy it.",
+          }),
+      }),
+    ),
+});

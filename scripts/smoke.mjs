@@ -32,7 +32,7 @@ async function requestHttp2(origin, path) {
 }
 
 for (const protocol of ["http1", "http2"]) {
-  const app = spawn(process.execPath, ["dist/main.js"], {
+  const app = spawn(process.execPath, ["dist/src/main.js"], {
     env: {
       ...process.env,
       DATABRICKS_APP_PORT: "0",

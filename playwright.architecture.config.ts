@@ -25,7 +25,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "node dist/main.js",
+    command: "node dist/src/main.js",
     url: `http://127.0.0.1:${port}/health`,
     env: {
       DATABRICKS_APP_PORT: port,

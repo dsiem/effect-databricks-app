@@ -1,7 +1,7 @@
 import { Context, Effect, Layer } from "effect";
 import { FetchHttpClient, HttpClient } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
-import { AppApi } from "../../../src/api.js";
+import { AppApi } from "../../../shared/api.js";
 
 const makeClient = Effect.gen(function* () {
   const httpClient = HttpClient.withScope(yield* HttpClient.HttpClient);

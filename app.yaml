@@ -1,4 +1,4 @@
-command: ["node", "dist/main.js"]
+command: ["node", "dist/src/main.js"]
 
 env:
   - name: APP_HTTP_PROTOCOL

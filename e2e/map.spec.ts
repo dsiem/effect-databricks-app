@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { Overview } from "../src/domain";
+import type { Overview } from "../shared/domain";
 
 const overview: Overview = {
   summary: {

@@ -150,6 +150,31 @@ Configure GitHub environments `dev` / `prod` with `DATABRICKS_HOST`,
 for the GitHub environment subject. An existing adopted warehouse must have its
 bundle variable set to its current name in CI as well.
 
+## Code organization
+
+`src/` contains server implementations; `shared/` contains browser-safe domain
+schemas and the HTTP contract. Both builds compile the same contract. Server
+output starts at `dist/src/main.js`, with contracts in `dist/shared/`.
+
+`client/src/main.ts` boots the runtime. `app/` composes the shell, routing,
+feature state, and message union. Each directory under `features/` owns its
+schemas, messages, updates, commands, and views where needed. Features keep one
+Foldkit runtime and one app model; their reducers receive the composed model so
+cross-feature analysis context remains explicit. Stateless `ui/` components are
+generic over the caller's message type and import no app or domain state.
+`lib/` holds transport, formatting, and request helpers. The independently packed
+SQL adapter stays under `packages/sql-databricks/`.
+
+Add domain schemas and API endpoints in `shared/`, implement server behavior in
+`src/`, and place client behavior beside its feature. Compose new state and
+messages in `app/model.ts` and `app/message.ts`, then dispatch its reducer from
+`app/update.ts`. Keep application-specific copy in feature views. Use named
+button options (`label`, `onClick`, `variant`, `className`, `attributes`) and pass
+only a dialog's own model and message mapper to the generic dialog shell.
+
+`npm run architecture:check` enforces import boundaries, including type imports,
+re-exports and literal dynamic imports. It runs as part of `npm run check`.
+
 ## Why Effect is central
 
 The server is an Effect application, including HTTP routing and lifetime:
@@ -222,7 +247,7 @@ Frontend state lives in a Schema-defined Foldkit model. Messages enter the pure
 navigation, HTTP requests, persistence, clipboard, and downloads run through
 commands; browser events use a subscription and Leaflet uses a scoped mount.
 There are no component-local stores or hook lifecycles. `client/src/main.ts` boots
-the runtime, while `model.ts`, `message.ts`, `update.ts`, and the stateless views
+the runtime, while `app/model.ts`, `app/message.ts`, `app/update.ts`, and the stateless views
 can be inspected independently. Run `npm run client:check` to audit the migration
 and `npm run test:browser` to exercise the UI and recovery workflows offline.
 

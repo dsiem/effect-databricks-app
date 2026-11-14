@@ -11,5 +11,5 @@
       "@/*": ["./client/src/*"]
     }
   },
-  "include": ["client/src", "src/domain.ts", "vite.config.ts"]
+  "include": ["client/src", "vite.config.ts", "shared/**/*.ts", "client/test"]
 }

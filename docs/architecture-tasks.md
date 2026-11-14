@@ -115,7 +115,7 @@ behavioral tests for each implementation task's completion criteria.
     client with `HttpApiClient`. Remove duplicated route and client definitions
     as endpoints migrate.
 
-    All JSON endpoints, including health, now share `src/api.ts`. The server
+    All JSON endpoints, including health, now share `shared/api.ts`. The server
     uses `HttpApiBuilder` and every browser API call uses `HttpApiClient`.
     Contract tests round-trip every endpoint, reject invalid inputs and outputs,
     and verify declared error decoding and cancellation during response reads.

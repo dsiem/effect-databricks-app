@@ -7,13 +7,13 @@ import {
   HttpServerResponse,
 } from "effect/http";
 import { HttpApiBuilder, HttpApiError } from "effect/http-api";
-import { Analytics } from "./analytics.js";
 import {
   ApiBoundary,
   type ApiError,
   AppApi,
   invalidRequestBody,
-} from "./api.js";
+} from "../shared/api.js";
+import { Analytics } from "./analytics.js";
 import { makeCurrentUser } from "./current-user.js";
 import type { ServiceError } from "./errors.js";
 import { Genie } from "./genie.js";

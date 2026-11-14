@@ -24,6 +24,8 @@ export const Filters = Schema.Struct({
   zip: Schema.optionalKey(Zip),
 }).check(dateOrder);
 export type Filters = typeof Filters.Type;
+export const TripSort = Schema.Literals(["newest", "fare", "distance"]);
+export const Id = Schema.String.check(Schema.isUUID(4));
 export const TripSearch = Schema.Struct({
   ...Filters.fields,
   page: Schema.optionalKey(
@@ -32,7 +34,7 @@ export const TripSearch = Schema.Struct({
       Schema.isBetween({ minimum: 1, maximum: 10000 }),
     ),
   ),
-  sort: Schema.optionalKey(Schema.Literals(["newest", "fare", "distance"])),
+  sort: Schema.optionalKey(TripSort),
 }).check(dateOrder);
 export type TripSearch = typeof TripSearch.Type;
 
@@ -91,7 +93,7 @@ export const Trips = Schema.Struct({
 });
 export const NoteVersion = Schema.Int.check(Schema.isGreaterThan(0));
 export const NoteInput = Schema.Struct({
-  id: Schema.String.check(Schema.isUUID(4)),
+  id: Id,
   title: boundedText(160),
   body: Schema.String.check(Schema.isMaxLength(10000)),
   filters: Filters,
@@ -111,18 +113,19 @@ export const Note = Schema.Struct({
 });
 export type Note = typeof Note.Type;
 export type NoteInput = typeof NoteInput.Type;
+export const CursorTimestamp = Schema.String.check(
+  Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/),
+  Schema.makeFilter(
+    (value) =>
+      !Number.isNaN(Date.parse(value)) &&
+      new Date(value).toISOString() === `${value.slice(0, 23)}Z`,
+  ),
+);
 export const NoteCursor = Schema.Struct({
-  id: NoteInput.fields.id,
+  id: Id,
   pinned: Schema.Boolean,
   // Preserve PostgreSQL's microseconds when resuming the database ordering.
-  updatedAt: Schema.String.check(
-    Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/),
-    Schema.makeFilter(
-      (value) =>
-        !Number.isNaN(Date.parse(value)) &&
-        new Date(value).toISOString() === `${value.slice(0, 23)}Z`,
-    ),
-  ),
+  updatedAt: CursorTimestamp,
 });
 export type NoteCursor = typeof NoteCursor.Type;
 export const NoteSearch = Schema.Struct({
@@ -202,7 +205,7 @@ export const CurrentUser = Schema.Struct({
 export type CurrentUser = typeof CurrentUser.Type;
 
 export const TripCommentInput = Schema.Struct({
-  id: NoteInput.fields.id,
+  id: Id,
   trip: Trip,
   body: boundedText(4000).check(
     Schema.makeFilter((body) => body.trim().length > 0),
@@ -216,8 +219,8 @@ export const TripComment = Schema.Struct({
 });
 export type TripComment = typeof TripComment.Type;
 export const TripCommentCursor = Schema.Struct({
-  id: NoteInput.fields.id,
-  createdAt: NoteCursor.fields.updatedAt,
+  id: Id,
+  createdAt: CursorTimestamp,
 });
 export type TripCommentCursor = typeof TripCommentCursor.Type;
 export const TripCommentSearch = Schema.Struct({

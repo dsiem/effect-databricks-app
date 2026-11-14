@@ -90,7 +90,7 @@ resources:
       description: NYC taxi analytics, Genie, and a Lakebase notebook, composed with Effect.
       source_code_path: .
       config:
-        command: [node, dist/main.js]
+        command: [node, dist/src/main.js]
         env:
           - name: APP_HTTP_PROTOCOL
             value: http1

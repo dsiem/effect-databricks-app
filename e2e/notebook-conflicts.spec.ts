@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { Note } from "../src/domain";
+import type { Note } from "../shared/domain";
 
 const original: Note = {
   id: "472a6613-2337-4af1-a416-e9b6b61064dd",

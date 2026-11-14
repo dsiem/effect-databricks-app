@@ -1,8 +1,16 @@
 import { Button, Input, Tooltip } from "@foldkit/ui";
 import type { Document } from "foldkit/html";
-import { calendar } from "./calendar";
-import { genie } from "./genie";
-import { icon } from "./icons";
+import { calendar } from "../features/filters/calendar";
+import { genie } from "../features/genie/view";
+import { pickupMap } from "../features/map/view";
+import { overview } from "../features/overview/view";
+import { deleteDialog, editor, savedViews } from "../features/saved-views/view";
+import { inspector } from "../features/trips/inspector";
+import { trips } from "../features/trips/view";
+import { dateLabel } from "../lib/format";
+import { dialog } from "../ui/dialog";
+import { icon } from "../ui/icons";
+import { button, type Child, card } from "../ui/primitives";
 import { Message as M } from "./message";
 import {
   filterError,
@@ -11,11 +19,8 @@ import {
   type Model,
   navigation,
 } from "./model";
-import { deleteDialog, editor, inspector, savedViews } from "./overlays";
-import { overview, pickupMap, trips } from "./pages";
-import { button, type Child, card, dateLabel, type H } from "./ui";
-import { dialog } from "./ui-dialog";
 import { initTooltip } from "./ui-state";
+import type { H } from "./view-types";
 
 function sidebar(h: H, model: Model) {
   const user = model.user;
@@ -74,10 +79,13 @@ function sidebar(h: H, model: Model) {
       ),
       ...(model.mobile
         ? [
-            button(h, icon(h, "x"), M.CloseOverlay(), [
-              h.AriaLabel("Close navigation"),
-              h.Class("btn ghost absolute right-2 top-4"),
-            ]),
+            button(h, {
+              label: icon(h, "x"),
+              onClick: M.CloseOverlay(),
+              attributes: [h.AriaLabel("Close navigation")],
+              className: " absolute right-2 top-4",
+              variant: "ghost",
+            }),
           ]
         : []),
       h.div(
@@ -179,11 +187,15 @@ function filters(h: H, model: Model) {
             h.Name("to"),
             h.Value(model.filterDraft.to),
           ]),
-          button(h, label, M.OpenCalendar(), [
-            h.Id("date-trigger"),
-            h.AriaLabel(`Pickup date range: ${label}`),
-            h.Class("btn outline date-trigger"),
-          ]),
+          button(h, {
+            label: label,
+            onClick: M.OpenCalendar(),
+            attributes: [
+              h.Id("date-trigger"),
+              h.AriaLabel(`Pickup date range: ${label}`),
+            ],
+            className: " date-trigger",
+          }),
         ],
       ),
       h.div(
@@ -222,16 +234,28 @@ function filters(h: H, model: Model) {
         h,
       ),
       ...(model.query
-        ? [button(h, "Reset", M.ResetFilters(), [], "ghost")]
+        ? [
+            button(h, {
+              label: "Reset",
+              onClick: M.ResetFilters(),
+              variant: "ghost",
+            }),
+          ]
         : []),
       h.div(
         [h.Class("saved-view-bar")],
         [
           h.span([], ["Applied Explore view"]),
-          button(h, "Save view", M.NewNote(), [
-            h.Disabled(!filtersFromQuery(model.query)),
-          ]),
-          button(h, "Saved views", M.OpenSavedViews(), [], "ghost"),
+          button(h, {
+            label: "Save view",
+            onClick: M.NewNote(),
+            attributes: [h.Disabled(!filtersFromQuery(model.query))],
+          }),
+          button(h, {
+            label: "Saved views",
+            onClick: M.OpenSavedViews(),
+            variant: "ghost",
+          }),
           ...(model.saved?.query === model.query
             ? [h.span([h.Role("status")], [`Saved “${model.saved.title}”`])]
             : []),
@@ -249,7 +273,10 @@ export function view(model: Model, h: H): Document {
         [
           h.h1([h.Class("text-lg font-semibold")], ["Invalid Explore filters"]),
           h.p([h.Class("muted text-sm mt-3 mb-5")], [filterError]),
-          button(h, "Clear invalid filters", M.ResetFilters()),
+          button(h, {
+            label: "Clear invalid filters",
+            onClick: M.ResetFilters(),
+          }),
         ],
         "p-8",
       ),
@@ -294,11 +321,10 @@ export function view(model: Model, h: H): Document {
             h.header(
               [h.Class("workspace-header")],
               [
-                button(
-                  h,
-                  icon(h, model.mobile ? "menu" : "panel-left"),
-                  M.ToggleSidebar(),
-                  [
+                button(h, {
+                  label: icon(h, model.mobile ? "menu" : "panel-left"),
+                  onClick: M.ToggleSidebar(),
+                  attributes: [
                     h.Id("navigation-trigger"),
                     h.AriaLabel(
                       model.mobile
@@ -314,8 +340,8 @@ export function view(model: Model, h: H): Document {
                     ),
                     h.AriaControls("main-navigation"),
                   ],
-                  "ghost",
-                ),
+                  variant: "ghost",
+                }),
                 h.span([h.Class("h-4 border-l mx-2")], []),
                 h.a(
                   [
@@ -374,13 +400,13 @@ export function view(model: Model, h: H): Document {
           : []),
         ...(model.mobile && model.mobileNavigation
           ? [
-              dialog(
-                h,
-                model,
-                "navigation",
-                "workspace-dialog sidebar-dialog",
-                [sidebar(h, model)],
-              ),
+              dialog(h, {
+                model: model.dialogs.navigation,
+                onMessage: (message) => M.Dialog({ id: "navigation", message }),
+                className: "workspace-dialog sidebar-dialog",
+                accessibleTitle: "Sidebar",
+                children: [sidebar(h, model)],
+              }),
             ]
           : []),
         ...(model.savedViews ? [savedViews(h, model)] : []),
