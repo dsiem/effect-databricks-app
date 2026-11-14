@@ -1,5 +1,5 @@
+import { Button, Input, Tooltip } from "@foldkit/ui";
 import type { Document } from "foldkit/html";
-import { DialogMount } from "./browser";
 import { calendar } from "./calendar";
 import { genie } from "./genie";
 import { icon } from "./icons";
@@ -12,8 +12,10 @@ import {
   navigation,
 } from "./model";
 import { deleteDialog, editor, inspector, savedViews } from "./overlays";
-import { notebook, overview, pickupMap, trips } from "./pages";
+import { overview, pickupMap, trips } from "./pages";
 import { button, type Child, card, dateLabel, type H } from "./ui";
+import { dialog } from "./ui-dialog";
+import { initTooltip } from "./ui-state";
 
 function sidebar(h: H, model: Model) {
   const user = model.user;
@@ -24,12 +26,32 @@ function sidebar(h: H, model: Model) {
       .slice(0, 2)
       .join("")
       .toUpperCase() ?? "";
-  const tooltip = (text: string) => [
-    h.OnMouseEnter(
-      M.Tooltip({ text: model.sidebar && !model.mobile ? "" : text }),
-    ),
-    h.OnMouseLeave(M.Tooltip({ text: "" })),
-  ];
+  const tooltip = (
+    id: string,
+    text: string,
+    render: (attrs: import("foldkit/html").ChildAttribute[]) => Child,
+  ) => {
+    if (model.sidebar || model.mobile) return render([]);
+    return h.submodel({
+      slotId: `tooltip-${id}`,
+      view: Tooltip.view,
+      model: model.tooltips[id] ?? initTooltip(id),
+      toParentMessage: (message) => M.Tooltip({ id, message }),
+      viewInputs: {
+        anchor: { placement: "right", gap: 8 },
+        toView: ({ trigger, panel, isVisible }) =>
+          h.div(
+            [h.Class("tooltip-anchor")],
+            [
+              render([...trigger]),
+              ...(isVisible
+                ? [h.div([...panel, h.Class("nav-tooltip")], [text])]
+                : []),
+            ],
+          ),
+      },
+    });
+  };
   return h.nav(
     [
       h.Id("main-navigation"),
@@ -62,18 +84,22 @@ function sidebar(h: H, model: Model) {
         [h.Class("sidebar-group")],
         [
           ...navigation.map((item) =>
-            h.a(
-              [
-                h.Href(href(item.path, model.query)),
-                h.Class(`nav-link ${model.path === item.path ? "active" : ""}`),
-                h.AriaLabel(item.label),
-                ...(model.path === item.path ? [h.AriaCurrent("page")] : []),
-                ...tooltip(item.label),
-              ],
-              [
-                h.span([h.Class("nav-icon")], [icon(h, item.icon)]),
-                h.span([h.Class("sidebar-label")], [item.label]),
-              ],
+            tooltip(item.path, item.label, (attrs) =>
+              h.a(
+                [
+                  h.Href(href(item.path, model.query)),
+                  h.Class(
+                    `nav-link ${model.path === item.path ? "active" : ""}`,
+                  ),
+                  h.AriaLabel(item.label),
+                  ...(model.path === item.path ? [h.AriaCurrent("page")] : []),
+                  ...attrs,
+                ],
+                [
+                  h.span([h.Class("nav-icon")], [icon(h, item.icon)]),
+                  h.span([h.Class("sidebar-label")], [item.label]),
+                ],
+              ),
             ),
           ),
         ],
@@ -83,34 +109,38 @@ function sidebar(h: H, model: Model) {
         [
           ...(user
             ? [
-                h.div(
-                  [
-                    h.AriaLabel(`Signed in as ${user.name}`),
-                    h.Class("profile"),
-                    ...tooltip(
-                      `${user.name}${user.email ? ` · ${user.email}` : ""}`,
-                    ),
-                  ],
-                  [
-                    h.span([h.Class("avatar")], [initials]),
+                tooltip(
+                  "profile",
+                  `${user.name}${user.email ? ` · ${user.email}` : ""}`,
+                  (attrs) =>
                     h.div(
-                      [h.Class("sidebar-label min-w-0")],
                       [
-                        h.p(
-                          [h.Class("text-sm font-medium truncate")],
-                          [user.name],
+                        ...attrs,
+                        h.Tabindex(0),
+                        h.AriaLabel(`Signed in as ${user.name}`),
+                        h.Class("profile"),
+                      ],
+                      [
+                        h.span([h.Class("avatar")], [initials]),
+                        h.div(
+                          [h.Class("sidebar-label min-w-0")],
+                          [
+                            h.p(
+                              [h.Class("text-sm font-medium truncate")],
+                              [user.name],
+                            ),
+                            ...(user.email
+                              ? [
+                                  h.p(
+                                    [h.Class("muted text-xs truncate")],
+                                    [user.email],
+                                  ),
+                                ]
+                              : []),
+                          ],
                         ),
-                        ...(user.email
-                          ? [
-                              h.p(
-                                [h.Class("muted text-xs truncate")],
-                                [user.email],
-                              ),
-                            ]
-                          : []),
                       ],
                     ),
-                  ],
                 ),
               ]
             : []),
@@ -163,20 +193,34 @@ function filters(h: H, model: Model) {
             [h.For("pickup-zip"), h.Class("field-label text-xs")],
             ["Pickup ZIP code"],
           ),
-          h.input([
-            h.Id("pickup-zip"),
-            h.Name("zip"),
-            h.Class("input"),
-            h.Placeholder("Enter ZIP (optional)"),
-            h.Value(model.filterDraft.zip),
-            h.InputMode("numeric"),
-            h.Pattern("[0-9]{5}"),
-            h.Maxlength(5),
-            h.OnInput((value) => M.FilterChanged({ field: "zip", value })),
-          ]),
+          Input.view(
+            {
+              id: "pickup-zip",
+              name: "zip",
+              placeholder: "Enter ZIP (optional)",
+              value: model.filterDraft.zip,
+              onInput: (value) => M.FilterChanged({ field: "zip", value }),
+              toView: (attributes) =>
+                h.input([
+                  ...attributes.input,
+                  h.Class("input"),
+                  h.InputMode("numeric"),
+                  h.Pattern("[0-9]{5}"),
+                  h.Maxlength(5),
+                ]),
+            },
+            h,
+          ),
         ],
       ),
-      h.button([h.Type("submit"), h.Class("btn primary")], ["Apply"]),
+      Button.view(
+        {
+          type: "submit",
+          toView: (attributes) =>
+            h.button([...attributes.button, h.Class("btn primary")], ["Apply"]),
+        },
+        h,
+      ),
       ...(model.query
         ? [button(h, "Reset", M.ResetFilters(), [], "ghost")]
         : []),
@@ -184,7 +228,7 @@ function filters(h: H, model: Model) {
         [h.Class("saved-view-bar")],
         [
           h.span([], ["Applied Explore view"]),
-          button(h, "Save view", M.NewNote({ view: true }), [
+          button(h, "Save view", M.NewNote(), [
             h.Disabled(!filtersFromQuery(model.query)),
           ]),
           button(h, "Saved views", M.OpenSavedViews(), [], "ghost"),
@@ -220,9 +264,6 @@ export function view(model: Model, h: H): Document {
         break;
       case "/map":
         content = pickupMap(h, model);
-        break;
-      case "/notebook":
-        content = notebook(h, model);
         break;
       case "/genie":
         content = [genie(h, model)];
@@ -290,16 +331,28 @@ export function view(model: Model, h: H): Document {
                       h.div(
                         [h.Class("ml-auto")],
                         [
-                          h.button(
-                            [
-                              h.Type("button"),
-                              h.Class("btn outline"),
-                              h.OnClick(
-                                M.OpenGenie({ context: null, question: null }),
-                              ),
-                              h.Disabled(!filtersFromQuery(model.query)),
-                            ],
-                            [icon(h, "sparkles"), h.span([], ["Ask Genie"])],
+                          Button.view(
+                            {
+                              type: "button",
+                              onClick: M.OpenGenie({
+                                context: null,
+                                question: null,
+                              }),
+                              isDisabled: !filtersFromQuery(model.query),
+                              toView: (attributes) =>
+                                h.button(
+                                  [
+                                    ...attributes.button,
+                                    h.Id("genie-trigger"),
+                                    h.Class("btn outline"),
+                                  ],
+                                  [
+                                    icon(h, "sparkles"),
+                                    h.span([], ["Ask Genie"]),
+                                  ],
+                                ),
+                            },
+                            h,
                           ),
                         ],
                       ),
@@ -310,34 +363,22 @@ export function view(model: Model, h: H): Document {
             h.main(
               [h.Class("workspace-content")],
               [
-                ...(!["/genie", "/notebook"].includes(model.path)
-                  ? [filters(h, model)]
-                  : []),
+                ...(model.path !== "/genie" ? [filters(h, model)] : []),
                 ...content,
               ],
             ),
           ],
         ),
-        ...(model.tooltip
-          ? [
-              h.div(
-                [h.Role("tooltip"), h.Class("nav-tooltip")],
-                [model.tooltip],
-              ),
-            ]
-          : []),
         ...(model.genieOpen && model.path !== "/genie"
           ? [genie(h, model, true)]
           : []),
         ...(model.mobile && model.mobileNavigation
           ? [
-              h.dialog(
-                [
-                  h.Key("mobile-navigation"),
-                  h.Class("workspace-dialog sidebar-dialog"),
-                  h.AriaLabel("Sidebar"),
-                  h.OnMount(DialogMount({ modal: true, focus: "a" })),
-                ],
+              dialog(
+                h,
+                model,
+                "navigation",
+                "workspace-dialog sidebar-dialog",
                 [sidebar(h, model)],
               ),
             ]

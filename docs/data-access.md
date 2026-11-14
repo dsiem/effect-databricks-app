@@ -205,9 +205,9 @@ The optional `cursor` query parameter is the JSON-encoded continuation object;
 the shared HTTP contract handles encoding and validation. Pages order by pinned
 status, update time, and UUID, all descending. Cursors retain PostgreSQL's full
 timestamp precision and remain usable if the boundary note is deleted. The
-explicit migration adds the matching listing index. The notebook's **Load more
-notes** action appends pages, retains visible notes if a later request fails,
-and offers a retry. Saves, pins, and deletes refresh the loaded pages.
+explicit migration adds the matching listing index. The Saved views sheet's
+**Load more views** action appends pages, retains visible views if a later request
+fails, and offers a retry. Saves, pins, and deletes refresh the loaded pages.
 
 `GET /api/trip-comments` accepts a JSON-encoded `trip` snapshot and optional
 `cursor`, decoded by the shared Effect HTTP contract. It returns up to 25 comments
@@ -246,8 +246,8 @@ discuss a specific record. Saving and discussing both start beside the data.
 **Save view** captures the applied filters with a name and optional finding; an
 unsubmitted filter edit is not saved. **Saved views** opens the existing shared
 library in a side panel. Reopening a saved view applies its filters to the current
-Explore page. The standalone notebook remains a library rather than a required
-stop in the workflow. Existing notes and optimistic edit versions are preserved.
+Explore page. Paginated browsing, pinning, editing, and deletion all stay in the
+side panel. Existing notes and optimistic edit versions are preserved.
 
 Trip timestamps and explicit comment actions open a focused inspector with the
 route, timestamps, fare, distance, duration, and shared discussion. The responsive

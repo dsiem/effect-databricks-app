@@ -1,7 +1,10 @@
+import { Calendar, Dialog, Tooltip } from "@foldkit/ui";
 import { Option } from "effect";
-import type { Command, Update } from "foldkit";
+import { Command, Update } from "foldkit";
+import * as CalendarDate from "foldkit/calendar";
 import type { Url } from "foldkit/url";
 import * as C from "./commands";
+import { MetricTabs } from "./components";
 import type { ApiClient } from "./lib/api-client";
 import { Message as M, type Message } from "./message";
 import {
@@ -14,6 +17,15 @@ import {
   requestKey,
   turnBase,
 } from "./model";
+import {
+  DialogId,
+  initCalendars,
+  initDialogs,
+  initMetricTabs,
+  initTooltip,
+  isoDate,
+  parseDate,
+} from "./ui-state";
 
 const empty = { data: null, error: "", loading: false };
 const pending = { ...empty, loading: true };
@@ -58,7 +70,6 @@ export function loadPage(
         }),
       ],
     };
-  if (model.path === "/notebook") return loadNotes(model);
   return { model };
 }
 export function init(url: Url): Update.Return<Model, Message, ApiClient> {
@@ -75,7 +86,10 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
     sidebar: true,
     mobile: false,
     mobileNavigation: false,
-    tooltip: "",
+    tooltips: {},
+    metricTabs: initMetricTabs(),
+    dialogs: initDialogs(),
+    calendars: initCalendars("2016-01-01"),
     metadata: pending,
     status: pending,
     user: null,
@@ -83,7 +97,6 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
     trips: empty,
     page: 1,
     sort: "newest",
-    sortOpen: false,
     series: "trips",
     notes: empty,
     notePages: 1,
@@ -147,7 +160,7 @@ const comments = (
         ],
       }
     : { model };
-export function update(
+function updateApplication(
   model: Model,
   message: Message,
 ): Update.Return<Model, Message, ApiClient> {
@@ -171,12 +184,11 @@ export function update(
         },
         page: 1,
         sort: "newest",
-        sortOpen: false,
         selectedTrip: null,
         mobileNavigation: false,
         calendar: false,
         genieSelection: null,
-        tooltip: "",
+        tooltips: {},
       });
     }
     case "Booted":
@@ -187,6 +199,10 @@ export function update(
           persistenceError: message.persistenceError,
           sidebar: message.sidebar,
           mobile: message.mobile,
+          calendars: [
+            { ...model.calendars[0], today: message.today },
+            { ...model.calendars[1], today: message.today },
+          ],
         },
         commands: message.turns.flatMap<
           Command.Command<Message, never, ApiClient>
@@ -200,13 +216,18 @@ export function update(
       };
     case "Resized":
       return {
-        model: { ...model, mobile: message.mobile, mobileNavigation: false },
+        model: {
+          ...model,
+          mobile: message.mobile,
+          mobileNavigation: false,
+          tooltips: {},
+        },
       };
     case "ToggleSidebar":
       return model.mobile
         ? { model: { ...model, mobileNavigation: !model.mobileNavigation } }
         : {
-            model: { ...model, sidebar: !model.sidebar, tooltip: "" },
+            model: { ...model, sidebar: !model.sidebar, tooltips: {} },
             commands: [C.PersistSidebar({ open: !model.sidebar })],
           };
     case "CloseOverlay": {
@@ -224,10 +245,80 @@ export function update(
       if (model.savedViews) return { model: { ...model, savedViews: false } };
       if (model.mobileNavigation)
         return { model: { ...model, mobileNavigation: false } };
-      return { model: { ...model, genieOpen: false, sortOpen: false } };
+      return { model: { ...model, genieOpen: false } };
     }
     case "Tooltip":
-      return { model: { ...model, tooltip: message.text } };
+      return Update.foldChild({
+        update: Tooltip.update,
+        read: (model: Model) =>
+          Option.some(model.tooltips[message.id] ?? initTooltip(message.id)),
+        write: (model, child) => ({
+          ...model,
+          tooltips: { ...model.tooltips, [message.id]: child },
+        }),
+        toParentMessage: (child) =>
+          M.Tooltip({ id: message.id, message: child }),
+        foldOutMessage: () => (model) => ({ model }),
+      })(model, message.message);
+    case "MetricTabs":
+      return Update.foldChild({
+        update: MetricTabs.update,
+        read: (model: Model) => Option.some(model.metricTabs),
+        write: (model, metricTabs) => ({ ...model, metricTabs }),
+        toParentMessage: (message) => M.MetricTabs({ message }),
+        foldOutMessage: (out) => (model) => ({
+          model: { ...model, series: out.value, genieSelection: null },
+        }),
+      })(model, message.message);
+    case "Dialog": {
+      if (
+        message.message._tag === "RequestedClose" &&
+        ((message.id === "note" && model.editor?.saving) ||
+          (message.id === "delete" && model.noteBusy))
+      )
+        return { model };
+      return Update.foldChild({
+        update: Dialog.update,
+        read: (model: Model) => Option.some(model.dialogs[message.id]),
+        write: (model, child) => ({
+          ...model,
+          dialogs: { ...model.dialogs, [message.id]: child },
+        }),
+        toParentMessage: (child) =>
+          M.Dialog({ id: message.id, message: child }),
+        foldOutMessage: (out) => (model) => ({
+          model:
+            out._tag === "Closed" ? dismissDialog(model, message.id) : model,
+        }),
+      })(model, message.message);
+    }
+    case "Calendar":
+      return Update.foldChild({
+        update: Calendar.update,
+        read: (model: Model) => Option.some(model.calendars[message.index]),
+        write: (model, child) => ({
+          ...model,
+          calendars:
+            message.index === 0
+              ? ([child, model.calendars[1]] as const)
+              : ([model.calendars[0], child] as const),
+        }),
+        toParentMessage: (child) =>
+          M.Calendar({ index: message.index, message: child }),
+        foldOutMessage: (out) => (model) =>
+          out._tag === "SelectedDate"
+            ? updateApplication(
+                model,
+                M.CalendarDay({ day: isoDate(out.date) }),
+              )
+            : updateApplication(
+                model,
+                M.CalendarMonth({
+                  month: `${out.year}-${String(out.month).padStart(2, "0")}`,
+                  index: message.index,
+                }),
+              ),
+      })(model, message.message);
     case "FilterChanged":
       return {
         model: {
@@ -303,19 +394,12 @@ export function update(
           };
     case "SetPage":
       return loadPage({ ...model, page: message.page });
-    case "ToggleSort":
-      return { model: { ...model, sortOpen: !model.sortOpen } };
     case "SortTrips":
       return loadPage({
         ...model,
         page: 1,
         sort: message.sort,
-        sortOpen: false,
       });
-    case "SetSeries":
-      return {
-        model: { ...model, series: message.series, genieSelection: null },
-      };
     case "ExportTrips":
       return {
         model,
@@ -335,10 +419,40 @@ export function update(
             model.metadata.data?.from ||
             "2016-01-01"
           ).slice(0, 7),
+          calendars: initCalendars(
+            model.filterDraft.from ||
+              model.filterDraft.to ||
+              model.metadata.data?.from ||
+              "2016-01-01",
+            model.metadata.data?.from,
+            model.metadata.data?.to,
+            model.calendars[0].today,
+          ),
         },
       };
-    case "CalendarMonth":
-      return { model: { ...model, calendarMonth: message.month } };
+    case "CalendarMonth": {
+      const value = CalendarDate.subtractMonths(
+        parseDate(`${message.month}-01`),
+        message.index ?? 0,
+      );
+      return {
+        model: {
+          ...model,
+          calendarMonth: isoDate(value).slice(0, 7),
+          calendars: [
+            message.index === 0
+              ? model.calendars[0]
+              : Calendar.focusDate(model.calendars[0], value),
+            message.index === 1
+              ? model.calendars[1]
+              : Calendar.focusDate(
+                  model.calendars[1],
+                  CalendarDate.addMonths(value, 1),
+                ),
+          ],
+        },
+      };
+    }
     case "CalendarDay": {
       const dates = [
         model.calendarEnd ? model.filterDraft.from || message.day : message.day,
@@ -367,7 +481,7 @@ export function update(
     case "OpenSavedViews":
       return loadNotes({ ...model, savedViews: true });
     case "NewNote":
-      return { model, commands: [C.NewNote({ view: message.view })] };
+      return { model, commands: [C.NewNote({})] };
     case "CreatedNote":
       return {
         model: {
@@ -380,7 +494,6 @@ export function update(
               filters: filtersFromQuery(model.query) ?? {},
               version: null,
             },
-            view: message.view,
             saving: false,
             error: "",
           },
@@ -393,7 +506,6 @@ export function update(
           ...model,
           editor: {
             draft: { id, title, body, filters, version },
-            view: message.view,
             saving: false,
             error: "",
           },
@@ -494,10 +606,7 @@ export function update(
         model: { ...model, savedViews: false },
         commands: [
           C.Navigate({
-            href: href(
-              model.savedViews ? model.path : "/",
-              queryFor(message.filters),
-            ),
+            href: href(model.path, queryFor(message.filters)),
             external: false,
           }),
         ],
@@ -722,4 +831,54 @@ export function update(
             },
           };
   }
+}
+
+function dismissDialog(model: Model, id: DialogId): Model {
+  switch (id) {
+    case "note":
+      return { ...model, editor: null };
+    case "delete":
+      return { ...model, deleting: null };
+    case "trip":
+      return { ...model, selectedTrip: null };
+    case "calendar":
+      return { ...model, calendar: false };
+    case "views":
+      return { ...model, savedViews: false };
+    case "navigation":
+      return { ...model, mobileNavigation: false };
+    case "genie":
+      return { ...model, genieOpen: false };
+  }
+}
+
+export function update(
+  model: Model,
+  message: Message,
+): Update.Return<Model, Message, ApiClient> {
+  const result = updateApplication(model, message);
+  let next = result.model;
+  const commands = [...(result.commands ?? [])];
+  // Domain state controls visibility; Foldkit owns each dialog's lifecycle.
+  const visibility = {
+    views: next.savedViews,
+    note: next.editor !== null,
+    delete: next.deleting !== null,
+    trip: next.selectedTrip !== null,
+    calendar: next.calendar,
+    navigation: next.mobile && next.mobileNavigation,
+    genie: next.mobile && next.genieOpen && next.path !== "/genie",
+  };
+  for (const id of DialogId.literals) {
+    const child = next.dialogs[id];
+    if (visibility[id] === child.isOpen) continue;
+    const changed = visibility[id] ? Dialog.open(child) : Dialog.close(child);
+    next = { ...next, dialogs: { ...next.dialogs, [id]: changed.model } };
+    commands.push(
+      ...(changed.commands ?? []).map((command) =>
+        Command.mapMessage(command, (message) => M.Dialog({ id, message })),
+      ),
+    );
+  }
+  return { model: next, commands };
 }

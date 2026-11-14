@@ -1,7 +1,10 @@
+import { Dialog, Tabs, Tooltip, Calendar as UiCalendar } from "@foldkit/ui";
 import { Schema } from "effect";
+import * as CalendarDate from "foldkit/calendar";
 import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../src/domain";
 import { CommentDraft, History, Sort, Turn } from "./model";
+import { DialogId } from "./ui-state";
 
 export const Message = defineMessageUnion({
   Idle: {},
@@ -12,11 +15,15 @@ export const Message = defineMessageUnion({
     persistenceError: Schema.String,
     sidebar: Schema.Boolean,
     mobile: Schema.Boolean,
+    today: CalendarDate.CalendarDate,
   },
   Resized: { mobile: Schema.Boolean },
   ToggleSidebar: {},
   CloseOverlay: {},
-  Tooltip: { text: Schema.String },
+  Tooltip: { id: Schema.String, message: Tooltip.Message },
+  MetricTabs: { message: Tabs.Message },
+  Dialog: { id: DialogId, message: Dialog.Message },
+  Calendar: { index: Schema.Literals([0, 1]), message: UiCalendar.Message },
   FilterChanged: {
     field: Schema.Literals(["from", "to", "zip"]),
     value: Schema.String,
@@ -39,18 +46,19 @@ export const Message = defineMessageUnion({
     error: Schema.String,
   },
   SetPage: { page: Schema.Number },
-  ToggleSort: {},
   SortTrips: { sort: Sort },
-  SetSeries: { series: Schema.Literals(["trips", "revenue"]) },
   ExportTrips: {},
   OpenCalendar: {},
-  CalendarMonth: { month: Schema.String },
+  CalendarMonth: {
+    month: Schema.String,
+    index: Schema.optionalKey(Schema.Literals([0, 1])),
+  },
   CalendarDay: { day: Schema.String },
   ClearDates: {},
   OpenSavedViews: {},
-  NewNote: { view: Schema.Boolean },
-  CreatedNote: { id: Schema.String, view: Schema.Boolean },
-  EditNote: { note: D.Note, view: Schema.Boolean },
+  NewNote: {},
+  CreatedNote: { id: Schema.String },
+  EditNote: { note: D.Note },
   NoteChanged: {
     field: Schema.Literals(["title", "body"]),
     value: Schema.String,

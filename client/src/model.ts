@@ -1,5 +1,7 @@
+import { Tabs, Tooltip, Calendar as UiCalendar } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as D from "../../src/domain";
+import { Dialogs } from "./ui-state";
 
 export const TurnBase = {
   id: Schema.String,
@@ -60,7 +62,6 @@ const request = <S extends Schema.Top>(data: S) =>
   });
 export const NoteEditor = Schema.Struct({
   draft: D.NoteInput,
-  view: Schema.Boolean,
   saving: Schema.Boolean,
   error: Schema.String,
 });
@@ -75,7 +76,10 @@ export const Model = Schema.Struct({
   sidebar: Schema.Boolean,
   mobile: Schema.Boolean,
   mobileNavigation: Schema.Boolean,
-  tooltip: Schema.String,
+  tooltips: Schema.Record(Schema.String, Tooltip.Model),
+  metricTabs: Tabs.Model,
+  dialogs: Dialogs,
+  calendars: Schema.Tuple([UiCalendar.Model, UiCalendar.Model]),
   metadata: request(D.Metadata),
   status: request(D.Status),
   user: Schema.NullOr(D.CurrentUser),
@@ -83,7 +87,6 @@ export const Model = Schema.Struct({
   trips: request(D.Trips),
   page: Schema.Number,
   sort: Sort,
-  sortOpen: Schema.Boolean,
   series: Schema.Literals(["trips", "revenue"]),
   notes: request(D.Notes),
   notePages: Schema.Number,
@@ -139,7 +142,6 @@ export const navigation = [
   { path: "/", label: "Overview", icon: "layout-dashboard" },
   { path: "/trips", label: "Trip explorer", icon: "table-2" },
   { path: "/map", label: "Pickup map", icon: "map" },
-  { path: "/notebook", label: "Saved views", icon: "book-open" },
 ] as const;
 export const pageContext = (model: Model): D.GenieContext => {
   const overview = model.overview.data;
@@ -198,8 +200,6 @@ export const pageContext = (model: Model): D.GenieContext => {
             }
           : {}),
       };
-    case "/notebook":
-      return { page: "notebook", title: "Saved views" };
     default:
       return { page: "genie", title: "Taxi trip data" };
   }

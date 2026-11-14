@@ -6,6 +6,9 @@ test("sidebar collapses to icons, keeps filters, persists, and supports the keyb
   await page.goto("/genie?zip=10001");
   const navigation = page.getByRole("navigation", { name: "Main navigation" });
   await expect(navigation).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "Saved views", exact: true }),
+  ).toHaveCount(0);
   const expanded = await navigation.boundingBox();
   expect(expanded?.width).toBeGreaterThan(200);
   await page.screenshot({
@@ -31,6 +34,11 @@ test("sidebar collapses to icons, keeps filters, persists, and supports the keyb
     fullPage: true,
     animations: "disabled",
   });
+  await trips.focus();
+  await expect(page.getByRole("tooltip")).toHaveText("Trip explorer");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await expect(trips).toBeFocused();
   await trips.click();
   await expect(page).toHaveURL(/\/trips\?zip=10001$/);
   await expect(trips).toHaveAttribute("aria-current", "page");
@@ -75,13 +83,15 @@ test("mobile sidebar traps focus, closes on navigation and Escape, and leaves de
     animations: "disabled",
   });
 
-  await drawer.getByRole("link", { name: "Saved views", exact: true }).click();
-  await expect(page).toHaveURL(/\/notebook\?zip=10001$/);
+  await drawer.getByRole("link", { name: "Pickup map", exact: true }).click();
+  await expect(page).toHaveURL(/\/map\?zip=10001$/);
   await expect(drawer).not.toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Saved views", exact: true }),
+    page.getByRole("heading", { name: "Pickups by ZIP area", exact: true }),
   ).toBeVisible();
   await trigger.click();
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole("link").first()).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(drawer).not.toBeVisible();
   await expect(trigger).toBeFocused();
@@ -100,9 +110,9 @@ test("mobile sidebar traps focus, closes on navigation and Escape, and leaves de
 test("note dialog has labelled fields, keyboard dismissal, and restores focus", async ({
   page,
 }) => {
-  await page.goto("/notebook?zip=10001");
+  await page.goto("/trips?zip=10001");
   const trigger = page.getByRole("button", {
-    name: "Save this view",
+    name: "Save view",
     exact: true,
   });
   await trigger.click();

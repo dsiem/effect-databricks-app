@@ -285,8 +285,6 @@
 .nav-tooltip {
   position: fixed;
   z-index: 100;
-  bottom: 60px;
-  left: 64px;
   background: var(--foreground);
   color: var(--background);
   font-size: 12px;
@@ -339,7 +337,9 @@ button:disabled {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+select:focus-visible,
+[role="grid"]:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
@@ -542,21 +542,10 @@ h2 {
   align-items: center;
   gap: 8px;
 }
-.sort-options {
-  position: absolute;
-  top: 40px;
-  right: 0;
-  width: 180px;
-  z-index: 10;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 4px;
-  background: var(--popover);
-  box-shadow: 0 4px 10px rgb(0 0 0 / 0.08);
-}
-.sort-options .btn {
-  width: 100%;
-  justify-content: start;
+.sort-select {
+  width: auto;
+  min-width: 160px;
+  appearance: auto;
 }
 .loading {
   min-height: 288px;
@@ -587,11 +576,6 @@ h2 {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
-}
-.notes-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
 }
 .empty-state {
   min-height: 320px;
@@ -656,6 +640,7 @@ h2 {
   border-radius: 4px;
 }
 .workspace-dialog {
+  position: relative;
   color: var(--foreground);
   background: var(--background);
   border: 1px solid var(--border);
@@ -666,11 +651,7 @@ h2 {
   box-shadow: 0 20px 60px rgb(0 0 0 / 0.16);
   margin: auto;
 }
-.workspace-dialog::backdrop,
-.genie-panel::backdrop {
-  background: rgb(0 0 0 / 0.3);
-}
-.workspace-dialog[open] {
+.workspace-dialog {
   display: flex;
   flex-direction: column;
 }
@@ -728,6 +709,7 @@ h2 {
   text-align: center;
 }
 .sidebar-dialog {
+  position: fixed;
   inset: 0 auto 0 0;
   margin: 0;
   width: 288px;
@@ -755,7 +737,7 @@ h2 {
   table-layout: fixed;
   width: 280px;
 }
-.calendar-grid caption {
+.calendar-heading {
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 12px;
@@ -798,7 +780,7 @@ h2 {
   height: min(680px, calc(100dvh - 100px));
   overflow: hidden;
 }
-.genie-panel[open],
+.genie-panel,
 .genie-full {
   display: flex;
   flex-direction: column;
@@ -915,9 +897,6 @@ h2 {
   .map-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .notes-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 @media (max-width: 767px) {
   .workspace-content {
@@ -925,9 +904,6 @@ h2 {
   }
   .workspace-header {
     padding: 0 16px;
-  }
-  .notes-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
   .genie-panel,
   .genie-panel.expanded {
@@ -967,4 +943,41 @@ h2 {
   .comment-composer {
     padding: 16px;
   }
+}
+
+.modal-host {
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.modal-host[open] {
+  display: grid;
+  place-items: center;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.3);
+  pointer-events: auto;
+}
+.modal-host > :last-child {
+  position: relative;
+  pointer-events: auto;
+}
+.modal-host > .sheet,
+.modal-host > .sidebar-dialog,
+.modal-host > .genie-panel {
+  position: fixed;
+}
+.tooltip-anchor {
+  min-width: 0;
+}
+.calendar-grid td[data-focused] .calendar-day {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.calendar-day[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
 }

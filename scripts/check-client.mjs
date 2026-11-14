@@ -11,6 +11,10 @@ const lock = JSON.parse(
 const legacy =
   /^(?:react(?:$|[-/])|react-dom(?:$|\/)|recharts$|lucide-react$|radix-ui$|@radix-ui\/react-|@tanstack\/react-|@vitejs\/plugin-react$|@types\/react(?:$|-))/;
 assert.ok(manifest.dependencies.foldkit, "Foldkit must be a direct dependency");
+assert.ok(
+  manifest.dependencies["@foldkit/ui"],
+  "Use the official Foldkit UI components",
+);
 for (const name of Object.keys({
   ...manifest.dependencies,
   ...manifest.devDependencies,
@@ -44,6 +48,16 @@ async function audit(directory) {
         `Legacy import in ${url.pathname}: ${match[1]}`,
       );
     }
+    assert.doesNotMatch(
+      source,
+      /h\.Role\(["'](?:combobox|listbox|option|tab|tablist|tabpanel|tooltip)["']\)/,
+      `Use Foldkit UI behavior instead of hand-built widget roles in ${url.pathname}`,
+    );
+    assert.doesNotMatch(
+      source,
+      /DialogMount|OnKeyDownFocus/,
+      `Use Foldkit UI focus management in ${url.pathname}`,
+    );
     files++;
   }
   return files;

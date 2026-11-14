@@ -143,8 +143,7 @@ test("drafts follow the trip ID when refreshed record details change", async ({
       },
     }),
   );
-  await page.getByRole("combobox", { name: "Sort trips" }).click();
-  await page.getByRole("option", { name: "Highest fare" }).click();
+  await page.getByRole("combobox", { name: "Sort trips" }).selectOption("fare");
   await expect(
     page.getByRole("cell", { name: "$25.00", exact: true }),
   ).toBeVisible();

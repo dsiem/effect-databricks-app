@@ -125,7 +125,7 @@ test("late trip responses cannot overwrite a newer filter selection", async ({
   ).toHaveCount(0);
 });
 
-test("notebook creates, edits, reloads, and deletes versioned notes with their saved filters", async ({
+test("saved views sheet creates, edits, reloads, and deletes views with their filters", async ({
   page,
 }) => {
   const stored: import("../src/domain").Note[] = [];
@@ -153,7 +153,8 @@ test("notebook creates, edits, reloads, and deletes versioned notes with their s
     }
     return route.fulfill({ json: { rows: stored, nextCursor: null } });
   });
-  await page.goto("/notebook?zip=10001");
+  await page.goto("/trips?zip=10001");
+  await page.getByRole("button", { name: "Saved views", exact: true }).click();
   const newNote = page.getByRole("button", {
     name: "Save this view",
     exact: true,
@@ -165,18 +166,25 @@ test("notebook creates, edits, reloads, and deletes versioned notes with their s
   await page
     .getByRole("textbox", { name: "Finding (optional)", exact: true })
     .fill("Initial finding");
-  await page.getByRole("button", { name: "Save view", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Save this view", exact: true })
+    .getByRole("button", { name: "Save view", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Fare review", exact: true }),
   ).toBeVisible();
   await page.reload();
+  await page.getByRole("button", { name: "Saved views", exact: true }).click();
   await page
     .getByRole("button", { name: "Edit Fare review", exact: true })
     .click();
   await page
     .getByRole("textbox", { name: "Finding (optional)", exact: true })
     .fill("Updated finding");
-  await page.getByRole("button", { name: "Save view", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Edit saved view", exact: true })
+    .getByRole("button", { name: "Save view", exact: true })
+    .click();
   await expect(
     page.getByText("Updated finding", { exact: true }),
   ).toBeVisible();
@@ -190,30 +198,34 @@ test("notebook creates, edits, reloads, and deletes versioned notes with their s
   await expect(
     page.getByRole("heading", { name: "No saved views", exact: true }),
   ).toBeVisible();
-  await expect(newNote).toBeFocused();
+  await expect(
+    page.getByRole("dialog", { name: "Saved views", exact: true }),
+  ).toBeVisible();
 });
 
 test("modal backdrop dismissal restores the opener and page scrolling", async ({
   page,
 }) => {
-  await page.goto("/notebook");
+  await page.goto("/trips");
   const trigger = page.getByRole("button", {
-    name: "Save this view",
+    name: "Save view",
     exact: true,
   });
   await trigger.click();
   await expect(
     page.getByRole("dialog", { name: "Save this view", exact: true }),
   ).toBeVisible();
-  expect(await page.evaluate(() => document.body.style.overflow)).toBe(
-    "hidden",
-  );
+  expect(
+    await page.evaluate(() => document.documentElement.style.overflow),
+  ).toBe("hidden");
   await page.mouse.click(4, 4);
   await expect(
     page.getByRole("dialog", { name: "Save this view", exact: true }),
   ).not.toBeVisible();
   await expect(trigger).toBeFocused();
-  expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
+  expect(
+    await page.evaluate(() => document.documentElement.style.overflow),
+  ).toBe("");
 });
 
 test("recovered Genie answers render Markdown safely and copy the generated SQL", async ({
@@ -270,4 +282,52 @@ test("recovered Genie answers render Markdown safely and copy the generated SQL"
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
     reply.queries[0]?.sql,
   );
+});
+
+test("trip sorting exposes a native dropdown and applies every choice from page one", async ({
+  page,
+}) => {
+  const searches: URLSearchParams[] = [];
+  await page.route("**/api/trips**", (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    searches.push(query);
+    return route.fulfill({
+      json: {
+        rows: [trip],
+        total: 50,
+        page: Number(query.get("page")),
+        pageSize: 25,
+      },
+    });
+  });
+  await page.goto("/trips?zip=10001");
+  const sort = page.getByRole("combobox", { name: "Sort trips" });
+  await expect(sort).toHaveValue("newest");
+  expect(
+    await sort.evaluate((element) => getComputedStyle(element).appearance),
+  ).toBe("auto");
+  await expect(sort.getByRole("option")).toHaveText([
+    "Latest pickup",
+    "Highest fare",
+    "Longest distance",
+  ]);
+  await page.getByRole("button", { name: "Next page" }).click();
+  await expect(page.getByText("Page 2", { exact: true })).toBeVisible();
+  for (const value of ["fare", "distance", "newest"]) {
+    await sort.selectOption(value);
+    await expect(sort).toHaveValue(value);
+    await expect(page.getByText("Page 1", { exact: true })).toBeVisible();
+    await expect.poll(() => searches.at(-1)?.get("sort")).toBe(value);
+    expect(searches.at(-1)?.get("page")).toBe("1");
+    expect(searches.at(-1)?.get("zip")).toBe("10001");
+  }
+  await sort.focus();
+  await page.keyboard.press("h");
+  await page.keyboard.press("Tab");
+  await expect(sort).toHaveValue("fare");
+  await expect.poll(() => searches.at(-1)?.get("sort")).toBe("fare");
+  await page.screenshot({
+    path: "test-results/foldkit-sort.png",
+    fullPage: true,
+  });
 });

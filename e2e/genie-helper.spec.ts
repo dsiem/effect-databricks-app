@@ -234,8 +234,7 @@ test("closed helper finishes its answer and navigation updates visible records, 
     .toContain('"state":"complete"');
   expect(submissions).toHaveLength(1);
   await page.getByRole("link", { name: "Trip explorer", exact: true }).click();
-  await page.getByRole("combobox", { name: "Sort trips" }).click();
-  await page.getByRole("option", { name: "Highest fare" }).click();
+  await page.getByRole("combobox", { name: "Sort trips" }).selectOption("fare");
   await page.getByRole("button", { name: "Next page" }).click();
   await openHelper(page);
   await expect(helper.getByRole("region")).toContainText(

@@ -73,7 +73,7 @@ test("result retry survives navigation and reload, and follow-ups reuse the conv
   ).toBeVisible();
   await page.getByRole("link", { name: "Trip explorer", exact: true }).click();
   await page
-    .getByRole("navigation", { name: "Main navigation" })
+    .locator("header")
     .getByRole("button", { name: "Ask Genie", exact: true })
     .click();
   await page.reload();
@@ -177,7 +177,7 @@ test("submission responses are saved when navigating away before acceptance", as
     )
     .toContain('"messageId":"message"');
   await page
-    .getByRole("navigation", { name: "Main navigation" })
+    .locator("header")
     .getByRole("button", { name: "Ask Genie", exact: true })
     .click();
   await expect(

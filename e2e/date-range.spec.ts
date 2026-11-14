@@ -33,15 +33,13 @@ for (const timezoneId of ["Europe/Berlin", "America/Los_Angeles"]) {
       await expect(january).toBeVisible();
       await expect(february).toBeVisible();
       await expect(
-        january.getByRole("button", { name: /January 2nd, 2016/ }),
+        january.getByRole("button", { name: /January 2, 2016/ }),
       ).toBeDisabled();
       await expect(
-        february.getByRole("button", { name: /February 26th, 2016/ }),
+        february.getByRole("button", { name: /February 26, 2016/ }),
       ).toBeDisabled();
-      await january.getByRole("button", { name: /January 10th, 2016/ }).click();
-      await february
-        .getByRole("button", { name: /February 20th, 2016/ })
-        .click();
+      await january.getByRole("button", { name: /January 10, 2016/ }).click();
+      await february.getByRole("button", { name: /February 20, 2016/ }).click();
       await expect(page).toHaveURL(/\/trips\?zip=10001$/);
       await page.screenshot({
         path: `test-results/date-range-${timezoneId.replace("/", "-")}.png`,
@@ -103,12 +101,17 @@ test("mobile picker fits the screen and supports keyboard selection and dismissa
   await page.keyboard.press("Enter");
   const picker = page.getByRole("dialog", { name: "Pickup dates" });
   await expect(picker.getByRole("grid")).toHaveCount(1);
-  const day = picker.getByRole("button", { name: /January 10th, 2016/ });
-  await day.focus();
+  const day = picker.getByRole("button", { name: /January 10, 2016/ });
+  await day.click();
+  const grid = picker.getByRole("grid");
+  await grid.focus();
   await page.keyboard.press("ArrowRight");
-  await expect(
-    picker.getByRole("button", { name: /January 11th, 2016/ }),
-  ).toBeFocused();
+  const next = picker.getByRole("gridcell", { name: /January 11, 2016/ });
+  await expect(grid).toBeFocused();
+  await expect(grid).toHaveAttribute(
+    "aria-activedescendant",
+    (await next.getAttribute("id")) ?? "",
+  );
   await page.keyboard.press("Space");
   await page.screenshot({
     path: "test-results/date-range-mobile.png",
@@ -123,6 +126,30 @@ test("mobile picker fits the screen and supports keyboard selection and dismissa
   await expect(trigger).toBeFocused();
   await page.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(page).toHaveURL(
-    /\/trips\?from=2016-01-11&to=2016-01-11&zip=10001$/,
+    /\/trips\?from=2016-01-10&to=2016-01-11&zip=10001$/,
+  );
+});
+
+test("keyboard selection crosses a month boundary without losing the calendar cursor", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await openTrips(page, "from=2016-01-31&to=2016-01-31&zip=10001");
+  await page.getByRole("button", { name: /^Pickup date range:/ }).click();
+  const picker = page.getByRole("dialog", { name: "Pickup dates" });
+  const grid = picker.getByRole("grid");
+  await expect(grid).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(grid).toHaveAccessibleName("February 2016");
+  const day = picker.getByRole("gridcell", { name: /February 1, 2016/ });
+  await expect(grid).toHaveAttribute(
+    "aria-activedescendant",
+    (await day.getAttribute("id")) ?? "",
+  );
+  await page.keyboard.press("Space");
+  await picker.getByRole("button", { name: "Done", exact: true }).click();
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(page).toHaveURL(
+    /\/trips\?from=2016-02-01&to=2016-02-01&zip=10001$/,
   );
 });

@@ -34,8 +34,7 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
   await page.getByRole("link", { name: "Trip explorer", exact: true }).click();
   await expect(page.getByRole("table")).toBeVisible({ timeout: 120_000 });
   await expect(page.locator("tbody tr").first()).toContainText("10001");
-  await page.getByRole("combobox", { name: "Sort trips" }).click();
-  await page.getByRole("option", { name: "Highest fare", exact: true }).click();
+  await page.getByRole("combobox", { name: "Sort trips" }).selectOption("fare");
   await expect(page.getByText("Page 1", { exact: true })).toBeVisible();
   await page.getByLabel("Next page").click();
   await expect(page.getByText("Page 2", { exact: true })).toBeVisible({
@@ -66,7 +65,7 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByLabel("Open navigation").click();
   await expect(
-    page.getByRole("link", { name: "Saved views", exact: true }),
+    page.getByRole("link", { name: "Pickup map", exact: true }),
   ).toBeVisible();
   await page.getByLabel("Close navigation", { exact: true }).last().click();
   await expect(
@@ -87,14 +86,9 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
 test("Lakebase notes survive reload and support editing, saved filters and deletion", async ({
   page,
 }) => {
-  await page.goto("/notebook?zip=10001");
-  await expect(
-    page.getByRole("heading", { name: "Saved views" }),
-  ).toBeVisible();
+  await page.goto("/trips?zip=10001");
   const title = `Browser verification ${Date.now()}`;
-  await page
-    .getByRole("button", { name: "Save this view", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Save view", exact: true }).click();
   await page
     .getByRole("dialog")
     .getByRole("textbox", { name: "View name", exact: true })
@@ -103,20 +97,28 @@ test("Lakebase notes survive reload and support editing, saved filters and delet
     .getByRole("dialog")
     .getByRole("textbox", { name: "Finding (optional)", exact: true })
     .fill("A temporary note to verify real Lakebase persistence.");
-  await page.getByRole("button", { name: "Save view", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Save this view", exact: true })
+    .getByRole("button", { name: "Save view", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Saved views", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: title, exact: true }),
   ).toBeVisible({ timeout: 60_000 });
   await page.reload();
+  await page.getByRole("button", { name: "Saved views", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: title, exact: true }),
   ).toBeVisible();
   await page.getByLabel(`Edit ${title}`, { exact: true }).click();
   await page
-    .getByRole("dialog")
+    .getByRole("dialog", { name: "Edit saved view", exact: true })
     .getByRole("textbox", { name: "Finding (optional)", exact: true })
     .fill("Updated and persisted.");
-  await page.getByRole("button", { name: "Save view", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Edit saved view", exact: true })
+    .getByRole("button", { name: "Save view", exact: true })
+    .click();
   await expect(
     page.getByText("Updated and persisted.", { exact: true }),
   ).toBeVisible();
@@ -124,7 +126,8 @@ test("Lakebase notes survive reload and support editing, saved filters and delet
     .getByLabel(`Open saved view for ${title}`, { exact: true })
     .click();
   await expect(page).toHaveURL(/zip=10001/);
-  await page.goto("/notebook");
+  await page.goto("/trips");
+  await page.getByRole("button", { name: "Saved views", exact: true }).click();
   await page.getByLabel(`Delete ${title}`, { exact: true }).click();
   await page.getByRole("button", { name: "Delete view", exact: true }).click();
   await expect(

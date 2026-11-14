@@ -60,7 +60,8 @@ test("all notes remain reachable beyond 200 and pinning a later note refreshes t
     });
   });
   await page.setViewportSize({ width: 360, height: 800 });
-  await page.goto("/notebook?zip=10001");
+  await page.goto("/trips?zip=10001");
+  await page.getByRole("button", { name: "Saved views", exact: true }).click();
   const headings = page.getByRole("heading", { name: /^Finding / });
   await expect(headings).toHaveCount(24);
   const more = page.getByRole("button", {
@@ -136,18 +137,20 @@ test("a failed next page keeps existing notes visible and can be retried", async
       },
     });
   });
-  await page.goto("/notebook");
+  await page.goto("/trips");
+  await page.getByRole("button", { name: "Saved views", exact: true }).click();
   const headings = page.getByRole("heading", { name: /^Finding / });
   await expect(headings).toHaveCount(24);
   await page.getByRole("button", { name: "Load more views" }).click();
-  await expect(page.getByRole("alert")).toHaveText(
+  const views = page.getByRole("dialog", { name: "Saved views", exact: true });
+  await expect(views.getByRole("alert")).toHaveText(
     "Notes are temporarily unavailable.",
   );
   await expect(headings).toHaveCount(24);
   failing = false;
   await page.getByRole("button", { name: "Retry loading views" }).click();
   await expect(headings).toHaveCount(25);
-  await expect(page.getByRole("alert")).not.toBeVisible();
+  await expect(views.getByRole("alert")).not.toBeVisible();
   await expect(
     page.getByRole("button", { name: "Load more views" }),
   ).not.toBeVisible();

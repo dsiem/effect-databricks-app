@@ -1,5 +1,6 @@
 import { Effect, Schema, type Scope } from "effect";
 import { Command, Navigation } from "foldkit";
+import * as CalendarDate from "foldkit/calendar";
 import { ApiError } from "../../src/api";
 import * as D from "../../src/domain";
 import { request } from "./lib/api-client";
@@ -53,6 +54,7 @@ export const Boot = Command.define("RestoreWorkspace", {
     return M.Booted({
       turns,
       persistenceError,
+      today: CalendarDate.fromDateLocal(new Date()),
       sidebar: !document.cookie.split("; ").includes("sidebar_state=false"),
       mobile: matchMedia("(max-width: 767px)").matches,
     });
@@ -123,10 +125,9 @@ export const LoadTrips = Command.define("LoadTrips", {
     ).pipe(Effect.map((value) => M.LoadedTrips({ key, ...value }))),
 });
 export const NewNote = Command.define("CreateNoteDraft", {
-  args: { view: Schema.Boolean },
+  args: {},
   messages: [M.CreatedNote],
-  execute: ({ view }) =>
-    Effect.sync(() => M.CreatedNote({ id: crypto.randomUUID(), view })),
+  execute: () => Effect.sync(() => M.CreatedNote({ id: crypto.randomUUID() })),
 });
 export const SaveNote = Command.define("SaveNote", {
   args: { draft: D.NoteInput },

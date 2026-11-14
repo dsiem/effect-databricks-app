@@ -36,7 +36,10 @@ for (const removed of [false, true]) {
         },
       });
     });
-    await page.goto("/notebook");
+    await page.goto("/trips");
+    await page
+      .getByRole("button", { name: "Saved views", exact: true })
+      .click();
     await page
       .getByRole("button", { name: "Edit Shared finding", exact: true })
       .click();
@@ -93,7 +96,8 @@ test("pinning sends only the pin and version, preserving newer note content", as
     current = { ...current, pinned: true, version: 2 };
     return route.fulfill({ json: current });
   });
-  await page.goto("/notebook");
+  await page.goto("/trips");
+  await page.getByRole("button", { name: "Saved views", exact: true }).click();
   await page
     .getByRole("button", { name: "Pin Shared finding", exact: true })
     .click();

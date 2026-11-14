@@ -1,11 +1,13 @@
+import { Button, Dialog, Textarea } from "@foldkit/ui";
 import { Option } from "effect";
 import { Lexer, type MarkedToken, type Token } from "marked";
 import type { GenieReply } from "../../src/domain";
-import { DialogMount } from "./browser";
+import { PanelReturnFocus } from "./browser";
 import { icon } from "./icons";
 import { Message as M } from "./message";
 import { busy, filtersFromQuery, type Model, pageContext } from "./model";
 import { alert, button, type Child, filterSummary, type H, table } from "./ui";
+import { dialog } from "./ui-dialog";
 
 // Render Markdown as VNodes. Raw HTML is text and link protocols are constrained.
 function markdown(h: H, tokens: Token[]): Child[] {
@@ -180,7 +182,16 @@ export function genie(h: H, model: Model, floating = false) {
             h.div(
               [],
               [
-                h.h2([h.Id("genie-title")], ["Genie"]),
+                h.h2(
+                  [
+                    h.Id(
+                      floating && model.mobile
+                        ? Dialog.titleId(model.dialogs.genie)
+                        : "genie-title",
+                    ),
+                  ],
+                  ["Genie"],
+                ),
                 h.p([h.Class("muted text-xs")], ["Your data, in context"]),
               ],
             ),
@@ -402,20 +413,29 @@ export function genie(h: H, model: Model, floating = false) {
         h.form(
           [h.OnSubmit(M.SendQuestion({ question: model.genieDraft }))],
           [
-            h.textarea([
-              h.Id("genie-composer"),
-              h.AriaLabel("Ask a question about taxi data"),
-              h.Placeholder("Ask about this view…"),
-              h.Value(model.genieDraft),
-              h.Maxlength(3500),
-              h.Disabled(!enabled),
-              h.OnInput((value) => M.GenieDraft({ value })),
-              h.OnKeyDownPreventDefault((key, modifiers) =>
-                key === "Enter" && !modifiers.shiftKey
-                  ? Option.some(M.SendQuestion({ question: model.genieDraft }))
-                  : Option.none(),
-              ),
-            ]),
+            Textarea.view(
+              {
+                id: "genie-composer",
+                placeholder: "Ask about this view…",
+                value: model.genieDraft,
+                isDisabled: !enabled,
+                onInput: (value) => M.GenieDraft({ value }),
+                toView: (attributes) =>
+                  h.textarea([
+                    ...attributes.textarea,
+                    h.AriaLabel("Ask a question about taxi data"),
+                    h.Maxlength(3500),
+                    h.OnKeyDownPreventDefault((key, modifiers) =>
+                      key === "Enter" && !modifiers.shiftKey
+                        ? Option.some(
+                            M.SendQuestion({ question: model.genieDraft }),
+                          )
+                        : Option.none(),
+                    ),
+                  ]),
+              },
+              h,
+            ),
             h.div(
               [h.Class("flex items-center justify-between gap-2 mt-2")],
               [
@@ -427,14 +447,21 @@ export function genie(h: H, model: Model, floating = false) {
                       : "Enter to send · Shift + Enter for a new line",
                   ],
                 ),
-                h.button(
-                  [
-                    h.Type("submit"),
-                    h.Class("btn primary"),
-                    h.AriaLabel("Send question"),
-                    h.Disabled(!enabled || working || !model.genieDraft.trim()),
-                  ],
-                  [icon(h, "arrow-up")],
+                Button.view(
+                  {
+                    type: "submit",
+                    isDisabled: !enabled || working || !model.genieDraft.trim(),
+                    toView: (attributes) =>
+                      h.button(
+                        [
+                          ...attributes.button,
+                          h.Class("btn primary"),
+                          h.AriaLabel("Send question"),
+                        ],
+                        [icon(h, "arrow-up")],
+                      ),
+                  },
+                  h,
                 ),
               ],
             ),
@@ -447,17 +474,21 @@ export function genie(h: H, model: Model, floating = false) {
       ],
     ),
   ];
-  return floating
-    ? h.dialog(
-        [
-          h.Key("genie-helper"),
-          h.AriaLabelledBy("genie-title"),
-          h.Class(`genie-panel ${model.genieExpanded ? "expanded" : ""}`),
-          h.OnMount(
-            DialogMount({ modal: model.mobile, focus: "#genie-composer" }),
-          ),
-        ],
-        content,
-      )
-    : h.div([h.Class("genie-full")], content);
+  if (!floating) return h.div([h.Class("genie-full")], content);
+  const classes = `genie-panel ${model.genieExpanded ? "expanded" : ""}`;
+  if (model.mobile) return dialog(h, model, "genie", classes, content);
+  // The desktop helper stays non-modal so the user can explore alongside it.
+  return h.dialog(
+    [
+      h.Key("genie-helper"),
+      h.OnMount(PanelReturnFocus()),
+      h.Open(true),
+      h.AriaLabelledBy("genie-title"),
+      h.Class(classes),
+      h.OnKeyDownPreventDefault((key) =>
+        key === "Escape" ? Option.some(M.CloseOverlay()) : Option.none(),
+      ),
+    ],
+    content,
+  );
 }

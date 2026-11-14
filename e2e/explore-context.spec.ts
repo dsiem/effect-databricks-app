@@ -104,7 +104,8 @@ test("Explore saves applied filters in place, and saved views reopen on the curr
 test("editing a saved note retains its original view and the visible action restores it", async ({
   page,
 }) => {
-  await page.goto(`/notebook?${query}`);
+  await page.goto(`/trips?${query}`);
+  await page.getByRole("button", { name: "Saved views", exact: true }).click();
   await page
     .getByRole("button", { name: `Edit ${savedNote.title}`, exact: true })
     .click();
@@ -120,7 +121,7 @@ test("editing a saved note retains its original view and the visible action rest
   });
   await expect(open).toHaveText("Open saved view");
   await open.click();
-  await expect(page).toHaveURL("/?to=2016-02-20&zip=11430");
+  await expect(page).toHaveURL("/trips?to=2016-02-20&zip=11430");
 });
 
 test("Genie shows the actual view beside the composer and sends it with the question", async ({
@@ -185,9 +186,14 @@ for (const [search, dates] of [
   test(`context communicates unbounded filters: ${search || "all data"}`, async ({
     page,
   }) => {
-    await page.goto(`/notebook${search ? `?${search}` : ""}`);
-    const context = page.getByRole("region", {
-      name: "Current Explore filters",
+    await page.goto(`/trips${search ? `?${search}` : ""}`);
+    await page
+      .getByRole("form", { name: "Trip filters" })
+      .getByRole("button", { name: "Save view", exact: true })
+      .click();
+    const context = page.getByRole("dialog", {
+      name: "Save this view",
+      exact: true,
     });
     await expect(context).toContainText(dates);
     await expect(context).toContainText("All pickup areas");
@@ -198,13 +204,19 @@ test("context and saved-view actions fit a narrow mobile viewport", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 360, height: 800 });
-  for (const path of ["notebook", "genie"]) {
+  for (const path of ["trips", "genie"]) {
     await page.goto(`/${path}?${query}`);
-    const context = page.getByRole("region", {
-      name:
-        path === "notebook" ? "Current Explore filters" : /^Explore view for/,
-    });
-    await expect(context).toContainText("Pickup ZIP 10001");
+    if (path === "trips")
+      await page
+        .getByRole("button", { name: "Saved views", exact: true })
+        .click();
+    const context =
+      path === "trips"
+        ? page.getByRole("dialog", { name: "Saved views", exact: true })
+        : page.getByRole("region", { name: /^Explore view for/ });
+    await expect(context).toContainText(
+      path === "trips" ? "Pickup ZIP 11430" : "Pickup ZIP 10001",
+    );
     await expect(context).toBeInViewport();
     expect(
       await page.evaluate(

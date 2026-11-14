@@ -22,7 +22,7 @@ local development uses the current workspace user's profile when available.
   SQL; on mobile it opens as a sheet. The `/genie` conversation view is also available.
 - **Saved views:** save the applied filters with an optional finding directly in
   Explore; reopen, pin, edit, or delete them from a side panel on the same page.
-  The analyst notebook remains the full shared library, with paginated browsing.
+  The panel supports paginated browsing of the shared library.
 
 An unscheduled SQL job copies `samples.nyctaxi.trips` once per bundle target into a
 managed Delta table and persists a UUID `trip_id` on each row. App analytics read this snapshot;
@@ -188,7 +188,7 @@ The server is an Effect application, including HTTP routing and lifetime:
   as an optional transport. The verified workspace deployment uses HTTP/1.1; its proxy returned 502 for an HTTP/2-only listener.
 
 The app uses its service principal for shared access. All app viewers can see and
-edit the shared notebook; per-viewer row-level authorization is not implemented.
+edit shared saved views; per-viewer row-level authorization is not implemented.
 Trip comments are shared and append-only through the API. The replicated sample
 gets a persisted synthetic `trip_id`; future apps should copy a source primary key
 when one exists. See the [interaction design rationale](docs/data-access.md#contextual-workflows).
@@ -225,6 +225,13 @@ There are no component-local stores or hook lifecycles. `client/src/main.ts` boo
 the runtime, while `model.ts`, `message.ts`, `update.ts`, and the stateless views
 can be inspected independently. Run `npm run client:check` to audit the migration
 and `npm run test:browser` to exercise the UI and recovery workflows offline.
+
+Interactive controls use `@foldkit/ui`: Select for trip sorting, Tabs for chart
+metrics, Tooltip for the collapsed sidebar, Calendar for date navigation, and
+Dialog for modal sheets and editors. Button, Input, and Textarea render helpers
+supply the form controls. Keep their interaction behavior in Foldkit UI and apply
+app styling through the components' attribute bundles. `client:check` rejects
+hand-built widget roles and custom dialog focus traps.
 
 Architecture and operational details: [docs/data-access.md](docs/data-access.md).
 Inspiration: [Databricks vacation rentals template](https://developers.databricks.com/templates/vacation-rentals).

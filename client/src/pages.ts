@@ -1,18 +1,18 @@
-import { Option } from "effect";
+import { Button, Select } from "@foldkit/ui";
+import { Schema } from "effect";
 import type * as D from "../../src/domain";
 import { activityColors, MapMount } from "./browser";
+import { MetricTabs } from "./components";
 import { icon } from "./icons";
 import { Message as M } from "./message";
-import { filtersFromQuery, href, type Model, queryFor } from "./model";
+import { filtersFromQuery, href, type Model, queryFor, Sort } from "./model";
 import {
-  alert,
   badge,
   button,
   type Child,
   card,
   compact,
   error,
-  filterSummary,
   type H,
   loading,
   money,
@@ -198,100 +198,88 @@ export function overview(h: H, model: Model): Child[] {
             [h.Class("dashboard-grid")],
             [
               card(h, [
-                h.div(
-                  [h.DataAttribute("slot", "tabs")],
-                  [
-                    h.div(
-                      [h.Class("chart-header")],
-                      [
-                        h.div(
-                          [],
-                          [
-                            h.h2([], [dailyTitle]),
-                            h.p(
-                              [h.Class("muted text-xs mt-1")],
-                              ["Activity over the selected period"],
-                            ),
-                          ],
-                        ),
-                        h.div(
-                          [h.Class("flex flex-wrap gap-2")],
-                          [
-                            ask(
-                              h,
-                              `Ask Genie about ${dailyTitle.toLowerCase()}`,
-                              {
-                                page: "overview",
-                                title: dailyTitle,
-                                data: JSON.stringify({
-                                  metric: series,
-                                  daily,
-                                  queriedAt,
-                                }),
-                              },
-                              "Explain the pattern in this chart and highlight any unusual days.",
-                            ),
-                            h.div(
-                              [
-                                h.Role("tablist"),
-                                h.AriaLabel("Daily chart metric"),
-                                h.Class("tabs"),
-                              ],
-                              ["trips", "revenue"].map((metric) =>
-                                button(
-                                  h,
-                                  metric === "trips" ? "Trips" : "Revenue",
-                                  M.SetSeries({
-                                    series:
-                                      metric === "trips" ? "trips" : "revenue",
-                                  }),
-                                  [
-                                    h.Id(`metric-${metric}`),
-                                    h.Role("tab"),
-                                    h.OnKeyDownFocus((key) => {
-                                      if (
-                                        ![
-                                          "ArrowLeft",
-                                          "ArrowRight",
-                                          "Home",
-                                          "End",
-                                        ].includes(key)
-                                      )
-                                        return Option.none();
-                                      const next =
-                                        key === "Home"
-                                          ? "trips"
-                                          : key === "End"
-                                            ? "revenue"
-                                            : metric === "trips"
-                                              ? "revenue"
-                                              : "trips";
-                                      return Option.some({
-                                        focusSelector: `#metric-${next}`,
-                                        message: M.SetSeries({ series: next }),
-                                      });
-                                    }),
-                                    h.AriaSelected(series === metric),
-                                    h.Tabindex(series === metric ? 0 : -1),
-                                  ],
-                                  series === metric ? "selected" : "ghost",
-                                ),
+                h.submodel({
+                  slotId: "daily-metric",
+                  view: MetricTabs.view,
+                  model: model.metricTabs,
+                  toParentMessage: (message) => M.MetricTabs({ message }),
+                  viewInputs: {
+                    tabs: ["trips", "revenue"],
+                    selectedValue: series,
+                    ariaLabel: "Daily chart metric",
+                    toView: ({ tablist, tabs, activeIndex }) =>
+                      h.div(
+                        [h.DataAttribute("slot", "tabs")],
+                        [
+                          h.div(
+                            [h.Class("chart-header")],
+                            [
+                              h.div(
+                                [],
+                                [
+                                  h.h2([], [dailyTitle]),
+                                  h.p(
+                                    [h.Class("muted text-xs mt-1")],
+                                    ["Activity over the selected period"],
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    chart(
-                      h,
-                      daily.map((row) => ({
-                        label: row.day.slice(5),
-                        value: row[series],
-                      })),
-                      dailyTitle,
-                    ),
-                  ],
-                ),
+                              h.div(
+                                [h.Class("flex flex-wrap gap-2")],
+                                [
+                                  ask(
+                                    h,
+                                    `Ask Genie about ${dailyTitle.toLowerCase()}`,
+                                    {
+                                      page: "overview",
+                                      title: dailyTitle,
+                                      data: JSON.stringify({
+                                        metric: series,
+                                        daily,
+                                        queriedAt,
+                                      }),
+                                    },
+                                    "Explain the pattern in this chart and highlight any unusual days.",
+                                  ),
+                                  h.div(
+                                    [...tablist, h.Class("tabs")],
+                                    tabs.map((tab) =>
+                                      h.button(
+                                        [
+                                          ...tab.tab,
+                                          h.Class(
+                                            `btn ${tab.isActive ? "selected" : "ghost"}`,
+                                          ),
+                                        ],
+                                        [
+                                          tab.value === "trips"
+                                            ? "Trips"
+                                            : "Revenue",
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          h.div(
+                            [...(tabs[activeIndex]?.panel ?? [])],
+                            [
+                              chart(
+                                h,
+                                daily.map((row) => ({
+                                  label: row.day.slice(5),
+                                  value: row[series],
+                                })),
+                                dailyTitle,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                  },
+                }),
                 h.div(
                   [h.Class("chart-footer")],
                   [
@@ -492,53 +480,40 @@ export function trips(h: H, model: Model): Child[] {
               badge(h, `${number(data.total)} trips`),
             ],
           ),
-          h.div(
-            [h.Class("sort-control")],
-            [
-              h.span([h.Class("muted text-sm")], ["Sort by"]),
-              button(
-                h,
-                {
-                  newest: "Latest pickup",
-                  fare: "Highest fare",
-                  distance: "Longest distance",
-                }[model.sort],
-                M.ToggleSort(),
-                [
-                  h.Role("combobox"),
-                  h.AriaLabel("Sort trips"),
-                  h.AriaExpanded(model.sortOpen),
-                  h.AriaControls("sort-options"),
-                ],
-              ),
-              ...(model.sortOpen
-                ? [
-                    h.div(
+          Select.view(
+            {
+              id: "trip-sort",
+              value: model.sort,
+              onChange: (value) =>
+                M.SortTrips({ sort: Schema.decodeUnknownSync(Sort)(value) }),
+              toView: ({ select, label }) =>
+                h.div(
+                  [h.Class("sort-control")],
+                  [
+                    h.label([...label, h.Class("muted text-sm")], ["Sort by"]),
+                    h.select(
                       [
-                        h.Id("sort-options"),
-                        h.Role("listbox"),
-                        h.Class("sort-options"),
+                        ...select,
+                        h.AriaLabel("Sort trips"),
+                        h.Class("input sort-select"),
                       ],
                       (["newest", "fare", "distance"] as const).map((sort) =>
-                        button(
-                          h,
-                          {
-                            newest: "Latest pickup",
-                            fare: "Highest fare",
-                            distance: "Longest distance",
-                          }[sort],
-                          M.SortTrips({ sort }),
+                        h.option(
+                          [h.Value(sort)],
                           [
-                            h.Role("option"),
-                            h.AriaSelected(model.sort === sort),
+                            {
+                              newest: "Latest pickup",
+                              fare: "Highest fare",
+                              distance: "Longest distance",
+                            }[sort],
                           ],
-                          "ghost",
                         ),
                       ),
                     ),
-                  ]
-                : []),
-            ],
+                  ],
+                ),
+            },
+            h,
           ),
         ],
       ),
@@ -734,47 +709,59 @@ export function pickupMap(h: H, model: Model): Child[] {
                     h.li(
                       [h.Key(zone.zip)],
                       [
-                        h.button(
-                          [
-                            h.Type("button"),
-                            h.AriaLabel(
-                              `Rank ${index + 1}, ZIP ${zone.zip}, ${number(zone.trips)} trips`,
-                            ),
-                            h.AriaPressed(String(filters.zip === zone.zip)),
-                            h.Class("ranking-row"),
-                            h.OnClick(M.PickZip({ zip: zone.zip })),
-                          ],
-                          [
-                            h.span([h.Class("rank")], [String(index + 1)]),
-                            h.span(
-                              [h.Class("rank-content")],
-                              [
-                                h.span(
-                                  [h.Class("flex justify-between gap-3")],
-                                  [
-                                    h.span([], [zone.zip]),
-                                    h.span(
-                                      [h.Class("muted text-xs")],
-                                      [number(zone.trips)],
-                                    ),
-                                  ],
-                                ),
-                                h.span(
-                                  [h.Class("rank-bar")],
-                                  [
-                                    h.span(
-                                      [
-                                        h.Style({
-                                          width: `${(zone.trips / (zones[0]?.trips || 1)) * 100}%`,
-                                        }),
-                                      ],
-                                      [],
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
+                        Button.view(
+                          {
+                            type: "button",
+                            onClick: M.PickZip({ zip: zone.zip }),
+                            toView: (attributes) =>
+                              h.button(
+                                [
+                                  ...attributes.button,
+                                  h.AriaLabel(
+                                    `Rank ${index + 1}, ZIP ${zone.zip}, ${number(zone.trips)} trips`,
+                                  ),
+                                  h.AriaPressed(
+                                    String(filters.zip === zone.zip),
+                                  ),
+                                  h.Class("ranking-row"),
+                                ],
+                                [
+                                  h.span(
+                                    [h.Class("rank")],
+                                    [String(index + 1)],
+                                  ),
+                                  h.span(
+                                    [h.Class("rank-content")],
+                                    [
+                                      h.span(
+                                        [h.Class("flex justify-between gap-3")],
+                                        [
+                                          h.span([], [zone.zip]),
+                                          h.span(
+                                            [h.Class("muted text-xs")],
+                                            [number(zone.trips)],
+                                          ),
+                                        ],
+                                      ),
+                                      h.span(
+                                        [h.Class("rank-bar")],
+                                        [
+                                          h.span(
+                                            [
+                                              h.Style({
+                                                width: `${(zone.trips / (zones[0]?.trips || 1)) * 100}%`,
+                                              }),
+                                            ],
+                                            [],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                          },
+                          h,
                         ),
                       ],
                     ),
@@ -844,208 +831,5 @@ export function pickupMap(h: H, model: Model): Child[] {
         ),
       ],
     ),
-  ];
-}
-
-export function notebook(h: H, model: Model, embedded = false): Child[] {
-  const data = model.notes.data;
-  const filters = filtersFromQuery(model.query) ?? {};
-  const heading = embedded
-    ? []
-    : [
-        title(
-          h,
-          "Saved views",
-          "Save and reopen Explore views with their filters. Views are shared across this app.",
-          [
-            button(
-              h,
-              "Save this view",
-              M.NewNote({ view: true }),
-              [h.Id("new-note")],
-              "primary",
-            ),
-          ],
-        ),
-        h.section(
-          [h.AriaLabel("Current Explore filters"), h.Class("context mb-6")],
-          [
-            h.div(
-              [h.Class("flex flex-wrap justify-between gap-3 mb-3")],
-              [
-                h.h2([], ["Current Explore filters"]),
-                h.a(
-                  [
-                    h.Href(href("/trips", model.query)),
-                    h.Class("text-sm underline"),
-                  ],
-                  ["Change in Explore"],
-                ),
-              ],
-            ),
-            filterSummary(h, filters),
-            h.p(
-              [h.Class("muted text-xs mt-3")],
-              [
-                "Save these filters as a view. Existing saved views keep their own filters.",
-              ],
-            ),
-          ],
-        ),
-      ];
-  if (model.notes.loading && !data)
-    return [...heading, loading(h, "Loading saved views…")];
-  if (model.notes.error && !data)
-    return [
-      ...heading,
-      error(h, model.notes.error, M.LoadNotes({ more: false })),
-    ];
-  const rows = data?.rows ?? [];
-  if (!rows.length)
-    return [
-      ...heading,
-      card(
-        h,
-        [
-          h.h2(
-            [],
-            [embedded ? "Keep a view worth returning to" : "No saved views"],
-          ),
-          h.p(
-            [h.Class("muted text-sm mt-2 mb-6")],
-            [
-              "Save the current Explore filters as a named view to return to later.",
-            ],
-          ),
-          button(
-            h,
-            embedded ? "Save this view" : "Create saved view",
-            M.NewNote({ view: true }),
-            [],
-            "primary",
-          ),
-        ],
-        "empty-state",
-      ),
-    ];
-  return [
-    ...heading,
-    h.p(
-      [h.AriaLive("polite"), h.Class("muted text-sm mb-4")],
-      [
-        `${rows.length} saved ${rows.length === 1 ? "view" : "views"} shown · shared across this app`,
-      ],
-    ),
-    h.div(
-      [h.Class(embedded ? "grid gap-4" : "notes-grid")],
-      rows.map((note) =>
-        card(
-          h,
-          [
-            h.div(
-              [h.Class("flex gap-3 mb-4 items-start")],
-              [
-                h.h2([h.Class("flex-1 min-w-0 break-words")], [note.title]),
-                button(
-                  h,
-                  icon(h, note.pinned ? "pin" : "pin-off"),
-                  M.PinNote({ note }),
-                  [
-                    h.AriaLabel(
-                      `${note.pinned ? "Unpin" : "Pin"} ${note.title}`,
-                    ),
-                    h.Disabled(model.noteBusy),
-                  ],
-                  "ghost",
-                ),
-              ],
-            ),
-            h.p(
-              [
-                h.Class(
-                  "whitespace-pre-wrap break-words muted text-sm leading-6 mb-5",
-                ),
-              ],
-              [note.body || "No additional details."],
-            ),
-            h.div(
-              [h.Class("mt-auto")],
-              [
-                h.p(
-                  [h.Class("muted text-xs mb-2")],
-                  [embedded ? "Filters" : "Saved Explore view"],
-                ),
-                filterSummary(h, note.filters),
-                button(
-                  h,
-                  "Open saved view",
-                  M.RestoreView({ filters: note.filters }),
-                  [
-                    h.AriaLabel(`Open saved view for ${note.title}`),
-                    h.Class("btn ghost mt-3"),
-                  ],
-                ),
-                h.div(
-                  [
-                    h.Class(
-                      "border-t pt-4 mt-4 flex items-center justify-between gap-2",
-                    ),
-                  ],
-                  [
-                    h.span(
-                      [h.Class("muted text-xs")],
-                      [
-                        `Updated ${new Date(note.updated_at).toLocaleDateString()}`,
-                      ],
-                    ),
-                    h.div(
-                      [h.Class("flex")],
-                      [
-                        button(
-                          h,
-                          icon(h, "pencil"),
-                          M.EditNote({ note, view: true }),
-                          [h.AriaLabel(`Edit ${note.title}`)],
-                          "ghost",
-                        ),
-                        button(
-                          h,
-                          icon(h, "trash-2"),
-                          M.DeleteNote({ note }),
-                          [h.AriaLabel(`Delete ${note.title}`)],
-                          "ghost",
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-          "p-6 flex flex-col",
-        ),
-      ),
-    ),
-    ...(model.notes.error ? [alert(h, model.notes.error)] : []),
-    ...(data?.nextCursor || model.notes.error
-      ? [
-          h.div(
-            [h.Class("flex justify-center mt-6")],
-            [
-              button(
-                h,
-                model.notes.loading
-                  ? "Loading views…"
-                  : model.notes.error
-                    ? "Retry loading views"
-                    : "Load more views",
-                M.LoadNotes({ more: !!data?.nextCursor }),
-                [h.Disabled(model.notes.loading)],
-              ),
-            ],
-          ),
-        ]
-      : []),
-    ...(model.noteError && !model.deleting ? [alert(h, model.noteError)] : []),
   ];
 }

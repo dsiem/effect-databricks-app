@@ -1,3 +1,4 @@
+import { Button } from "@foldkit/ui";
 import { format, parseISO } from "date-fns";
 import type { Attribute, Html, HtmlBuilder } from "foldkit/html";
 import type { Filters } from "../../src/domain";
@@ -47,9 +48,13 @@ export const button = (
   attrs: A[] = [],
   variant = "outline",
 ) =>
-  h.button(
-    [h.Type("button"), h.Class(`btn ${variant}`), h.OnClick(message), ...attrs],
-    [label],
+  Button.view(
+    {
+      onClick: message,
+      toView: ({ button }) =>
+        h.button([...button, h.Class(`btn ${variant}`), ...attrs], [label]),
+    },
+    h,
   );
 export const card = (h: H, children: Child[], classes = "") =>
   h.div(

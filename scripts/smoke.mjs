@@ -81,7 +81,7 @@ for (const protocol of ["http1", "http2"]) {
     const asset = root.body.match(/src="([^"]+\.js)"/);
     assert.ok(asset, "Built HTML references its JavaScript bundle");
     assert.equal((await request(asset[1])).status, 200);
-    for (const path of ["/trips", "/map", "/genie", "/notebook"]) {
+    for (const path of ["/trips", "/map", "/genie"]) {
       assert.equal((await request(path)).status, 200);
     }
     assert.equal((await request("/nyc-zips.geojson")).status, 200);

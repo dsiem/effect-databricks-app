@@ -21,9 +21,6 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
                 ) {
                   event.preventDefault();
                   Queue.offerUnsafe(queue, M.ToggleSidebar());
-                } else if (event.key === "Escape") {
-                  event.preventDefault();
-                  Queue.offerUnsafe(queue, M.CloseOverlay());
                 }
               };
               const media = matchMedia("(max-width: 767px)");
@@ -43,92 +40,22 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
   ),
 }));
 
-export const DialogMount = Mount.defineStream("OpenDialog", {
-  args: { modal: Schema.Boolean, focus: Schema.String },
-  messages: [M.Idle, M.CloseOverlay],
-  execute: ({ element, modal, focus, viewStateChanges }) =>
-    Stream.callback<
-      ReturnType<typeof M.Idle> | ReturnType<typeof M.CloseOverlay>
-    >((queue) =>
-      Effect.gen(function* () {
-        let live = true;
-        yield* Effect.forkScoped(
-          Stream.runForEach(viewStateChanges, (state) =>
-            Effect.sync(() => {
-              live = state === "Live";
-            }),
-          ),
-        );
-        yield* Effect.acquireRelease(
-          Effect.sync(() => {
-            const opener =
-              document.activeElement instanceof HTMLElement
-                ? document.activeElement
-                : null;
-            const overflow = document.body.style.overflow;
-            if (modal) document.body.style.overflow = "hidden";
-            if (element instanceof HTMLDialogElement) {
-              if (modal) element.showModal();
-              else element.show();
-            }
-            const cancel = (event: Event) => event.preventDefault();
-            const tab = (event: Event) => {
-              if (
-                !modal ||
-                !(event instanceof KeyboardEvent) ||
-                event.key !== "Tab"
-              )
-                return;
-              const targets = [
-                ...element.querySelectorAll<HTMLElement>(
-                  'a[href], button:not(:disabled), input:not([type="hidden"]):not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]',
-                ),
-              ].filter((target) => target.getClientRects().length > 0);
-              const first = targets[0];
-              const last = targets.at(-1);
-              if (
-                (event.shiftKey && document.activeElement === first) ||
-                (!event.shiftKey && document.activeElement === last)
-              ) {
-                event.preventDefault();
-                (event.shiftKey ? last : first)?.focus();
-              }
-            };
-            let outside = false;
-            const pointerdown = (event: Event) => {
-              if (!(event instanceof PointerEvent)) return;
-              const rect = element.getBoundingClientRect();
-              outside =
-                event.clientX < rect.left ||
-                event.clientX > rect.right ||
-                event.clientY < rect.top ||
-                event.clientY > rect.bottom;
-            };
-            const click = (event: Event) => {
-              if (modal && live && outside && event.target === element)
-                Queue.offerUnsafe(queue, M.CloseOverlay());
-            };
-            element.addEventListener("cancel", cancel);
-            element.addEventListener("keydown", tab);
-            element.addEventListener("pointerdown", pointerdown);
-            element.addEventListener("click", click);
-            element.querySelector<HTMLElement>(focus)?.focus();
-            return () => {
-              element.removeEventListener("cancel", cancel);
-              element.removeEventListener("keydown", tab);
-              element.removeEventListener("pointerdown", pointerdown);
-              element.removeEventListener("click", click);
-              if (element instanceof HTMLDialogElement) element.close();
-              if (modal) document.body.style.overflow = overflow;
-              if (opener?.isConnected) opener.focus();
-              else document.querySelector<HTMLElement>("#new-note")?.focus();
-            };
-          }),
-          (cleanup) => Effect.sync(cleanup),
-        );
-        Queue.offerUnsafe(queue, M.Idle());
-      }),
-    ),
+// The desktop assistant is a persistent non-modal panel, rather than a modal Dialog.
+export const PanelReturnFocus = Mount.define("PanelReturnFocus", {
+  messages: [M.Idle],
+  execute: () =>
+    Effect.acquireRelease(
+      Effect.sync(() =>
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null,
+      ),
+      (opener) =>
+        Effect.sync(() => {
+          if (opener?.isConnected) opener.focus();
+          else document.querySelector<HTMLElement>("#genie-trigger")?.focus();
+        }),
+    ).pipe(Effect.as(M.Idle())),
 });
 
 const Position = Schema.Array(Schema.Number);
