@@ -3,15 +3,20 @@ import { randomUUID } from "node:crypto";
 import { Effect, Layer } from "effect";
 import { Analytics } from "../src/analytics.js";
 import { Genie } from "../src/genie.js";
-import { Notebook } from "../src/notebook.js";
+import { Lakebase } from "../src/lakebase.js";
+import { SavedViews } from "../src/saved-views.js";
 import { Settings } from "../src/settings.js";
 import { Workspace } from "../src/workspace.js";
 
 const services = Layer.mergeAll(
   Analytics.layer,
   Genie.layer,
-  Notebook.layer,
-).pipe(Layer.provide(Workspace.layer), Layer.provideMerge(Settings.layer));
+  SavedViews.layer,
+).pipe(
+  Layer.provide(Lakebase.layer),
+  Layer.provide(Workspace.layer),
+  Layer.provideMerge(Settings.layer),
+);
 await Effect.runPromise(
   Effect.gen(function* () {
     const analytics = yield* Analytics;
@@ -45,20 +50,20 @@ await Effect.runPromise(
     );
     const settings = yield* Settings;
     if (settings.pgHost || settings.lakebaseEndpoint) {
-      const notebook = yield* Notebook;
+      const savedViews = yield* SavedViews;
       const allNotes = Effect.gen(function* () {
         const notes = [];
-        let page = yield* notebook.list({});
+        let page = yield* savedViews.list({});
         notes.push(...page.rows);
         while (page.nextCursor) {
-          page = yield* notebook.list({ cursor: page.nextCursor });
+          page = yield* savedViews.list({ cursor: page.nextCursor });
           notes.push(...page.rows);
         }
         return notes;
       });
       const id = randomUUID();
       yield* Effect.acquireUseRelease(
-        notebook.save({
+        savedViews.save({
           id,
           title: "Live verification",
           body: "Temporary integration check",
@@ -68,14 +73,14 @@ await Effect.runPromise(
         (created) =>
           Effect.gen(function* () {
             assert.ok((yield* allNotes).some((note) => note.id === id));
-            const updated = yield* notebook.save({
+            const updated = yield* savedViews.save({
               id,
               title: "Updated verification",
               body: "Round trip verified",
               filters: { zip },
               version: created.version,
             });
-            const pinned = yield* notebook.pin(id, {
+            const pinned = yield* savedViews.pin(id, {
               version: updated.version,
               pinned: true,
             });
@@ -87,7 +92,7 @@ await Effect.runPromise(
             Effect.flatMap((notes) => {
               const current = notes.find((note) => note.id === id);
               return current
-                ? notebook.remove(id, current.version)
+                ? savedViews.remove(id, current.version)
                 : Effect.void;
             }),
             Effect.orDie,

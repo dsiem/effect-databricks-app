@@ -107,7 +107,7 @@ Setup deploys the bundle and waits for its `seed_trip_snapshot` SQL job to finis
 on the existing warehouse. The job creates a target-specific managed Delta
 snapshot with one persisted UUID per sample row, validates the IDs, and grants
 the app identity catalog/schema/table read access. Setup then runs an explicit
-idempotent notebook migration and starts the app.
+idempotent application-schema migration and starts the app.
 Re-running setup preserves the snapshot and IDs; it does not copy newly changed
 source rows. Application startup does not run DDL. The deployer needs permission
 to create the schema in `data_catalog` and grant access to the app identity, plus
@@ -143,7 +143,7 @@ also manages the adopted warehouse; review
 
 The **Deploy** GitHub workflow uses the same setup command and GitHub OIDC.
 CI and deployment prechecks include the offline browser suite. After the app
-reaches `RUNNING`, deployment must also pass hosted SQL, notebook persistence, and
+reaches `RUNNING`, deployment must also pass hosted SQL, saved-view persistence, and
 Genie verification using the app identity.
 Configure GitHub environments `dev` / `prod` with `DATABRICKS_HOST`,
 `DATABRICKS_CLIENT_ID`, and `DATABRICKS_APP_NAME`, plus a Databricks federation policy
@@ -189,8 +189,8 @@ re-exports and literal dynamic imports. It runs as part of `npm run check`.
 
 The server is an Effect application, including HTTP routing and lifetime:
 
-- `Settings`, `Workspace`, `Analytics`, `Genie`, and `Notebook` are typed
-  `Context.Service`s assembled through `Layer`s.
+- `Settings`, `Workspace`, `Analytics`, `Genie`, `Lakebase`, `SavedViews`, and
+  `TripComments` are typed `Context.Service`s assembled through `Layer`s.
 - External inputs and API responses are decoded with `Schema`; `SqlSchema`
   validates warehouse and Lakebase rows at their boundaries. Frontend responses
   use the same domain schemas through interruptible Effect requests.
@@ -212,8 +212,10 @@ The server is an Effect application, including HTTP routing and lifetime:
   Client snapshots provide explanatory context; additional analytics query the
   source table rather than extrapolating from visible rows or ranked subsets.
 - `@effect/sql-pg` owns a scoped PostgreSQL pool, TLS, per-connection fresh Lakebase
-  OAuth credentials, statement/acquisition deadlines, and shutdown. Notebook saves
-  use explicit create/update versions and return conflicts for stale writes.
+  OAuth credentials, statement/acquisition deadlines, and shutdown. `Lakebase`
+  lazily shares that pool between the independent `SavedViews` and `TripComments`
+  services. Saved views use explicit create/update versions and return conflicts
+  for stale writes.
   Pinning updates only its own field. Migration uses a transaction and advisory
   lock; run `npm run db:migrate` to add note versions and the trip-comments table
   to existing installations. Comment submissions use a stable draft ID so retrying
@@ -245,7 +247,7 @@ npm run test:e2e       # real browser checks, no mocked data routes
 ```
 
 Live checks create and remove a temporary note. Browser checks verify filtering,
-sorting, pagination, CSV, map rendering, responsive navigation, and notebook
+sorting, pagination, CSV, map rendering, responsive navigation, and saved-view
 persistence across reloads. Screenshots and traces go to ignored `test-results/`.
 
 The map geometry is bundled for reproducible rendering; the street basemap uses

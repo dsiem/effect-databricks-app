@@ -17,8 +17,10 @@ import { Analytics } from "./analytics.js";
 import { makeCurrentUser } from "./current-user.js";
 import type { ServiceError } from "./errors.js";
 import { Genie } from "./genie.js";
-import { Notebook } from "./notebook.js";
+import { Lakebase } from "./lakebase.js";
+import { SavedViews } from "./saved-views.js";
 import { Settings } from "./settings.js";
+import { TripComments } from "./trip-comments.js";
 
 const toApiError = (error: ServiceError): typeof ApiError.Type => {
   const message = error.message;
@@ -81,7 +83,9 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
   Effect.gen(function* () {
     const analytics = yield* Analytics;
     const genie = yield* Genie;
-    const notebook = yield* Notebook;
+    const savedViews = yield* SavedViews;
+    const comments = yield* TripComments;
+    const lakebase = yield* Lakebase;
     const settings = yield* Settings;
     const currentUser = yield* makeCurrentUser;
     return handlers
@@ -90,7 +94,7 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
         Effect.all({
           warehouse: analytics.availability,
           genie: genie.availability,
-          lakebase: notebook.availability,
+          lakebase: lakebase.availability,
         }).pipe(
           Effect.map((capabilities) => ({
             dataset: settings.tripSnapshotTable || "samples.nyctaxi.trips",
@@ -119,24 +123,24 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
       .handle("submitGenie", ({ payload }) => respond(genie.submit(payload)))
       .handle("pollGenie", ({ params }) => respond(genie.poll(params)))
       .handle("genieResult", ({ params }) => respond(genie.result(params)))
-      .handle("notes", ({ query }) => respond(notebook.list(query)))
-      .handle("tripComments", ({ query }) => respond(notebook.comments(query)))
+      .handle("notes", ({ query }) => respond(savedViews.list(query)))
+      .handle("tripComments", ({ query }) => respond(comments.list(query)))
       .handle("addTripComment", ({ payload }) =>
         respond(
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest;
             const author = yield* currentUser(request.headers);
-            return yield* notebook.addComment(payload, author);
+            return yield* comments.add(payload, author);
           }),
         ),
       )
-      .handle("saveNote", ({ payload }) => respond(notebook.save(payload)))
+      .handle("saveNote", ({ payload }) => respond(savedViews.save(payload)))
       .handle("pinNote", ({ params, payload }) =>
-        respond(notebook.pin(params.id, payload)),
+        respond(savedViews.pin(params.id, payload)),
       )
       .handle("removeNote", ({ params, query }) =>
         respond(
-          notebook
+          savedViews
             .remove(params.id, query.version)
             .pipe(Effect.as({ deleted: true as const })),
         ),

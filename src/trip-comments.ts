@@ -1,6 +1,4 @@
-import type { PgClient } from "@effect/sql-pg";
-import { Effect, Schema } from "effect";
-import type * as SqlClient from "effect/sql/SqlClient";
+import { Context, Effect, Layer, Schema } from "effect";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import {
   type CurrentUser,
@@ -8,20 +6,16 @@ import {
   TripCommentCursor,
   type TripCommentInput,
   type TripCommentSearch,
-  type TripComments,
+  type TripComments as TripCommentsPage,
 } from "../shared/domain.js";
-import { InvalidRequest, unavailable } from "./errors.js";
+import { InvalidRequest } from "./errors.js";
+import { Lakebase, type LakebaseSql, lakebaseUnavailable } from "./lakebase.js";
 import { restoreCredentialFailure } from "./pg-credentials.js";
 
-export const makeTripComments = (
-  sql: SqlClient.SqlClient & Pick<PgClient.PgClient, "json">,
-  message: string,
-) => {
-  const databaseError = (cause: unknown) =>
-    unavailable("lakebase", message, cause);
+export const makeTripComments = (sql: LakebaseSql) => {
   const columns = sql`id::text AS id, trip, body, author,
     to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at`;
-  const comments = (search: TripCommentSearch) =>
+  const list = (search: TripCommentSearch) =>
     SqlSchema.findAll({
       Request: Schema.Void,
       Result: Schema.Struct({
@@ -40,9 +34,9 @@ export const makeTripComments = (
         }
         ORDER BY comments.created_at DESC, comments.id DESC LIMIT 26`,
     })(undefined).pipe(
-      Effect.mapError(databaseError),
+      Effect.mapError(lakebaseUnavailable),
       restoreCredentialFailure,
-      Effect.map((results): TripComments => {
+      Effect.map((results): TripCommentsPage => {
         const rows = results.slice(0, 25);
         const last = rows.at(-1);
         return {
@@ -53,9 +47,9 @@ export const makeTripComments = (
               : null,
         };
       }),
-      Effect.withSpan("notebook.tripComments"),
+      Effect.withSpan("tripComments.list"),
     );
-  const addComment = (input: TripCommentInput, author: CurrentUser | null) =>
+  const add = (input: TripCommentInput, author: CurrentUser | null) =>
     SqlSchema.findAll({
       Request: Schema.Void,
       Result: TripComment,
@@ -69,7 +63,7 @@ export const makeTripComments = (
           AND existing.author=EXCLUDED.author
         RETURNING ${columns}`,
     })(undefined).pipe(
-      Effect.mapError(databaseError),
+      Effect.mapError(lakebaseUnavailable),
       restoreCredentialFailure,
       Effect.flatMap((rows) =>
         rows[0]
@@ -81,7 +75,22 @@ export const makeTripComments = (
               }),
             ),
       ),
-      Effect.withSpan("notebook.addTripComment"),
+      Effect.withSpan("tripComments.add"),
     );
-  return { comments, addComment };
+  return { list, add };
 };
+
+export class TripComments extends Context.Service<
+  TripComments,
+  ReturnType<typeof makeTripComments>
+>()("app/TripComments") {
+  static readonly layer = Layer.effect(
+    TripComments,
+    Effect.map(Lakebase, (database) => ({
+      list: (search: TripCommentSearch) =>
+        database.use((sql) => makeTripComments(sql).list(search)),
+      add: (input: TripCommentInput, author: CurrentUser | null) =>
+        database.use((sql) => makeTripComments(sql).add(input, author)),
+    })),
+  );
+}

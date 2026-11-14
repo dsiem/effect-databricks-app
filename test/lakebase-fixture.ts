@@ -1,13 +1,16 @@
 import { PgClient } from "@effect/sql-pg";
 import { PGlite } from "@electric-sql/pglite";
-import { Effect, Stream } from "effect";
+import { Effect, Layer, Stream } from "effect";
 import * as SqlClient from "effect/sql/SqlClient";
 import type { Connection } from "effect/sql/SqlConnection";
 import { SqlError, UnknownError } from "effect/sql/SqlError";
-import { makeNotebook, migrateNotebook } from "../src/notebook.js";
+import { Lakebase } from "../src/lakebase.js";
+import { migrateAppSchema } from "../src/migrations.js";
+import { SavedViews } from "../src/saved-views.js";
+import { TripComments } from "../src/trip-comments.js";
 
-// Run the production compiler, migrations and notebook against embedded Postgres.
-export const notebookFixture = Effect.gen(function* () {
+// Run production feature services, queries and migrations against embedded Postgres.
+export const lakebaseFixture = Effect.gen(function* () {
   const database = yield* Effect.acquireRelease(
     Effect.promise(() => PGlite.create()),
     (db) => Effect.promise(() => db.close()),
@@ -34,16 +37,29 @@ export const notebookFixture = Effect.gen(function* () {
     compiler: PgClient.makeCompiler(),
     acquirer: Effect.succeed(connection),
   });
-  yield* migrateNotebook(sql);
+  yield* migrateAppSchema(sql);
+  const client = Object.assign(sql, {
+    // PgClient's top-level null is SQL NULL, not the JSON string "null".
+    json: (value: unknown) =>
+      sql`${value === null ? null : JSON.stringify(value)}`,
+  });
+  const features = yield* Effect.all({
+    savedViews: SavedViews,
+    tripComments: TripComments,
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(SavedViews.layer, TripComments.layer).pipe(
+        Layer.provide(
+          Layer.succeed(Lakebase, {
+            availability: Effect.succeed("available" as const),
+            use: (run) => run(client),
+          }),
+        ),
+      ),
+    ),
+  );
   return {
     sql,
-    notebook: makeNotebook(
-      Object.assign(sql, {
-        // PgClient's top-level null is SQL NULL, not the JSON string "null".
-        json: (value: unknown) =>
-          sql`${value === null ? null : JSON.stringify(value)}`,
-      }),
-      "Lakebase unavailable",
-    ),
+    ...features,
   };
 });

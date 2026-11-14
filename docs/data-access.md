@@ -13,15 +13,21 @@ flowchart LR
   API --> Genie[Genie service]
   Genie --> Space[Taxi Genie space]
   Space --> Warehouse
-  API --> Notebook[Notebook service]
-  Notebook --> Pool[Effect SQL PostgreSQL pool]
-  Pool --> Lakebase[Lakebase notes + trip_comments]
+  API --> SavedViews[SavedViews service]
+  API --> Comments[TripComments service]
+  API --> Database[Lakebase capability status]
+  SavedViews --> Database
+  Comments --> Database
+  Database --> Pool[Effect SQL PostgreSQL pool]
+  Pool --> Storage[Lakebase notes + trip_comments]
 ```
 
 `src/main.ts` assembles the live service layers once. Routes capture the services
-at construction; no request creates a new runtime. The notebook initializes one
-shared database pool on first use and retries failed discovery on later requests. Shared domain
-schemas live in `shared/domain.ts`, and the frontend decodes responses using them.
+at construction; no request creates a new runtime. `Lakebase` initializes one
+shared database pool on first use and retries failed discovery on later requests.
+`SavedViews` and `TripComments` are independent feature services using that pool.
+Shared domain schemas live in `shared/domain.ts`, and the frontend decodes
+responses using them.
 
 `/api/status` retains the warehouse, Genie, and Lakebase configuration flags and
 reports `capabilities` separately. Each is `unconfigured`, `unknown` (configured
@@ -100,7 +106,7 @@ local alternative. All secrets are redacted and server-side.
 Workspace API requests are interruptible and deadline-bound. Submissions are not
 automatically retried: a missing response can represent a completed operation.
 The HTTP server uses app identity access. Per-viewer Databricks user authorization
-is a separate extension; the current notebook is intentionally shared.
+is a separate extension; saved views and trip comments are intentionally shared.
 
 ## Genie
 
@@ -175,11 +181,24 @@ bodies and diagnostic causes remain server-side.
 
 The PostgreSQL password callback must be infallible. `src/pg-credentials.ts`
 bridges that constraint using a private, recognizable defect and restores only
-that credential failure to the typed channel at notebook and migration
+that credential failure to the typed channel at database-query and migration
 boundaries. SQL and row-decoding errors retain their diagnostics. Unrelated
 defects and interruption, including mixed causes, pass through the adapter.
 
 ## Lakebase
+
+`src/lakebase.ts` owns endpoint discovery, fresh credentials, the scoped pool,
+and observed availability. `Lakebase.use` runs a feature operation against its
+shared SQL client without exposing initialization or retry policy to the feature.
+`src/saved-views.ts` owns saved-view queries and conflicts;
+`src/trip-comments.ts` owns comment queries and idempotent submissions. Each
+service depends only on `Lakebase`, so either can be used without the other.
+The existing `/api/notes` contract and `metrocab.notes` table retain their names.
+
+`src/migrations.ts` exports `migrateAppSchema` for the application's tables,
+indexes, and grants. `scripts/migrate.ts` owns CLI environment handling and invokes
+it with a scoped client from `makeLakebaseClient`. Application startup never
+imports or executes migrations.
 
 The bundle declares a project, its existing production branch, and primary
 endpoint. App resource permissions create the app's OAuth database identity. The
@@ -217,8 +236,8 @@ server resolves the author from the same viewer identity as `/api/me`; it never
 accepts an author from the submitted payload. Unknown viewers are labeled as
 workspace viewers, and the existing shared app-access model applies.
 
-Trip comments reuse the notebook service's scoped Lakebase pool, lazy discovery,
-capability reporting, typed errors, and explicit migration. Each thread now keys
+Trip comments and saved views share `Lakebase`'s scoped pool, lazy discovery,
+capability reporting, typed errors, and explicit application migration. Each thread keys
 to the persisted `trip_id`, independent of filtering, sorting, page position, or
 other trip fields. The stored trip is client-supplied context, not a verified
 warehouse foreign key; enforce record access at the API boundary when adapting
@@ -273,11 +292,11 @@ temporary-note CRUD, and checks a grounded Genie answer plus a follow-up.
 `node scripts/check-deployed.mjs dev` exercises the deployed HTTP APIs with an
 authenticated caller while data access uses the app service principal.
 CI and deployment prechecks install Chromium and require `npm run test:browser`
-after the build and service checks. This offline suite covers notebook pagination
+after the build and service checks. This offline suite covers saved-view pagination
 and conflicts, filter validation, Genie recovery, and responsive interactions.
 The deployment workflow waits for `RUNNING`, then requires the deployed API check
 to succeed; a healthy process with broken data access fails the deployment job.
-The verifier follows notebook continuation cursors and removes its temporary note
+The verifier follows saved-view continuation cursors and removes its temporary note
 even if reading it back fails.
 
 The platform supplies a workspace hostname in this workspace, so the settings

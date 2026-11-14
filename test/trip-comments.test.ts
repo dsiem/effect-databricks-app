@@ -8,8 +8,8 @@ import {
   TripCommentInput,
   type TripCommentSearch,
 } from "../shared/domain.js";
-import { migrateNotebook } from "../src/notebook.js";
-import { notebookFixture } from "./notebook-fixture.js";
+import { migrateAppSchema } from "../src/migrations.js";
+import { lakebaseFixture } from "./lakebase-fixture.js";
 
 const trip: Trip = {
   trip_id: "7b2c6ab2-6f7d-4f8a-a05f-d07e4eb84a19",
@@ -47,20 +47,20 @@ test("comment boundaries reject empty, oversized and invalid record payloads", (
 test("comments persist per trip ID, preserve snapshots and authors, and safely replay a lost response", async () => {
   await Effect.runPromise(
     Effect.gen(function* () {
-      const { notebook, sql } = yield* notebookFixture;
+      const { tripComments: comments, sql } = yield* lakebaseFixture;
       const input = {
         id: randomUUID(),
         trip,
         body: "Check this fare against similar trips.",
       };
-      assert.deepEqual(yield* notebook.comments({ trip }), {
+      assert.deepEqual(yield* comments.list({ trip }), {
         rows: [],
         nextCursor: null,
       });
-      const saved = yield* notebook.addComment(input, author);
-      yield* migrateNotebook(sql);
-      assert.deepEqual(yield* notebook.addComment(input, author), saved);
-      assert.deepEqual((yield* notebook.comments({ trip })).rows, [saved]);
+      const saved = yield* comments.add(input, author);
+      yield* migrateAppSchema(sql);
+      assert.deepEqual(yield* comments.add(input, author), saved);
+      assert.deepEqual((yield* comments.list({ trip })).rows, [saved]);
       assert.equal(saved.body, input.body);
       assert.deepEqual(saved.author, author);
       assert.deepEqual(saved.trip, trip);
@@ -69,39 +69,33 @@ test("comments persist per trip ID, preserve snapshots and authors, and safely r
         [{ ...input, trip: { ...trip, trip_id: randomUUID() } }, author],
         [input, { name: "Other", email: null }],
       ] as const) {
-        const result = yield* Effect.result(
-          notebook.addComment(changed, viewer),
-        );
+        const result = yield* Effect.result(comments.add(changed, viewer));
         assert.ok(
           result._tag === "Failure" && result.failure._tag === "InvalidRequest",
         );
       }
+      assert.deepEqual(yield* comments.list({ trip: { ...trip, fare: 25 } }), {
+        rows: [saved],
+        nextCursor: null,
+      });
       assert.deepEqual(
-        yield* notebook.comments({ trip: { ...trip, fare: 25 } }),
-        { rows: [saved], nextCursor: null },
-      );
-      assert.deepEqual(
-        yield* notebook.addComment(
-          { ...input, trip: { ...trip, fare: 25 } },
-          author,
-        ),
+        yield* comments.add({ ...input, trip: { ...trip, fare: 25 } }, author),
         saved,
       );
       assert.deepEqual(
-        yield* notebook.comments({ trip: { ...trip, trip_id: randomUUID() } }),
+        yield* comments.list({ trip: { ...trip, trip_id: randomUUID() } }),
         { rows: [], nextCursor: null },
       );
-      const anonymous = yield* notebook.addComment(
+      const anonymous = yield* comments.add(
         { ...input, id: randomUUID() },
         null,
       );
       assert.equal(anonymous.author, null);
-      assert.deepEqual(yield* notebook.addComment(anonymous, null), anonymous);
-      assert.equal((yield* notebook.comments({ trip })).rows.length, 2);
+      assert.deepEqual(yield* comments.add(anonymous, null), anonymous);
+      assert.equal((yield* comments.list({ trip })).rows.length, 2);
       assert.equal(
-        (yield* notebook.comments({ trip })).rows.find(
-          (row) => row.id === saved.id,
-        )?.body,
+        (yield* comments.list({ trip })).rows.find((row) => row.id === saved.id)
+          ?.body,
         input.body,
       );
     }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
@@ -111,9 +105,9 @@ test("comments persist per trip ID, preserve snapshots and authors, and safely r
 test("older comments remain reachable with microsecond timestamp ties", async () => {
   await Effect.runPromise(
     Effect.gen(function* () {
-      const { notebook, sql } = yield* notebookFixture;
+      const { tripComments: comments, sql } = yield* lakebaseFixture;
       for (let index = 0; index < 53; index++)
-        yield* notebook.addComment(
+        yield* comments.add(
           { id: randomUUID(), trip, body: String(index) },
           author,
         );
@@ -125,7 +119,7 @@ test("older comments remain reachable with microsecond timestamp ties", async ()
       let search: TripCommentSearch = { trip };
       for (let page = 0; ; page++) {
         assert.ok(page < 3, "cursor must advance");
-        const result = yield* notebook.comments(search);
+        const result = yield* comments.list(search);
         ids.push(...result.rows.map((row) => row.id));
         if (!result.nextCursor) break;
         search = { trip, cursor: result.nextCursor };

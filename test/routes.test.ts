@@ -13,9 +13,11 @@ import {
   unavailable,
 } from "../src/errors.js";
 import { Genie } from "../src/genie.js";
-import { Notebook } from "../src/notebook.js";
+import { Lakebase } from "../src/lakebase.js";
 import { Routes } from "../src/routes.js";
+import { SavedViews } from "../src/saved-views.js";
 import { Settings } from "../src/settings.js";
+import { TripComments } from "../src/trip-comments.js";
 import { Workspace } from "../src/workspace.js";
 
 const appFor = (
@@ -45,10 +47,15 @@ const appFor = (
               result: () => effect,
             },
           ),
-          Layer.succeed(Notebook, {
+          Layer.succeed(Lakebase, {
             availability: Effect.succeed("unconfigured" as const),
-            comments: () => effect,
-            addComment: () => effect,
+            use: () => Effect.die("Unexpected database request"),
+          }),
+          Layer.succeed(TripComments, {
+            list: () => effect,
+            add: () => effect,
+          }),
+          Layer.succeed(SavedViews, {
             list: () => effect,
             save: () => effect,
             pin: () => effect,

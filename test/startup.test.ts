@@ -5,8 +5,10 @@ import { Analytics } from "../src/analytics.js";
 import { makeCapability } from "../src/capability.js";
 import { NoteNotFound, unavailable } from "../src/errors.js";
 import { Genie } from "../src/genie.js";
-import { Notebook } from "../src/notebook.js";
+import { Lakebase } from "../src/lakebase.js";
+import { SavedViews } from "../src/saved-views.js";
 import { Settings } from "../src/settings.js";
+import { TripComments } from "../src/trip-comments.js";
 import { Workspace } from "../src/workspace.js";
 import { warehouseFetch } from "./warehouse-fixture.js";
 
@@ -31,8 +33,10 @@ test("Lakebase discovery failures leave other services running and can be retrie
   const services = Layer.mergeAll(
     Analytics.layer,
     Genie.layer,
-    Notebook.layer,
+    SavedViews.layer,
+    TripComments.layer,
   ).pipe(
+    Layer.provideMerge(Lakebase.layer),
     Layer.provide(
       Layer.succeed(Workspace, {
         accessToken: Effect.succeed(Redacted.make("unused")),
@@ -51,16 +55,17 @@ test("Lakebase discovery failures leave other services running and can be retrie
   await Effect.runPromise(
     Effect.gen(function* () {
       const analytics = yield* Analytics;
-      const notebook = yield* Notebook;
+      const savedViews = yield* SavedViews;
+      const lakebase = yield* Lakebase;
       assert.equal(
         discoveries,
         0,
         "constructing all services must not call Lakebase",
       );
-      assert.equal(yield* notebook.availability, "unknown");
+      assert.equal(yield* lakebase.availability, "unknown");
       assert.equal(yield* analytics.availability, "unknown");
       for (let attempt = 1; attempt <= 2; attempt++) {
-        const exit = yield* Effect.exit(notebook.list({}));
+        const exit = yield* Effect.exit(savedViews.list({}));
         assert.ok(Exit.isFailure(exit));
         const error = Cause.findErrorOption(exit.cause);
         assert.ok(
@@ -71,7 +76,7 @@ test("Lakebase discovery failures leave other services running and can be retrie
           attempt,
           "failed discovery must not poison initialization",
         );
-        assert.equal(yield* notebook.availability, "unavailable");
+        assert.equal(yield* lakebase.availability, "unavailable");
         assert.deepEqual(yield* analytics.metadata, {
           from: "2016-01-01",
           to: "2016-12-31",

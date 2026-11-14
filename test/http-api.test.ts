@@ -12,9 +12,11 @@ import { ApiError, AppApi } from "../shared/api.js";
 import type { Note, NoteInput } from "../shared/domain.js";
 import { Analytics } from "../src/analytics.js";
 import { Genie } from "../src/genie.js";
-import { Notebook } from "../src/notebook.js";
+import { Lakebase } from "../src/lakebase.js";
 import { Routes } from "../src/routes.js";
+import { SavedViews } from "../src/saved-views.js";
 import { Settings } from "../src/settings.js";
+import { TripComments } from "../src/trip-comments.js";
 import { Workspace } from "../src/workspace.js";
 
 const operation = { conversationId: "conversation-1", messageId: "message-1" };
@@ -84,16 +86,21 @@ const fixture = () => {
                 queries: [],
               }),
           }),
-          Layer.succeed(Notebook, {
+          Layer.succeed(Lakebase, {
             availability: Effect.succeed("unconfigured" as const),
-            comments: (search) =>
+            use: () => Effect.die("Unexpected database request"),
+          }),
+          Layer.succeed(TripComments, {
+            list: (search) =>
               record("tripComments", search, { rows: [], nextCursor: null }),
-            addComment: (input, author) =>
+            add: (input, author) =>
               record(
                 "addTripComment",
                 { input, author },
                 { ...input, author, created_at: "2026-11-14T10:00:00Z" },
               ),
+          }),
+          Layer.succeed(SavedViews, {
             list: (search) =>
               Effect.sync(() => {
                 if (search.cursor) calls.push(["notes", search]);
@@ -349,7 +356,7 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
   assert.deepEqual(calls, []);
 });
 
-test("generated client round-trips a microsecond notebook cursor through the HTTP boundary", async (t) => {
+test("generated client round-trips a microsecond saved-view cursor through the HTTP boundary", async (t) => {
   const { app, client, calls } = fixture();
   t.after(app.dispose);
   const cursor = {

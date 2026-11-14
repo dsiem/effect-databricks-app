@@ -17,11 +17,13 @@ import type { Connection } from "effect/sql/SqlConnection";
 import { SqlError, UnknownError } from "effect/sql/SqlError";
 import type { Note, NoteSearch } from "../shared/domain.js";
 import { type ServiceError, UpstreamError } from "../src/errors.js";
-import { makeNotebook, migrateNotebook, Notebook } from "../src/notebook.js";
+import { Lakebase } from "../src/lakebase.js";
+import { migrateAppSchema } from "../src/migrations.js";
 import { pgPassword, restoreCredentialFailure } from "../src/pg-credentials.js";
+import { makeSavedViews, SavedViews } from "../src/saved-views.js";
 import { Settings } from "../src/settings.js";
 import { Workspace } from "../src/workspace.js";
-import { notebookFixture } from "./notebook-fixture.js";
+import { lakebaseFixture } from "./lakebase-fixture.js";
 
 const input = {
   id: "1b7f2115-e891-46a7-a3ad-c26405b2f5a2",
@@ -33,30 +35,24 @@ const input = {
 const operations: Record<
   string,
   (
-    notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
+    savedViews: typeof SavedViews.Service,
   ) => Effect.Effect<unknown, ServiceError>
 > = {
-  list: (
-    notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
-  ) => notebook.list({}),
-  save: (
-    notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
-  ) => notebook.save(input),
-  pin: (notebook) => notebook.pin(input.id, { version: 1, pinned: true }),
-  remove: (
-    notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
-  ) => notebook.remove(input.id, 1),
+  list: (savedViews: typeof SavedViews.Service) => savedViews.list({}),
+  save: (savedViews: typeof SavedViews.Service) => savedViews.save(input),
+  pin: (savedViews) => savedViews.pin(input.id, { version: 1, pinned: true }),
+  remove: (savedViews: typeof SavedViews.Service) =>
+    savedViews.remove(input.id, 1),
 };
-const runNotebook = <A, E>(
+const runSavedViews = <A, E>(
   credentials: Effect.Effect<unknown, ServiceError>,
-  use: (
-    notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
-  ) => Effect.Effect<A, E>,
+  use: (savedViews: typeof SavedViews.Service) => Effect.Effect<A, E>,
 ) =>
   Effect.runPromiseExit(
-    Effect.flatMap(Notebook, use).pipe(
+    Effect.flatMap(SavedViews, use).pipe(
       Effect.provide(
-        Notebook.layer.pipe(
+        SavedViews.layer.pipe(
+          Layer.provide(Lakebase.layer),
           Layer.provide(
             Layer.succeed(Workspace, {
               accessToken: Effect.succeed(Redacted.make("unused")),
@@ -79,14 +75,14 @@ const runNotebook = <A, E>(
   );
 
 for (const [name, operation] of Object.entries(operations)) {
-  test(`notebook ${name} preserves credential diagnostics as a typed service failure`, async () => {
+  test(`saved views ${name} preserves credential diagnostics as a typed service failure`, async () => {
     const original = new Error("credential diagnostic");
     const upstream = new UpstreamError({
       service: "workspace",
       message: "Authentication failed",
       cause: original,
     });
-    const exit = await runNotebook(Effect.fail(upstream), operation);
+    const exit = await runSavedViews(Effect.fail(upstream), operation);
     assert.ok(Exit.isFailure(exit));
     const error = Cause.findErrorOption(exit.cause);
     assert.equal(error._tag, "Some");
@@ -98,9 +94,9 @@ for (const [name, operation] of Object.entries(operations)) {
     assert.equal(Cause.hasDies(exit.cause), false);
   });
 
-  test(`notebook ${name} preserves unexpected defects`, async () => {
+  test(`saved views ${name} preserves unexpected defects`, async () => {
     const defect = new Error("programming error");
-    const exit = await runNotebook(Effect.die(defect), operation);
+    const exit = await runSavedViews(Effect.die(defect), operation);
     assert.ok(Exit.isFailure(exit));
     assert.ok(
       exit.cause.reasons.some(
@@ -110,16 +106,17 @@ for (const [name, operation] of Object.entries(operations)) {
     assert.equal(Cause.hasFails(exit.cause), false);
   });
 
-  test(`notebook ${name} preserves interruption`, async () => {
-    const exit = await runNotebook(Effect.interrupt, operation);
+  test(`saved views ${name} preserves interruption`, async () => {
+    const exit = await runSavedViews(Effect.interrupt, operation);
     assert.ok(Exit.isFailure(exit));
     assert.ok(Cause.hasInterruptsOnly(exit.cause));
   });
 }
 
 test("invalid Lakebase credential payload is a typed error with its schema diagnostic", async () => {
-  const exit = await runNotebook(Effect.succeed({ token: 42 }), (notebook) =>
-    notebook.list({}),
+  const exit = await runSavedViews(
+    Effect.succeed({ token: 42 }),
+    (savedViews) => savedViews.list({}),
   );
   assert.ok(Exit.isFailure(exit));
   const error = Cause.findErrorOption(exit.cause);
@@ -132,9 +129,7 @@ test("invalid Lakebase credential payload is a typed error with its schema diagn
 
 const withRows = <A, E>(
   rows: Effect.Effect<ReadonlyArray<unknown>, SqlError>,
-  use: (
-    notebook: Pick<typeof Notebook.Service, "list" | "save" | "pin" | "remove">,
-  ) => Effect.Effect<A, E>,
+  use: (savedViews: typeof SavedViews.Service) => Effect.Effect<A, E>,
 ) =>
   Effect.runPromiseExit(
     Effect.gen(function* () {
@@ -153,17 +148,16 @@ const withRows = <A, E>(
         acquirer: Effect.succeed(connection),
       });
       return yield* use(
-        makeNotebook(
+        makeSavedViews(
           Object.assign(sql, {
             json: (value: unknown) => sql`${JSON.stringify(value)}`,
           }),
-          "Lakebase unavailable",
         ),
       );
     }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
   );
 
-test("notebook maps SQL failures without losing the original cause", async () => {
+test("saved views maps SQL failures without losing the original cause", async () => {
   const sqlError = new SqlError({
     reason: new UnknownError({
       cause: new Error("database diagnostic"),
@@ -171,8 +165,8 @@ test("notebook maps SQL failures without losing the original cause", async () =>
       operation: "execute",
     }),
   });
-  const exit = await withRows(Effect.fail(sqlError), (notebook) =>
-    notebook.list({}),
+  const exit = await withRows(Effect.fail(sqlError), (savedViews) =>
+    savedViews.list({}),
   );
   assert.ok(Exit.isFailure(exit));
   const error = Cause.findErrorOption(exit.cause);
@@ -180,9 +174,10 @@ test("notebook maps SQL failures without losing the original cause", async () =>
   assert.equal(error.value.cause, sqlError);
 });
 
-test("notebook preserves row decoding diagnostics", async () => {
-  const exit = await withRows(Effect.succeed([{ id: "invalid" }]), (notebook) =>
-    notebook.list({}),
+test("saved views preserves row decoding diagnostics", async () => {
+  const exit = await withRows(
+    Effect.succeed([{ id: "invalid" }]),
+    (savedViews) => savedViews.list({}),
   );
   assert.ok(Exit.isFailure(exit));
   const error = Cause.findErrorOption(exit.cause);
@@ -191,8 +186,8 @@ test("notebook preserves row decoding diagnostics", async () => {
 });
 
 test("removing a missing note keeps its distinct not-found error", async () => {
-  const exit = await withRows(Effect.succeed([]), (notebook) =>
-    notebook.remove(input.id, 1),
+  const exit = await withRows(Effect.succeed([]), (savedViews) =>
+    savedViews.remove(input.id, 1),
   );
   assert.ok(Exit.isFailure(exit));
   const error = Cause.findErrorOption(exit.cause);
@@ -233,20 +228,20 @@ test("the credential adapter preserves every reason in a mixed cause", async () 
   assert.deepEqual(Cause.interruptors(exit.cause), new Set([42]));
 });
 
-test("versioned notebook writes reject stale editors, pin conflicts, and deleted-note resurrection", async () => {
+test("versioned saved-view writes reject stale editors, pin conflicts, and deleted-note resurrection", async () => {
   await Effect.runPromise(
     Effect.gen(function* () {
-      const { notebook, sql } = yield* notebookFixture;
+      const { savedViews, sql } = yield* lakebaseFixture;
       // Migrations are repeatable and existing rows keep their content/version.
-      const created = yield* notebook.save(input);
+      const created = yield* savedViews.save(input);
       yield* sql`ALTER TABLE metrocab.notes DROP COLUMN version`;
-      yield* migrateNotebook(sql);
-      yield* migrateNotebook(sql);
-      assert.equal((yield* notebook.list({})).rows[0]?.title, input.title);
+      yield* migrateAppSchema(sql);
+      yield* migrateAppSchema(sql);
+      assert.equal((yield* savedViews.list({})).rows[0]?.title, input.title);
       assert.equal(created.version, 1);
       assert.equal(created.pinned, false);
       const duplicate = yield* Effect.result(
-        notebook.save({ ...input, title: "Duplicate" }),
+        savedViews.save({ ...input, title: "Duplicate" }),
       );
       assert.ok(
         duplicate._tag === "Failure" &&
@@ -255,10 +250,10 @@ test("versioned notebook writes reject stale editors, pin conflicts, and deleted
 
       const edits = yield* Effect.all(
         [
-          notebook
+          savedViews
             .save({ ...created, title: "First editor" })
             .pipe(Effect.result),
-          notebook
+          savedViews
             .save({ ...created, title: "Second editor" })
             .pipe(Effect.result),
         ],
@@ -270,18 +265,18 @@ test("versioned notebook writes reject stale editors, pin conflicts, and deleted
       assert.ok(
         failure?._tag === "Failure" && failure.failure._tag === "NoteConflict",
       );
-      const current = (yield* notebook.list({})).rows[0];
+      const current = (yield* savedViews.list({})).rows[0];
       assert.ok(current);
       assert.equal(current.version, 2);
       assert.equal(current.title, successes[0]?.success.title);
 
       const stalePin = yield* Effect.result(
-        notebook.pin(created.id, { version: 1, pinned: true }),
+        savedViews.pin(created.id, { version: 1, pinned: true }),
       );
       assert.ok(
         stalePin._tag === "Failure" && stalePin.failure._tag === "NoteConflict",
       );
-      const pinned = yield* notebook.pin(current.id, {
+      const pinned = yield* savedViews.pin(current.id, {
         version: current.version,
         pinned: true,
       });
@@ -292,33 +287,36 @@ test("versioned notebook writes reject stale editors, pin conflicts, and deleted
       assert.equal(pinned.version, 3);
 
       const staleEdit = yield* Effect.result(
-        notebook.save({ ...current, body: "Stale draft" }),
+        savedViews.save({ ...current, body: "Stale draft" }),
       );
       assert.ok(
         staleEdit._tag === "Failure" &&
           staleEdit.failure._tag === "NoteConflict",
       );
       const staleDelete = yield* Effect.result(
-        notebook.remove(current.id, current.version),
+        savedViews.remove(current.id, current.version),
       );
       assert.ok(
         staleDelete._tag === "Failure" &&
           staleDelete.failure._tag === "NoteConflict",
       );
-      const updated = yield* notebook.save({ ...pinned, body: "Latest draft" });
+      const updated = yield* savedViews.save({
+        ...pinned,
+        body: "Latest draft",
+      });
       assert.equal(updated.pinned, true);
-      yield* notebook.remove(updated.id, updated.version);
+      yield* savedViews.remove(updated.id, updated.version);
       for (const operation of [
-        notebook.save({ ...updated, body: "Deleted draft" }),
-        notebook.pin(updated.id, { version: updated.version, pinned: false }),
-        notebook.remove(updated.id, updated.version),
+        savedViews.save({ ...updated, body: "Deleted draft" }),
+        savedViews.pin(updated.id, { version: updated.version, pinned: false }),
+        savedViews.remove(updated.id, updated.version),
       ]) {
         const result = yield* Effect.result(operation);
         assert.ok(
           result._tag === "Failure" && result.failure._tag === "NoteNotFound",
         );
       }
-      assert.deepEqual(yield* notebook.list({}), {
+      assert.deepEqual(yield* savedViews.list({}), {
         rows: [],
         nextCursor: null,
       });
@@ -326,11 +324,11 @@ test("versioned notebook writes reject stale editors, pin conflicts, and deleted
   );
 });
 
-test("notebook pages reach every note beyond 200, preserving pins, timestamp precision, and ties", async () => {
+test("saved views pages reach every note beyond 200, preserving pins, timestamp precision, and ties", async () => {
   await Effect.runPromise(
     Effect.gen(function* () {
-      const { notebook, sql } = yield* notebookFixture;
-      assert.deepEqual(yield* notebook.list({}), {
+      const { savedViews, sql } = yield* lakebaseFixture;
+      assert.deepEqual(yield* savedViews.list({}), {
         rows: [],
         nextCursor: null,
       });
@@ -339,7 +337,7 @@ test("notebook pages reach every note beyond 200, preserving pins, timestamp pre
         id: randomUUID(),
         title: String(index),
       }));
-      yield* Effect.forEach(inputs, (note) => notebook.save(note));
+      yield* Effect.forEach(inputs, (note) => savedViews.save(note));
       yield* sql`UPDATE metrocab.notes SET pinned = title::int < 26,
         updated_at = '2026-11-13T10:00:00Z'::timestamptz +
           (title::int % 3) * INTERVAL '1 microsecond'`;
@@ -353,7 +351,7 @@ test("notebook pages reach every note beyond 200, preserving pins, timestamp pre
       let search: NoteSearch = {};
       let pages = 0;
       while (true) {
-        const page = yield* notebook.list(search);
+        const page = yield* savedViews.list(search);
         pages++;
         assert.ok(pages <= 10, "continuation must advance");
         assert.ok(page.rows.length > 0 && page.rows.length <= 24);
@@ -374,9 +372,9 @@ test("notebook pages reach every note beyond 200, preserving pins, timestamp pre
 test("continuation survives deletion of the boundary note and ignores newer inserts", async () => {
   await Effect.runPromise(
     Effect.gen(function* () {
-      const { notebook, sql } = yield* notebookFixture;
+      const { savedViews, sql } = yield* lakebaseFixture;
       for (let index = 0; index < 25; index++) {
-        yield* notebook.save({
+        yield* savedViews.save({
           ...input,
           id: randomUUID(),
           title: String(index),
@@ -384,25 +382,25 @@ test("continuation survives deletion of the boundary note and ignores newer inse
       }
       yield* sql`UPDATE metrocab.notes SET updated_at = '2026-11-13T10:00:00Z'::timestamptz
         + title::int * INTERVAL '1 second'`;
-      const first = yield* notebook.list({});
+      const first = yield* savedViews.list({});
       assert.ok(first.nextCursor);
       const boundary = first.rows.at(-1);
       assert.ok(boundary);
-      yield* notebook.remove(boundary.id, boundary.version);
-      assert.equal((yield* notebook.list({})).nextCursor, null);
-      const arrival = yield* notebook.save({
+      yield* savedViews.remove(boundary.id, boundary.version);
+      assert.equal((yield* savedViews.list({})).nextCursor, null);
+      const arrival = yield* savedViews.save({
         ...input,
         id: randomUUID(),
         title: "New arrival",
       });
       yield* sql`UPDATE metrocab.notes SET updated_at = '2026-11-14T00:00:00Z'::timestamptz WHERE id = ${arrival.id}::uuid`;
-      const last = yield* notebook.list({ cursor: first.nextCursor });
+      const last = yield* savedViews.list({ cursor: first.nextCursor });
       assert.deepEqual(
         last.rows.map((note) => note.title),
         ["0"],
       );
       assert.equal(last.nextCursor, null);
-      assert.equal((yield* notebook.list({})).rows[0]?.title, "New arrival");
+      assert.equal((yield* savedViews.list({})).rows[0]?.title, "New arrival");
     }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
   );
 });

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Effect, Layer } from "effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import { Analytics } from "../src/analytics.js";
-import { makeDatabase } from "../src/notebook.js";
+import { makeLakebaseClient } from "../src/lakebase.js";
 import { Settings } from "../src/settings.js";
 import { makeTripComments } from "../src/trip-comments.js";
 import { Workspace } from "../src/workspace.js";
@@ -19,11 +19,8 @@ await Effect.runPromise(
     const analytics = yield* Analytics;
     const trip = (yield* analytics.trips({ page: 1 })).rows[0];
     assert.ok(trip, "The warehouse must return a real trip");
-    const sql = yield* makeDatabase;
-    const { comments, addComment } = makeTripComments(
-      sql,
-      "Live comment verification failed",
-    );
+    const sql = yield* makeLakebaseClient;
+    const comments = makeTripComments(sql);
     const id = randomUUID();
     const unknownId = randomUUID();
     yield* Effect.gen(function* () {
@@ -33,25 +30,25 @@ await Effect.runPromise(
         body: "Temporary trip-comment integration check",
       };
       const author = { name: "Live verification", email: null };
-      const saved = yield* addComment(input, author);
-      assert.deepEqual(yield* addComment(input, author), saved);
+      const saved = yield* comments.add(input, author);
+      assert.deepEqual(yield* comments.add(input, author), saved);
       assert.deepEqual(
-        (yield* comments({ trip })).rows.find((row) => row.id === id),
+        (yield* comments.list({ trip })).rows.find((row) => row.id === id),
         saved,
       );
       assert.deepEqual(saved.trip, trip);
       assert.deepEqual(saved.author, author);
       assert.deepEqual(
-        (yield* comments({ trip: { ...trip, fare: trip.fare + 1 } })).rows.find(
-          (row) => row.id === id,
-        ),
+        (yield* comments.list({
+          trip: { ...trip, fare: trip.fare + 1 },
+        })).rows.find((row) => row.id === id),
         saved,
       );
-      const unknown = yield* addComment({ ...input, id: unknownId }, null);
+      const unknown = yield* comments.add({ ...input, id: unknownId }, null);
       assert.equal(unknown.author, null);
-      assert.deepEqual(yield* addComment(unknown, null), unknown);
+      assert.deepEqual(yield* comments.add(unknown, null), unknown);
       assert.ok(
-        !(yield* comments({
+        !(yield* comments.list({
           trip: { ...trip, trip_id: randomUUID() },
         })).rows.some((row) => row.id === id),
       );
