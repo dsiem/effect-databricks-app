@@ -17,6 +17,11 @@ async function audit(directory) {
     const source = await readFile(url, "utf8");
     assert.doesNotMatch(
       source,
+      /crypto\.randomUUID\s*\(/,
+      `Use lib/uuid's HTTP-compatible UUID generator in ${url.pathname}`,
+    );
+    assert.doesNotMatch(
+      source,
       /h\.Role\(["'](?:combobox|listbox|option|tab|tablist|tabpanel|tooltip)["']\)/,
       `Use Foldkit UI behavior instead of hand-built widget roles in ${url.pathname}`,
     );

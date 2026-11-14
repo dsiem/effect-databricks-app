@@ -3,11 +3,12 @@ import { Command } from "foldkit";
 import * as D from "../../../../shared/domain";
 import { request } from "../../lib/api-client";
 import { result } from "../../lib/command-result";
+import { randomUuid } from "../../lib/uuid";
 import { Message as M } from "./messages";
 export const NewNote = Command.define("CreateNoteDraft", {
   args: {},
   messages: [M.CreatedNote],
-  execute: () => Effect.sync(() => M.CreatedNote({ id: crypto.randomUUID() })),
+  execute: () => Effect.sync(() => M.CreatedNote({ id: randomUuid() })),
 });
 export const SaveNote = Command.define("SaveNote", {
   args: { draft: D.NoteInput },

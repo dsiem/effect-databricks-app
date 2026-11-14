@@ -243,6 +243,10 @@ this template to user-specific records. The warehouse snapshot remains read-only
 
 A comment UUID belongs to one draft. Repeating an identical submission returns
 the original comment; reusing the ID with different text, trip ID, or author fails.
+Client-created view, comment, and Genie turn IDs share `client/src/lib/uuid.ts`,
+which creates UUID v4 IDs with `crypto.getRandomValues`. This also works on HTTP
+origins where `crypto.randomUUID` is unavailable. Browser tests remove
+`randomUUID` and exercise all three creation flows.
 Reads and retries retain the originally stored trip context even if other fields
 in the submitted snapshot change.
 Comments are append-only through the API. The inspector retains drafts while

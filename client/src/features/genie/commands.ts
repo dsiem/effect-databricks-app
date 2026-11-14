@@ -3,13 +3,14 @@ import { Command } from "foldkit";
 import { ApiError } from "../../../../shared/api";
 import { request } from "../../lib/api-client";
 import { failure, result } from "../../lib/command-result";
+import { randomUuid } from "../../lib/uuid";
 import { Message as M } from "./messages";
 import { History, Turn, turnBase } from "./model";
 export const CreateTurn = Command.define("CreateQuestion", {
   args: { question: Schema.String },
   messages: [M.CreatedTurn],
   execute: ({ question }) =>
-    Effect.sync(() => M.CreatedTurn({ id: crypto.randomUUID(), question })),
+    Effect.sync(() => M.CreatedTurn({ id: randomUuid(), question })),
 });
 export const SubmitQuestion = Command.define("SubmitQuestion", {
   args: { turn: Turn, conversationId: Schema.NullOr(Schema.String) },

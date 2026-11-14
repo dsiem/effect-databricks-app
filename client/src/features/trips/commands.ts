@@ -4,6 +4,7 @@ import * as D from "../../../../shared/domain";
 import { request } from "../../lib/api-client";
 import { done, result } from "../../lib/command-result";
 import { Idle } from "../../lib/idle";
+import { randomUuid } from "../../lib/uuid";
 import { Message as M } from "./messages";
 export const LoadTrips = Command.define("LoadTrips", {
   args: {
@@ -45,7 +46,7 @@ export const CommentDraft = Command.define("CreateCommentDraft", {
     Effect.sync(() =>
       M.CreatedCommentDraft({
         tripId,
-        draft: { id: crypto.randomUUID(), body },
+        draft: { id: randomUuid(), body },
       }),
     ),
 });
