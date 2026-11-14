@@ -60,7 +60,26 @@ test("overview charts, navigation, paging, CSV download, and browser history wor
   await expect(
     page.getByRole("img", { name: "Fare revenue by pickup date" }),
   ).toBeVisible();
+  await expect(
+    page
+      .getByRole("img", { name: "Fare revenue by pickup date" })
+      .locator("circle title")
+      .first(),
+  ).toHaveText("01-01: $200.00");
+  await page.screenshot({
+    path: "test-results/overview-revenue.png",
+    fullPage: true,
+    animations: "disabled",
+  });
   await page.getByRole("link", { name: "Trip explorer", exact: true }).click();
+  await expect(
+    page.getByRole("table", { name: "Matching trips", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/trips-table.png",
+    fullPage: true,
+    animations: "disabled",
+  });
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export this page" }).click();
   const csv = await download;

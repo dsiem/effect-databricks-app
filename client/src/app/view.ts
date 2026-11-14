@@ -1,4 +1,5 @@
-import { Button, Input, Tooltip } from "@foldkit/ui";
+import { Button, Input, Nav, Tooltip } from "@foldkit/ui";
+import { Array as Arr } from "effect";
 import type { Document } from "foldkit/html";
 import { calendarView } from "../features/filters/calendar";
 import { filterError, filtersFromQuery, href } from "../features/filters/query";
@@ -57,105 +58,111 @@ function sidebar(h: H, model: Model) {
       },
     });
   };
-  return h.nav(
-    [
-      h.Id("main-navigation"),
-      h.AriaLabel("Main navigation"),
-      h.Class(`sidebar ${!model.sidebar && !model.mobile ? "collapsed" : ""}`),
-    ],
-    [
-      h.a(
-        [h.Href(href("/", model.query)), h.Class("sidebar-brand")],
+  return Nav.view({
+    items: navigation.map((item) => item.path),
+    ariaLabel: "Main navigation",
+    toHref: (path) => href(path, model.query),
+    isItemCurrent: (path) => model.path === path,
+    toView: ({ nav, items }) =>
+      h.nav(
         [
-          h.span([h.Class("brand-icon")], [icon(h, "car-taxi-front")]),
-          h.div(
-            [h.Class("sidebar-label")],
+          ...nav,
+          h.Id("main-navigation"),
+          h.Class(
+            `sidebar ${!model.sidebar && !model.mobile ? "collapsed" : ""}`,
+          ),
+        ],
+        [
+          h.a(
+            [h.Href(href("/", model.query)), h.Class("sidebar-brand")],
             [
-              h.p([h.Class("font-semibold text-sm")], ["NYC Taxi"]),
-              h.p([h.Class("muted text-xs")], ["Analytics workspace"]),
+              h.span([h.Class("brand-icon")], [icon(h, "car-taxi-front")]),
+              h.div(
+                [h.Class("sidebar-label")],
+                [
+                  h.p([h.Class("font-semibold text-sm")], ["NYC Taxi"]),
+                  h.p([h.Class("muted text-xs")], ["Analytics workspace"]),
+                ],
+              ),
+            ],
+          ),
+          ...(model.mobile
+            ? [
+                button(h, {
+                  label: icon(h, "x"),
+                  onClick: M.CloseOverlay(),
+                  attributes: [h.AriaLabel("Close navigation")],
+                  className: " absolute right-2 top-4",
+                  variant: "ghost",
+                }),
+              ]
+            : []),
+          h.div(
+            [h.Class("sidebar-group")],
+            [
+              ...Arr.zip(navigation, items).map(([item, current]) =>
+                tooltip(item.path, item.label, (attrs) =>
+                  h.a(
+                    [
+                      ...current.link,
+                      h.Class(`nav-link ${current.isCurrent ? "active" : ""}`),
+                      h.AriaLabel(item.label),
+                      ...attrs,
+                    ],
+                    [
+                      h.span([h.Class("nav-icon")], [icon(h, item.icon)]),
+                      h.span([h.Class("sidebar-label")], [item.label]),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          h.div(
+            [h.Class("sidebar-bottom")],
+            [
+              ...(user
+                ? [
+                    tooltip(
+                      "profile",
+                      `${user.name}${user.email ? ` · ${user.email}` : ""}`,
+                      (attrs) =>
+                        h.div(
+                          [
+                            ...attrs,
+                            h.Tabindex(0),
+                            h.AriaLabel(`Signed in as ${user.name}`),
+                            h.Class("profile"),
+                          ],
+                          [
+                            h.span([h.Class("avatar")], [initials]),
+                            h.div(
+                              [h.Class("sidebar-label min-w-0")],
+                              [
+                                h.p(
+                                  [h.Class("text-sm font-medium truncate")],
+                                  [user.name],
+                                ),
+                                ...(user.email
+                                  ? [
+                                      h.p(
+                                        [h.Class("muted text-xs truncate")],
+                                        [user.email],
+                                      ),
+                                    ]
+                                  : []),
+                              ],
+                            ),
+                          ],
+                        ),
+                    ),
+                  ]
+                : []),
             ],
           ),
         ],
       ),
-      ...(model.mobile
-        ? [
-            button(h, {
-              label: icon(h, "x"),
-              onClick: M.CloseOverlay(),
-              attributes: [h.AriaLabel("Close navigation")],
-              className: " absolute right-2 top-4",
-              variant: "ghost",
-            }),
-          ]
-        : []),
-      h.div(
-        [h.Class("sidebar-group")],
-        [
-          ...navigation.map((item) =>
-            tooltip(item.path, item.label, (attrs) =>
-              h.a(
-                [
-                  h.Href(href(item.path, model.query)),
-                  h.Class(
-                    `nav-link ${model.path === item.path ? "active" : ""}`,
-                  ),
-                  h.AriaLabel(item.label),
-                  ...(model.path === item.path ? [h.AriaCurrent("page")] : []),
-                  ...attrs,
-                ],
-                [
-                  h.span([h.Class("nav-icon")], [icon(h, item.icon)]),
-                  h.span([h.Class("sidebar-label")], [item.label]),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-      h.div(
-        [h.Class("sidebar-bottom")],
-        [
-          ...(user
-            ? [
-                tooltip(
-                  "profile",
-                  `${user.name}${user.email ? ` · ${user.email}` : ""}`,
-                  (attrs) =>
-                    h.div(
-                      [
-                        ...attrs,
-                        h.Tabindex(0),
-                        h.AriaLabel(`Signed in as ${user.name}`),
-                        h.Class("profile"),
-                      ],
-                      [
-                        h.span([h.Class("avatar")], [initials]),
-                        h.div(
-                          [h.Class("sidebar-label min-w-0")],
-                          [
-                            h.p(
-                              [h.Class("text-sm font-medium truncate")],
-                              [user.name],
-                            ),
-                            ...(user.email
-                              ? [
-                                  h.p(
-                                    [h.Class("muted text-xs truncate")],
-                                    [user.email],
-                                  ),
-                                ]
-                              : []),
-                          ],
-                        ),
-                      ],
-                    ),
-                ),
-              ]
-            : []),
-        ],
-      ),
-    ],
-  );
+  });
 }
 function filters(h: H, model: Model) {
   const date = dateLabel({

@@ -88,8 +88,14 @@ export const alert = <Message>(h: H<Message>, text: string) =>
   h.p([h.Role("alert"), h.Class("text-sm text-destructive")], [text]);
 export const table = <Message>(
   h: H<Message>,
-  headers: string[],
-  rows: Child[][],
+  options: {
+    readonly caption: string;
+    readonly headers: ReadonlyArray<string>;
+    readonly rows: ReadonlyArray<{
+      readonly key: string;
+      readonly cells: ReadonlyArray<Child>;
+    }>;
+  },
 ) =>
   h.div(
     [h.Class("table-scroll")],
@@ -97,20 +103,21 @@ export const table = <Message>(
       h.table(
         [],
         [
+          h.caption([h.Class("sr-only")], [options.caption]),
           h.thead(
             [],
             [
               h.tr(
                 [],
-                headers.map((text) => h.th([h.Scope("col")], [text])),
+                options.headers.map((text) => h.th([h.Scope("col")], [text])),
               ),
             ],
           ),
           h.tbody(
             [],
-            rows.map((cells, index) =>
+            options.rows.map(({ key, cells }) =>
               h.tr(
-                [h.Key(String(index))],
+                [h.Key(key)],
                 cells.map((child) => h.td([], [child])),
               ),
             ),

@@ -3,51 +3,82 @@ import type { H } from "./primitives";
 
 export const chart = <Message>(
   h: H<Message>,
-  data: ReadonlyArray<{ label: string; value: number }>,
-  name: string,
-  bars = false,
+  {
+    data,
+    title,
+    kind,
+    formatValue = number,
+    formatTick = compact,
+  }: {
+    readonly data: ReadonlyArray<{
+      readonly label: string;
+      readonly value: number;
+    }>;
+    readonly title: string;
+    readonly kind: "area" | "bar";
+    readonly formatValue?: (value: number) => string;
+    readonly formatTick?: (value: number) => string;
+  },
 ) => {
-  const max = Math.max(1, ...data.map((row) => row.value));
-  const x = (i: number) => 48 + (i * 620) / Math.max(1, data.length - 1);
-  const y = (value: number) => 215 - (value / max) * 180;
+  const min = Math.min(0, ...data.map((row) => row.value));
+  const range = Math.max(0, ...data.map((row) => row.value)) - min || 1;
+  const x = (i: number) =>
+    56 +
+    (kind === "bar" || data.length === 1
+      ? ((i + 0.5) * 612) / data.length
+      : (i * 612) / (data.length - 1));
+  const y = (value: number) => 215 - ((value - min) / range) * 180;
+  const baseline = y(0);
+  const barWidth = Math.max(1, 612 / Math.max(1, data.length) - 5);
   const points = data.map((row, i) => `${x(i)},${y(row.value)}`).join(" ");
   return h.svg(
     [
       h.ViewBox("0 0 700 260"),
       h.Role("img"),
-      h.AriaLabel(name),
+      h.AriaLabel(title),
       h.Class("chart"),
     ],
     [
-      h.title([], [name]),
+      h.title([], [title]),
       ...[0, 0.25, 0.5, 0.75, 1].flatMap((fraction) => [
         h.line(
           [
-            h.Attribute("x1", "45"),
+            h.Attribute("x1", "56"),
             h.Attribute("x2", "680"),
-            h.Attribute("y1", String(y(max * fraction))),
-            h.Attribute("y2", String(y(max * fraction))),
+            h.Attribute("y1", String(y(min + range * fraction))),
+            h.Attribute("y2", String(y(min + range * fraction))),
             h.Stroke("var(--border)"),
           ],
           [],
         ),
         h.text(
           [
-            h.Attribute("x", "0"),
-            h.Attribute("y", String(y(max * fraction) + 4)),
+            h.Attribute("x", "48"),
+            h.Attribute("text-anchor", "end"),
+            h.Attribute("y", String(y(min + range * fraction) + 4)),
             h.Fill("var(--muted-foreground)"),
             h.Attribute("font-size", "11"),
           ],
-          [compact(max * fraction)],
+          [formatTick(min + range * fraction)],
         ),
       ]),
-      ...(!bars && data.length
+      h.line(
+        [
+          h.Attribute("x1", "56"),
+          h.Attribute("x2", "680"),
+          h.Attribute("y1", String(baseline)),
+          h.Attribute("y2", String(baseline)),
+          h.Stroke("var(--muted-foreground)"),
+        ],
+        [],
+      ),
+      ...(kind === "area" && data.length
         ? [
             h.polygon(
               [
                 h.Attribute(
                   "points",
-                  `48,215 ${points} ${x(data.length - 1)},215`,
+                  `${x(0)},${baseline} ${points} ${x(data.length - 1)},${baseline}`,
                 ),
                 h.Fill("var(--chart-1)"),
                 h.Attribute("opacity", "0.12"),
@@ -66,20 +97,20 @@ export const chart = <Message>(
           ]
         : []),
       ...data.map((row, i) =>
-        bars
+        kind === "bar"
           ? h.rect(
               [
-                h.Attribute("x", String(45 + (i * 630) / data.length)),
-                h.Attribute("y", String(y(row.value))),
+                h.Attribute("x", String(x(i) - barWidth / 2)),
+                h.Attribute("y", String(Math.min(baseline, y(row.value)))),
+                h.Attribute("width", String(barWidth)),
                 h.Attribute(
-                  "width",
-                  String(Math.max(2, 630 / data.length - 5)),
+                  "height",
+                  String(Math.abs(baseline - y(row.value))),
                 ),
-                h.Attribute("height", String(215 - y(row.value))),
                 h.Attribute("rx", "3"),
                 h.Fill("var(--chart-2)"),
               ],
-              [h.title([], [`${row.label}: ${number(row.value)}`])],
+              [h.title([], [`${row.label}: ${formatValue(row.value)}`])],
             )
           : h.circle(
               [
@@ -88,23 +119,25 @@ export const chart = <Message>(
                 h.Attribute("r", "4"),
                 h.Fill("var(--chart-1)"),
               ],
-              [h.title([], [`${row.label}: ${number(row.value)}`])],
+              [h.title([], [`${row.label}: ${formatValue(row.value)}`])],
             ),
       ),
-      ...data
-        .filter((_, i) => i % Math.max(1, Math.ceil(data.length / 6)) === 0)
-        .map((row) =>
-          h.text(
-            [
-              h.Attribute("x", String(x(data.indexOf(row)))),
-              h.Attribute("y", "245"),
-              h.Fill("var(--muted-foreground)"),
-              h.Attribute("font-size", "12"),
-              h.Attribute("text-anchor", "middle"),
-            ],
-            [row.label],
-          ),
-        ),
+      ...data.flatMap((row, index) =>
+        index % Math.max(1, Math.ceil(data.length / 6)) === 0
+          ? [
+              h.text(
+                [
+                  h.Attribute("x", String(x(index))),
+                  h.Attribute("y", "245"),
+                  h.Fill("var(--muted-foreground)"),
+                  h.Attribute("font-size", "12"),
+                  h.Attribute("text-anchor", "middle"),
+                ],
+                [row.label],
+              ),
+            ]
+          : [],
+      ),
     ],
   );
 };

@@ -69,13 +69,15 @@ function markdown(h: H, tokens: Token[]): Child[] {
         return [h.hr([])];
       case "table":
         return [
-          table(
-            h,
-            token.header.map((cell) => cell.text),
-            token.rows.map((row) =>
-              row.map((cell) => h.span([], markdown(h, cell.tokens))),
-            ),
-          ),
+          table(h, {
+            caption: "Genie answer table",
+            headers: token.header.map((cell) => cell.text),
+            // Markdown and query results are immutable snapshots without row IDs.
+            rows: token.rows.map((row, index) => ({
+              key: String(index),
+              cells: row.map((cell) => h.span([], markdown(h, cell.tokens))),
+            })),
+          }),
         ];
       default:
         return ["text" in token ? String(token.text) : token.raw];
@@ -125,11 +127,14 @@ function answer(h: H, model: Model, reply: GenieReply): Child[] {
           h.div(
             [h.Class("max-h-72 overflow-auto")],
             [
-              table(
-                h,
-                [...result.columns],
-                result.rows.map((row) => row.map((cell) => cell ?? "—")),
-              ),
+              table(h, {
+                caption: result.description || "Genie query result",
+                headers: result.columns,
+                rows: result.rows.map((row, index) => ({
+                  key: String(index),
+                  cells: row.map((cell) => cell ?? "—"),
+                })),
+              }),
             ],
           ),
           ...(result.truncated

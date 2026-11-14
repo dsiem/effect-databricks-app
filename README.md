@@ -181,6 +181,13 @@ and its reducer exercised without constructing the rest of the application.
 Keep application-specific copy in feature views. Use named
 button options (`label`, `onClick`, `variant`, `className`, `attributes`) and pass
 only a dialog's own model and message mapper to the generic dialog shell.
+This is an application blueprint: prefer standard `@foldkit/ui` behavior and
+native HTML over adding a component framework. The small SVG chart and native
+table helpers cover the app's analytics needs; Foldkit UI has no chart or table
+component. Charts take named `kind`, `data`, `title`, and optional value/tick
+formatters, and include zero when scaling signed values. Tables take a caption,
+headers, and keyed cell rows. Use source identities such as `trip_id` or ZIP for
+changing records; positional keys suit immutable Genie result snapshots.
 
 `npm run architecture:check` enforces import boundaries, including type imports,
 re-exports and literal dynamic imports. It runs as part of `npm run check`.
@@ -263,10 +270,10 @@ the runtime, while `app/model.ts`, `app/message.ts`, `app/update.ts`, and the st
 can be inspected independently. Run `npm run client:check` to audit the migration
 and `npm run test:browser` to exercise the UI and recovery workflows offline.
 
-Interactive controls use `@foldkit/ui`: Select for trip sorting, Tabs for chart
-metrics, Tooltip for the collapsed sidebar, Calendar for date navigation, and
-Dialog for modal sheets and editors. Button, Input, and Textarea render helpers
-supply the form controls. Keep their interaction behavior in Foldkit UI and apply
+Interactive controls use `@foldkit/ui`: Nav for route links, Select for trip
+sorting, Tabs for chart metrics, Tooltip for the collapsed sidebar, Calendar for
+date navigation, and Dialog for modal sheets and editors. Button, Input, and
+Textarea render helpers supply the form controls. Keep their interaction behavior in Foldkit UI and apply
 app styling through the components' attribute bundles. `client:check` rejects
 hand-built widget roles and custom dialog focus traps.
 

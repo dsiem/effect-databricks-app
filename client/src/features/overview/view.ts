@@ -1,5 +1,5 @@
 import { defineView } from "foldkit/submodel";
-import { money, number } from "../../lib/format";
+import { compact, money, number } from "../../lib/format";
 import { chart } from "../../ui/chart";
 import { icon } from "../../ui/icons";
 import {
@@ -146,14 +146,20 @@ function overview(h: H, model: Model): Child[] {
                           h.div(
                             [...(tabs[activeIndex]?.panel ?? [])],
                             [
-                              chart(
-                                h,
-                                daily.map((row) => ({
+                              chart(h, {
+                                kind: "area",
+                                title: dailyTitle,
+                                data: daily.map((row) => ({
                                   label: row.day.slice(5),
                                   value: row[series],
                                 })),
-                                dailyTitle,
-                              ),
+                                formatValue:
+                                  series === "revenue"
+                                    ? (value) => money(value, 2)
+                                    : number,
+                                formatTick:
+                                  series === "revenue" ? money : compact,
+                              }),
                             ],
                           ),
                         ],
@@ -163,8 +169,8 @@ function overview(h: H, model: Model): Child[] {
                 h.div(
                   [h.Class("chart-footer")],
                   [
-                    "NYC yellow taxis",
-                    `${daily.length} days with recorded trips`,
+                    h.span([], ["NYC yellow taxis"]),
+                    h.span([], [`${daily.length} days with recorded trips`]),
                   ],
                 ),
               ]),
@@ -195,15 +201,14 @@ function overview(h: H, model: Model): Child[] {
                     ),
                   ],
                 ),
-                chart(
-                  h,
-                  hourly.map((row) => ({
+                chart(h, {
+                  kind: "bar",
+                  title: "Trips by pickup hour",
+                  data: hourly.map((row) => ({
                     label: `${row.hour}:00`,
                     value: row.trips,
                   })),
-                  "Trips by pickup hour",
-                  true,
-                ),
+                }),
                 h.p(
                   [h.Class("chart-footer")],
                   ["Hours as recorded in the source"],
@@ -258,38 +263,41 @@ function overview(h: H, model: Model): Child[] {
                     ),
                   ],
                 ),
-                table(
-                  h,
-                  [
+                table(h, {
+                  caption: "Top pickup ZIP codes",
+                  headers: [
                     "Pickup ZIP",
                     "Trips",
                     "Fare revenue",
                     "Avg. fare",
                     "Explore",
                   ],
-                  zones.slice(0, 5).map((zone) => [
-                    zone.zip,
-                    number(zone.trips),
-                    money(zone.revenue),
-                    money(zone.avg_fare, 2),
-                    h.a(
-                      [
-                        h.Href(
-                          href(
-                            "/trips",
-                            queryFor({
-                              ...(filtersFromQuery(model.query) ?? {}),
-                              zip: zone.zip,
-                            }),
+                  rows: zones.slice(0, 5).map((zone) => ({
+                    key: zone.zip,
+                    cells: [
+                      zone.zip,
+                      number(zone.trips),
+                      money(zone.revenue),
+                      money(zone.avg_fare, 2),
+                      h.a(
+                        [
+                          h.Href(
+                            href(
+                              "/trips",
+                              queryFor({
+                                ...(filtersFromQuery(model.query) ?? {}),
+                                zip: zone.zip,
+                              }),
+                            ),
                           ),
-                        ),
-                        h.AriaLabel(`View trips in ${zone.zip}`),
-                        h.Class("btn ghost"),
-                      ],
-                      [icon(h, "arrow-up-right")],
-                    ),
-                  ]),
-                ),
+                          h.AriaLabel(`View trips in ${zone.zip}`),
+                          h.Class("btn ghost"),
+                        ],
+                        [icon(h, "arrow-up-right")],
+                      ),
+                    ],
+                  })),
+                }),
               ]),
               card(h, [
                 h.div(

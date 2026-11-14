@@ -94,9 +94,9 @@ function trips(h: H, model: Model): Child[] {
           ),
         ],
       ),
-      table(
-        h,
-        [
+      table(h, {
+        caption: "Matching trips",
+        headers: [
           "Pickup time",
           "Route · ZIP codes",
           "Drop-off time",
@@ -105,30 +105,33 @@ function trips(h: H, model: Model): Child[] {
           "Fare",
           "Discussion",
         ],
-        data.rows.map((trip) => [
-          button(h, {
-            label: trip.pickup_at,
-            onClick: M.InspectTrip({ trip }),
-            className: "text-left hover:underline",
-            variant: "ghost",
-          }),
-          `${trip.pickup_zip} → ${trip.dropoff_zip}`,
-          trip.dropoff_at,
-          `${trip.distance.toFixed(2)} mi`,
-          `${trip.duration.toFixed(1)} min`,
-          money(trip.fare, 2),
-          button(h, {
-            label: "Comment",
-            onClick: M.InspectTrip({ trip }),
-            attributes: [
-              h.AriaLabel(
-                `Details and comments for trip ${trip.pickup_at} from ${trip.pickup_zip} to ${trip.dropoff_zip}`,
-              ),
-            ],
-            variant: "ghost",
-          }),
-        ]),
-      ),
+        rows: data.rows.map((trip) => ({
+          key: trip.trip_id,
+          cells: [
+            button(h, {
+              label: trip.pickup_at,
+              onClick: M.InspectTrip({ trip }),
+              className: "text-left hover:underline",
+              variant: "ghost",
+            }),
+            `${trip.pickup_zip} → ${trip.dropoff_zip}`,
+            trip.dropoff_at,
+            `${trip.distance.toFixed(2)} mi`,
+            `${trip.duration.toFixed(1)} min`,
+            money(trip.fare, 2),
+            button(h, {
+              label: "Comment",
+              onClick: M.InspectTrip({ trip }),
+              attributes: [
+                h.AriaLabel(
+                  `Details and comments for trip ${trip.pickup_at} from ${trip.pickup_zip} to ${trip.dropoff_zip}`,
+                ),
+              ],
+              variant: "ghost",
+            }),
+          ],
+        })),
+      }),
       ...(!data.rows.length
         ? [
             h.p(
