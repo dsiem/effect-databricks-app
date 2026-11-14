@@ -99,6 +99,11 @@ navigating within the app. A reload that loses a submission response explicitly
 reports an uncertain submission and never automatically resubmits it. Recovery
 lasts for the current browser tab's session; closing the tab discards it.
 
+Validation and explicit upstream rejections are saved as rejected submissions,
+with an action to edit the question before manually submitting again. Timeouts,
+connection failures, server failures, and invalid acceptance responses retain the
+uncertain-submission warning. Reloading either state never replays the question.
+
 The frontend renders bounded result previews and exposes the generated SQL.
 Date/ZIP filters are appended explicitly to each question. A new conversation
 clears the saved history.
@@ -111,6 +116,11 @@ errors, and unavailable Genie messages to status codes and safe error bodies.
 Original causes stay on server-side errors and are logged at the boundary.
 Unexpected defects remain defects and are handled as internal server errors;
 interruption remains interruption.
+
+The browser adapts declared errors to `ApiRequestError`, preserving their code,
+message, and optional upstream HTTP status. Consumers can distinguish validation,
+conflicts, and dependency failures without parsing messages. Upstream response
+bodies and diagnostic causes remain server-side.
 
 The PostgreSQL password callback must be infallible. `src/pg-credentials.ts`
 bridges that constraint using a private, recognizable defect and restores only

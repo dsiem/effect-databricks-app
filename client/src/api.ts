@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { Filters } from "../../src/domain";
 import { api, apiClient } from "./lib/api-client";
 
-export { api, apiClient } from "./lib/api-client";
+export { ApiRequestError, api, apiClient } from "./lib/api-client";
 
 export function useFilters() {
   const [params, setParams] = useSearchParams();

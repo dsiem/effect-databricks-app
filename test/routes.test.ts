@@ -71,6 +71,7 @@ const cases: ReadonlyArray<{
   error: ServiceError;
   status: number;
   code: string;
+  upstreamStatus?: number;
 }> = [
   {
     error: new NoteConflict({ id: "id", message: "Reload the latest note" }),
@@ -95,6 +96,7 @@ const cases: ReadonlyArray<{
     }),
     status: 502,
     code: "workspace_request_failed",
+    upstreamStatus: 403,
   },
   {
     error: new OperationTimeout({
@@ -123,7 +125,7 @@ const cases: ReadonlyArray<{
     code: "genie_message_unavailable",
   },
 ];
-for (const { error, status, code } of cases) {
+for (const { error, status, code, upstreamStatus } of cases) {
   test(`HTTP boundary maps ${error._tag} and keeps diagnostics off the wire`, async () => {
     const app = appFor(Effect.fail(error));
     try {
@@ -133,7 +135,11 @@ for (const { error, status, code } of cases) {
       assert.equal(response.status, status);
       assert.equal(response.headers.get("cache-control"), "no-store");
       assert.deepEqual(await response.json(), {
-        error: { code, message: error.message },
+        error: {
+          code,
+          message: error.message,
+          ...(upstreamStatus === undefined ? {} : { upstreamStatus }),
+        },
       });
     } finally {
       await app.dispose();

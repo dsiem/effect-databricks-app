@@ -32,7 +32,15 @@ const toApiError = (error: ServiceError): typeof ApiError.Type => {
     case "ServiceUnavailable":
       return { error: { code: `${error.service}_unavailable`, message } };
     case "UpstreamError":
-      return { error: { code: `${error.service}_request_failed`, message } };
+      return {
+        error: {
+          code: `${error.service}_request_failed`,
+          message,
+          ...(error.upstreamStatus === undefined
+            ? {}
+            : { upstreamStatus: error.upstreamStatus }),
+        },
+      };
     case "OperationTimeout":
       return { error: { code: `${error.service}_timeout`, message } };
     case "GenieFailed":

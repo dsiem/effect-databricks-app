@@ -8,7 +8,7 @@ import {
   HttpServer,
 } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
-import { api } from "../client/src/lib/api-client.js";
+import { ApiRequestError, api } from "../client/src/lib/api-client.js";
 import { Analytics } from "../src/analytics.js";
 import { AppApi } from "../src/api.js";
 import type { Note, NoteInput } from "../src/domain.js";
@@ -374,7 +374,7 @@ test("generated client rejects reversed dates before sending a request", async (
   assert.deepEqual(calls, []);
 });
 
-test("generated client decodes declared server validation errors and the UI exposes their message", async (t) => {
+test("generated client preserves validation codes and messages at the UI boundary", async (t) => {
   const { app } = fixture();
   t.after(app.dispose);
   const response = await app.handler(
@@ -399,8 +399,56 @@ test("generated client decodes declared server validation errors and the UI expo
         message: "Check the request fields, dates, and ZIP code.",
       },
     });
-  await assert.rejects(api(request), /Check the request fields/);
+  await assert.rejects(api(request), (error: unknown) => {
+    assert.ok(error instanceof ApiRequestError);
+    assert.equal(error.code, "invalid_request");
+    assert.match(error.message, /Check the request fields/);
+    return true;
+  });
 });
+
+for (const { status, error } of [
+  {
+    status: 409,
+    error: { code: "note_conflict", message: "Reload the latest note" },
+  },
+  {
+    status: 502,
+    error: {
+      code: "workspace_request_failed",
+      message: "Permission denied",
+      upstreamStatus: 403,
+    },
+  },
+  {
+    status: 504,
+    error: { code: "genie_timeout", message: "Submission timed out" },
+  },
+] as const) {
+  test(`UI callers can distinguish ${error.code} without parsing its message`, async () => {
+    const client = Effect.runSync(
+      HttpApiClient.make(AppApi, { baseUrl: "http://localhost" }).pipe(
+        Effect.provide(FetchHttpClient.layer),
+        Effect.provideService(FetchHttpClient.Fetch, async () =>
+          Response.json({ error }, { status }),
+        ),
+      ),
+    ).app;
+    await assert.rejects(
+      api(client.submitGenie({ payload: { content: "Count trips" } })),
+      (failure: unknown) => {
+        assert.ok(failure instanceof ApiRequestError);
+        assert.equal(failure.code, error.code);
+        assert.equal(failure.message, error.message);
+        assert.equal(
+          failure.upstreamStatus,
+          "upstreamStatus" in error ? error.upstreamStatus : undefined,
+        );
+        return true;
+      },
+    );
+  });
+}
 
 test("generated client rejects an unexpected success response", async () => {
   const client = Effect.runSync(

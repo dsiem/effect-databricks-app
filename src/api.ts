@@ -44,10 +44,15 @@ const UnavailableBody = errorBody(
   Schema.TemplateLiteral([Schema.String, "_unavailable"]),
   503,
 );
-const UpstreamBody = errorBody(
-  Schema.TemplateLiteral([Schema.String, "_request_failed"]),
-  502,
-);
+const UpstreamBody = Schema.Struct({
+  error: Schema.Struct({
+    code: Schema.TemplateLiteral([Schema.String, "_request_failed"]),
+    message: Schema.String,
+    upstreamStatus: Schema.optionalKey(
+      Schema.Int.check(Schema.isBetween({ minimum: 400, maximum: 599 })),
+    ),
+  }),
+}).pipe(HttpApiSchema.status(502));
 const TimeoutBody = errorBody(
   Schema.TemplateLiteral([Schema.String, "_timeout"]),
   504,

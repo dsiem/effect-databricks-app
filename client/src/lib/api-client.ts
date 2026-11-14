@@ -10,7 +10,20 @@ export const apiClient = Effect.runSync(
   }).pipe(Effect.provide(FetchHttpClient.layer)),
 ).app;
 
-// Keep the schema-derived errors in Effect; adapt them to Error at the UI boundary.
+// Preserve the shared contract's discriminants when adapting Effect to React.
+export class ApiRequestError extends Error {
+  override readonly name = "ApiRequestError";
+  readonly code: typeof ApiError.Type.error.code;
+  readonly upstreamStatus: number | undefined;
+
+  constructor(error: typeof ApiError.Type.error) {
+    super(error.message);
+    this.code = error.code;
+    this.upstreamStatus =
+      "upstreamStatus" in error ? error.upstreamStatus : undefined;
+  }
+}
+
 export const api = <A, E>(
   effect: Effect.Effect<A, E, Scope.Scope>,
   signal?: AbortSignal,
@@ -18,13 +31,12 @@ export const api = <A, E>(
   Effect.runPromise(
     effect.pipe(
       Effect.scoped,
-      Effect.mapError(
-        (error) =>
-          new Error(
-            Schema.is(ApiError)(error)
-              ? error.error.message
-              : "Unable to complete the request. Check your connection and retry.",
-          ),
+      Effect.mapError((error) =>
+        Schema.is(ApiError)(error)
+          ? new ApiRequestError(error.error)
+          : new Error(
+              "Unable to complete the request. Check your connection and retry.",
+            ),
       ),
     ),
     signal ? { signal } : {},

@@ -194,3 +194,139 @@ test("reload during an uncertain submission never silently resubmits", async ({
   await expect(page.getByRole("alert")).toContainText("may have been accepted");
   expect(submissions).toBe(1);
 });
+
+for (const { name, status, error } of [
+  {
+    name: "validation",
+    status: 400,
+    error: { code: "invalid_request", message: "Check the question fields." },
+  },
+  {
+    name: "permission",
+    status: 502,
+    error: {
+      code: "workspace_request_failed",
+      message: "Access denied.",
+      upstreamStatus: 403,
+    },
+  },
+  {
+    name: "rate limit",
+    status: 502,
+    error: {
+      code: "workspace_request_failed",
+      message: "Too many requests.",
+      upstreamStatus: 429,
+    },
+  },
+] as const) {
+  test(`${name} rejection survives reload and allows an explicit corrected submission`, async ({
+    page,
+  }) => {
+    await mockStatus(page);
+    const submissions: unknown[] = [];
+    await page.route("**/api/genie", (route) => {
+      submissions.push(route.request().postDataJSON());
+      return route.fulfill(
+        submissions.length === 1
+          ? { status, json: { error } }
+          : { json: operation },
+      );
+    });
+    await page.route(`**${messagePath}`, (route) =>
+      route.fulfill({
+        json: { ...operation, state: "completed", status: "COMPLETED" },
+      }),
+    );
+    await page.route(`**${messagePath}/result`, (route) =>
+      route.fulfill({ json: reply }),
+    );
+    await page.goto("/genie");
+    await send(page);
+    await expect(page.getByRole("alert")).toContainText(error.message);
+    await expect(page.getByRole("alert")).toContainText("was rejected");
+    await expect(page.getByRole("alert")).not.toContainText(
+      "may have been accepted",
+    );
+    await page.reload();
+    await expect(page.getByRole("alert")).toContainText("was rejected");
+    expect(submissions).toHaveLength(1);
+    await page.getByRole("button", { name: "Edit question" }).click();
+    const composer = page.getByLabel("Ask a question about taxi data");
+    await expect(composer).toBeFocused();
+    await expect(composer).toHaveValue("Count trips");
+    await composer.fill("Count trips by hour");
+    await page
+      .getByRole("button", { name: "Send question", exact: true })
+      .click();
+    await expect(
+      page.getByRole("cell", { name: "21932", exact: true }),
+    ).toBeVisible();
+    expect(submissions).toHaveLength(2);
+    expect(submissions[1]).toMatchObject({ content: "Count trips by hour" });
+  });
+}
+
+for (const { name, status, json } of [
+  {
+    name: "application timeout",
+    status: 504,
+    json: {
+      error: { code: "genie_timeout", message: "Submission timed out." },
+    },
+  },
+  {
+    name: "upstream timeout",
+    status: 502,
+    json: {
+      error: {
+        code: "workspace_request_failed",
+        message: "Upstream timed out.",
+        upstreamStatus: 408,
+      },
+    },
+  },
+  {
+    name: "upstream server failure",
+    status: 502,
+    json: {
+      error: {
+        code: "workspace_request_failed",
+        message: "Upstream failed.",
+        upstreamStatus: 500,
+      },
+    },
+  },
+  {
+    name: "workspace connection failure",
+    status: 503,
+    json: {
+      error: { code: "workspace_unavailable", message: "Connection lost." },
+    },
+  },
+  { name: "invalid acceptance response", status: 200, json: {} },
+] as const) {
+  test(`${name} stays uncertain without replaying the question`, async ({
+    page,
+  }) => {
+    await mockStatus(page);
+    let submissions = 0;
+    await page.route("**/api/genie", (route) => {
+      submissions++;
+      return route.fulfill({ status, json });
+    });
+    await page.goto("/genie");
+    await send(page);
+    await expect(page.getByRole("alert")).toContainText(
+      "may have been accepted",
+    );
+    await expect(
+      page.getByRole("button", { name: "Edit question" }),
+    ).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("alert")).toContainText(
+      "may have been accepted",
+    );
+    expect(submissions).toBe(1);
+  });
+}

@@ -6,6 +6,11 @@ export const Turn = Schema.Union([
   Schema.Struct({ ...Base, state: Schema.Literal("submitting") }),
   Schema.Struct({
     ...Base,
+    state: Schema.Literal("submission-rejected"),
+    error: Schema.String,
+  }),
+  Schema.Struct({
+    ...Base,
     state: Schema.Literal("submission-unknown"),
     error: Schema.String,
   }),

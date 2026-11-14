@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Markdown from "react-markdown";
-import { api, apiClient, useFilters, useStatus } from "../api";
+import { ApiRequestError, api, apiClient, useFilters, useStatus } from "../api";
 import { ErrorState, PageTitle } from "../components/common";
 import { ExploreContext } from "../components/explore-context";
 import {
@@ -47,6 +47,7 @@ export default function AskGenie() {
   const { filters } = useFilters();
   const status = useStatus();
   const bottom = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
   const busy = turns.some((turn) =>
     ["submitting", "waiting", "retrieving"].includes(turn.state),
   );
@@ -151,13 +152,28 @@ export default function AskGenie() {
           state: "waiting",
           operation,
         })),
-      (error: unknown) =>
+      (error: unknown) => {
+        // Only explicit rejections prove non-acceptance. Timeouts (including
+        // upstream 408), server errors, and lost/invalid responses remain uncertain.
+        const rejected =
+          error instanceof ApiRequestError &&
+          (error.code === "invalid_request" ||
+            [400, 401, 403, 404, 409, 422, 429].includes(
+              error.upstreamStatus ?? 0,
+            ));
+        const message =
+          error instanceof Error
+            ? error.message
+            : "The submission response was lost.";
         updateTurn(id, (turn) => ({
           id,
           question: turn.question,
-          state: "submission-unknown",
-          error: `${error instanceof Error ? error.message : "The submission response was lost."} The question may have been accepted. Check Genie before submitting it again.`,
-        })),
+          state: rejected ? "submission-rejected" : "submission-unknown",
+          error: rejected
+            ? `The question was rejected. ${message}`
+            : `${message} The question may have been accepted. Check Genie before submitting it again.`,
+        }));
+      },
     );
   };
   useEffect(() => {
@@ -318,6 +334,19 @@ export default function AskGenie() {
                           >
                             {turn.error}
                           </p>
+                          {turn.state === "submission-rejected" && (
+                            <Button
+                              variant="outline"
+                              className="mt-3"
+                              disabled={busy}
+                              onClick={() => {
+                                setDraft(turn.question);
+                                composer.current?.focus();
+                              }}
+                            >
+                              Edit question
+                            </Button>
+                          )}
                           {turn.state === "paused" && (
                             <Button
                               variant="outline"
@@ -364,6 +393,7 @@ export default function AskGenie() {
               </div>
             )}
             <Textarea
+              ref={composer}
               aria-label="Ask a question about taxi data"
               placeholder="Enter a question about NYC taxi trips…"
               value={draft}
