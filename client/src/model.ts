@@ -139,7 +139,7 @@ export const navigation = [
   { path: "/", label: "Overview", icon: "layout-dashboard" },
   { path: "/trips", label: "Trip explorer", icon: "table-2" },
   { path: "/map", label: "Pickup map", icon: "map" },
-  { path: "/notebook", label: "Analyst notebook", icon: "book-open" },
+  { path: "/notebook", label: "Saved views", icon: "book-open" },
 ] as const;
 export const pageContext = (model: Model): D.GenieContext => {
   const overview = model.overview.data;
@@ -199,7 +199,7 @@ export const pageContext = (model: Model): D.GenieContext => {
           : {}),
       };
     case "/notebook":
-      return { page: "notebook", title: "Analyst notebook" };
+      return { page: "notebook", title: "Saved views" };
     default:
       return { page: "genie", title: "Taxi trip data" };
   }

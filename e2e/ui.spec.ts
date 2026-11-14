@@ -75,13 +75,11 @@ test("mobile sidebar traps focus, closes on navigation and Escape, and leaves de
     animations: "disabled",
   });
 
-  await drawer
-    .getByRole("link", { name: "Analyst notebook", exact: true })
-    .click();
+  await drawer.getByRole("link", { name: "Saved views", exact: true }).click();
   await expect(page).toHaveURL(/\/notebook\?zip=10001$/);
   await expect(drawer).not.toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Analyst notebook", exact: true }),
+    page.getByRole("heading", { name: "Saved views", exact: true }),
   ).toBeVisible();
   await trigger.click();
   await page.keyboard.press("Escape");
@@ -103,20 +101,26 @@ test("note dialog has labelled fields, keyboard dismissal, and restores focus", 
   page,
 }) => {
   await page.goto("/notebook?zip=10001");
-  const trigger = page.getByRole("button", { name: "New note", exact: true });
+  const trigger = page.getByRole("button", {
+    name: "Save this view",
+    exact: true,
+  });
   await trigger.click();
-  const dialog = page.getByRole("dialog", { name: "New note", exact: true });
+  const dialog = page.getByRole("dialog", {
+    name: "Save this view",
+    exact: true,
+  });
   await expect(
-    dialog.getByRole("textbox", { name: "Title", exact: true }),
+    dialog.getByRole("textbox", { name: "View name", exact: true }),
   ).toBeFocused();
   await expect(
-    dialog.getByRole("button", { name: "Save note", exact: true }),
+    dialog.getByRole("button", { name: "Save view", exact: true }),
   ).toBeDisabled();
   await dialog
-    .getByRole("textbox", { name: "Title", exact: true })
+    .getByRole("textbox", { name: "View name", exact: true })
     .fill("Test draft");
   await expect(
-    dialog.getByRole("button", { name: "Save note", exact: true }),
+    dialog.getByRole("button", { name: "Save view", exact: true }),
   ).toBeEnabled();
   await expect(dialog).toContainText("ZIP 10001");
   await page.screenshot({

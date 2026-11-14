@@ -134,8 +134,8 @@ export function editor(h: H, model: Model) {
                 [h.Class("muted text-xs leading-5 mt-3")],
                 [
                   draft.version !== null
-                    ? "This note keeps its original filters, even when your Explore view changes."
-                    : "These filters are saved with your note so you can reopen this view later.",
+                    ? "This saved view keeps its original filters, even when your Explore view changes."
+                    : "These filters are saved with your view so you can reopen it later.",
                 ],
               ),
             ],
@@ -172,11 +172,11 @@ export function deleteDialog(h: H, model: Model) {
       h.div(
         [h.Class("dialog-header")],
         [
-          h.h2([h.Id("delete-title")], ["Delete this note?"]),
+          h.h2([h.Id("delete-title")], ["Delete this saved view?"]),
           h.p(
             [h.Class("muted text-sm mt-2")],
             [
-              `“${model.deleting?.title ?? ""}” will be removed from the shared notebook.`,
+              `“${model.deleting?.title ?? ""}” will be removed from saved views.`,
             ],
           ),
         ],
@@ -188,7 +188,7 @@ export function deleteDialog(h: H, model: Model) {
           button(h, "Cancel", M.CloseOverlay(), [h.Disabled(model.noteBusy)]),
           button(
             h,
-            model.noteBusy ? "Deleting…" : "Delete note",
+            model.noteBusy ? "Deleting…" : "Delete view",
             M.ConfirmDelete(),
             [h.Disabled(model.noteBusy)],
             "destructive",

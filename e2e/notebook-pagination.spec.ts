@@ -64,7 +64,7 @@ test("all notes remain reachable beyond 200 and pinning a later note refreshes t
   const headings = page.getByRole("heading", { name: /^Finding / });
   await expect(headings).toHaveCount(24);
   const more = page.getByRole("button", {
-    name: "Load more notes",
+    name: "Load more views",
     exact: true,
   });
   await more.scrollIntoViewIfNeeded();
@@ -79,7 +79,7 @@ test("all notes remain reachable beyond 200 and pinning a later note refreshes t
   }
   await expect(more).not.toBeVisible();
   await expect(
-    page.getByText("201 saved notes shown", { exact: false }),
+    page.getByText("201 saved views shown", { exact: false }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Pin Finding 201", exact: true })
@@ -92,12 +92,12 @@ test("all notes remain reachable beyond 200 and pinning a later note refreshes t
   await page
     .getByRole("button", { name: "Edit Finding 201", exact: true })
     .click();
-  await expect(page.getByRole("dialog", { name: "Edit note" })).toContainText(
-    "Pickup ZIP 10001",
-  );
+  await expect(
+    page.getByRole("dialog", { name: "Edit saved view" }),
+  ).toContainText("Pickup ZIP 10001");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
-    page.getByRole("dialog", { name: "Edit note" }),
+    page.getByRole("dialog", { name: "Edit saved view" }),
   ).not.toBeVisible();
   expect(
     await page.evaluate(
@@ -139,16 +139,16 @@ test("a failed next page keeps existing notes visible and can be retried", async
   await page.goto("/notebook");
   const headings = page.getByRole("heading", { name: /^Finding / });
   await expect(headings).toHaveCount(24);
-  await page.getByRole("button", { name: "Load more notes" }).click();
+  await page.getByRole("button", { name: "Load more views" }).click();
   await expect(page.getByRole("alert")).toHaveText(
     "Notes are temporarily unavailable.",
   );
   await expect(headings).toHaveCount(24);
   failing = false;
-  await page.getByRole("button", { name: "Retry loading notes" }).click();
+  await page.getByRole("button", { name: "Retry loading views" }).click();
   await expect(headings).toHaveCount(25);
   await expect(page.getByRole("alert")).not.toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Load more notes" }),
+    page.getByRole("button", { name: "Load more views" }),
   ).not.toBeVisible();
 });

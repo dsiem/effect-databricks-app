@@ -40,21 +40,21 @@ for (const removed of [false, true]) {
     await page
       .getByRole("button", { name: "Edit Shared finding", exact: true })
       .click();
-    const dialog = page.getByRole("dialog", { name: "Edit note" });
+    const dialog = page.getByRole("dialog", { name: "Edit saved view" });
     await dialog
-      .getByRole("textbox", { name: "Your notes" })
+      .getByRole("textbox", { name: "Finding (optional)" })
       .fill("My unsaved draft");
     current = removed
       ? null
       : { ...original, body: "Another editor's content", version: 2 };
     await dialog
-      .getByRole("button", { name: "Save note", exact: true })
+      .getByRole("button", { name: "Save view", exact: true })
       .click();
     await expect(dialog.getByRole("alert")).toContainText(
       removed ? "removed" : "changed",
     );
     await expect(
-      dialog.getByRole("textbox", { name: "Your notes" }),
+      dialog.getByRole("textbox", { name: "Finding (optional)" }),
     ).toHaveValue("My unsaved draft");
     expect(submitted).toEqual({
       id: original.id,
@@ -69,11 +69,11 @@ for (const removed of [false, true]) {
         .getByRole("button", { name: "Edit Shared finding", exact: true })
         .click();
       await expect(
-        dialog.getByRole("textbox", { name: "Your notes" }),
+        dialog.getByRole("textbox", { name: "Finding (optional)" }),
       ).toHaveValue("Another editor's content");
     } else {
       await expect(
-        page.getByRole("heading", { name: "No saved notes" }),
+        page.getByRole("heading", { name: "No saved views" }),
       ).toBeVisible();
     }
   });

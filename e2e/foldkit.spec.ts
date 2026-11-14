@@ -154,15 +154,18 @@ test("notebook creates, edits, reloads, and deletes versioned notes with their s
     return route.fulfill({ json: { rows: stored, nextCursor: null } });
   });
   await page.goto("/notebook?zip=10001");
-  const newNote = page.getByRole("button", { name: "New note", exact: true });
+  const newNote = page.getByRole("button", {
+    name: "Save this view",
+    exact: true,
+  });
   await newNote.click();
   await page
-    .getByRole("textbox", { name: "Title", exact: true })
+    .getByRole("textbox", { name: "View name", exact: true })
     .fill("Fare review");
   await page
-    .getByRole("textbox", { name: "Your notes", exact: true })
+    .getByRole("textbox", { name: "Finding (optional)", exact: true })
     .fill("Initial finding");
-  await page.getByRole("button", { name: "Save note", exact: true }).click();
+  await page.getByRole("button", { name: "Save view", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Fare review", exact: true }),
   ).toBeVisible();
@@ -171,21 +174,21 @@ test("notebook creates, edits, reloads, and deletes versioned notes with their s
     .getByRole("button", { name: "Edit Fare review", exact: true })
     .click();
   await page
-    .getByRole("textbox", { name: "Your notes", exact: true })
+    .getByRole("textbox", { name: "Finding (optional)", exact: true })
     .fill("Updated finding");
-  await page.getByRole("button", { name: "Save note", exact: true }).click();
+  await page.getByRole("button", { name: "Save view", exact: true }).click();
   await expect(
     page.getByText("Updated finding", { exact: true }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Delete Fare review", exact: true })
     .click();
-  await page.getByRole("button", { name: "Delete note", exact: true }).click();
+  await page.getByRole("button", { name: "Delete view", exact: true }).click();
   await expect(
-    page.getByRole("dialog", { name: "Delete this note?", exact: true }),
+    page.getByRole("dialog", { name: "Delete this saved view?", exact: true }),
   ).not.toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "No saved notes", exact: true }),
+    page.getByRole("heading", { name: "No saved views", exact: true }),
   ).toBeVisible();
   await expect(newNote).toBeFocused();
 });
@@ -194,17 +197,20 @@ test("modal backdrop dismissal restores the opener and page scrolling", async ({
   page,
 }) => {
   await page.goto("/notebook");
-  const trigger = page.getByRole("button", { name: "New note", exact: true });
+  const trigger = page.getByRole("button", {
+    name: "Save this view",
+    exact: true,
+  });
   await trigger.click();
   await expect(
-    page.getByRole("dialog", { name: "New note", exact: true }),
+    page.getByRole("dialog", { name: "Save this view", exact: true }),
   ).toBeVisible();
   expect(await page.evaluate(() => document.body.style.overflow)).toBe(
     "hidden",
   );
   await page.mouse.click(4, 4);
   await expect(
-    page.getByRole("dialog", { name: "New note", exact: true }),
+    page.getByRole("dialog", { name: "Save this view", exact: true }),
   ).not.toBeVisible();
   await expect(trigger).toBeFocused();
   expect(await page.evaluate(() => document.body.style.overflow)).toBe("");

@@ -108,10 +108,12 @@ test("editing a saved note retains its original view and the visible action rest
   await page
     .getByRole("button", { name: `Edit ${savedNote.title}`, exact: true })
     .click();
-  const dialog = page.getByRole("dialog", { name: "Edit note" });
+  const dialog = page.getByRole("dialog", { name: "Edit saved view" });
   await expect(dialog).toContainText("Through Feb 20, 2016");
   await expect(dialog).toContainText("Pickup ZIP 11430");
-  await expect(dialog).toContainText("This note keeps its original filters");
+  await expect(dialog).toContainText(
+    "This saved view keeps its original filters",
+  );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   const open = page.getByRole("button", {
     name: `Open saved view for ${savedNote.title}`,
@@ -185,7 +187,7 @@ for (const [search, dates] of [
   }) => {
     await page.goto(`/notebook${search ? `?${search}` : ""}`);
     const context = page.getByRole("region", {
-      name: "Explore view for new notes",
+      name: "Current Explore filters",
     });
     await expect(context).toContainText(dates);
     await expect(context).toContainText("All pickup areas");
@@ -198,7 +200,10 @@ test("context and saved-view actions fit a narrow mobile viewport", async ({
   await page.setViewportSize({ width: 360, height: 800 });
   for (const path of ["notebook", "genie"]) {
     await page.goto(`/${path}?${query}`);
-    const context = page.getByRole("region", { name: /^Explore view for/ });
+    const context = page.getByRole("region", {
+      name:
+        path === "notebook" ? "Current Explore filters" : /^Explore view for/,
+    });
     await expect(context).toContainText("Pickup ZIP 10001");
     await expect(context).toBeInViewport();
     expect(

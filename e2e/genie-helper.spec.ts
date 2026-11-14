@@ -122,7 +122,12 @@ test("explains a selected chart in place with its actual data, filters, SQL, and
     }),
   });
   const width = (await chart.boundingBox())?.width;
-  await chart.getByRole("button", { name: "Explain", exact: true }).click();
+  await chart
+    .getByRole("button", {
+      name: "Ask Genie about trips by pickup date",
+      exact: true,
+    })
+    .click();
   const helper = page.getByRole("dialog", { name: "Genie", exact: true });
   const scope = helper.getByRole("region", {
     name: "Explore view for your next question",
@@ -162,7 +167,10 @@ test("explains a selected chart in place with its actual data, filters, SQL, and
   });
   await helper.getByRole("button", { name: "Close Genie" }).click();
   await expect(
-    chart.getByRole("button", { name: "Explain", exact: true }),
+    chart.getByRole("button", {
+      name: "Ask Genie about trips by pickup date",
+      exact: true,
+    }),
   ).toBeFocused();
   await openHelper(page);
   await expect(scope).toContainText("Trips by pickup date");

@@ -61,7 +61,6 @@ function sidebar(h: H, model: Model) {
       h.div(
         [h.Class("sidebar-group")],
         [
-          h.p([h.Class("sidebar-label text-xs muted mb-3 px-3")], ["Explore"]),
           ...navigation.map((item) =>
             h.a(
               [
@@ -76,20 +75,6 @@ function sidebar(h: H, model: Model) {
                 h.span([h.Class("sidebar-label")], [item.label]),
               ],
             ),
-          ),
-          h.button(
-            [
-              h.Type("button"),
-              h.Class("nav-link"),
-              h.AriaLabel("Ask Genie"),
-              h.OnClick(M.OpenGenie({ context: null, question: null })),
-              h.Disabled(!filtersFromQuery(model.query)),
-              ...tooltip("Ask Genie"),
-            ],
-            [
-              h.span([h.Class("nav-icon")], [icon(h, "sparkles")]),
-              h.span([h.Class("sidebar-label")], ["Ask Genie"]),
-            ],
           ),
         ],
       ),
@@ -305,11 +290,16 @@ export function view(model: Model, h: H): Document {
                       h.div(
                         [h.Class("ml-auto")],
                         [
-                          button(
-                            h,
-                            "Ask Genie",
-                            M.OpenGenie({ context: null, question: null }),
-                            [h.Disabled(!filtersFromQuery(model.query))],
+                          h.button(
+                            [
+                              h.Type("button"),
+                              h.Class("btn outline"),
+                              h.OnClick(
+                                M.OpenGenie({ context: null, question: null }),
+                              ),
+                              h.Disabled(!filtersFromQuery(model.query)),
+                            ],
+                            [icon(h, "sparkles"), h.span([], ["Ask Genie"])],
                           ),
                         ],
                       ),

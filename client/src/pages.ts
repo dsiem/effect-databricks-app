@@ -26,7 +26,11 @@ export const ask = (
   label = "Ask Genie",
   context: D.GenieContext | null = null,
   question: string | null = null,
-) => button(h, label, M.OpenGenie({ context, question }));
+) =>
+  button(h, icon(h, "sparkles"), M.OpenGenie({ context, question }), [
+    h.AriaLabel(label),
+    h.Attribute("title", label),
+  ]);
 const chart = (
   h: H,
   data: ReadonlyArray<{ label: string; value: number }>,
@@ -215,7 +219,7 @@ export function overview(h: H, model: Model): Child[] {
                           [
                             ask(
                               h,
-                              "Explain",
+                              `Ask Genie about ${dailyTitle.toLowerCase()}`,
                               {
                                 page: "overview",
                                 title: dailyTitle,
@@ -312,7 +316,7 @@ export function overview(h: H, model: Model): Child[] {
                     ),
                     ask(
                       h,
-                      "Explain",
+                      "Ask Genie about pickup hours",
                       {
                         page: "overview",
                         title: "Trips by pickup hour",
@@ -360,7 +364,7 @@ export function overview(h: H, model: Model): Child[] {
                       [
                         ask(
                           h,
-                          "Compare",
+                          "Ask Genie about top pickup ZIP codes",
                           {
                             page: "overview",
                             title: "Top pickup ZIP codes",
@@ -374,9 +378,10 @@ export function overview(h: H, model: Model): Child[] {
                         h.a(
                           [
                             h.Href(href("/map", model.query)),
-                            h.Class("text-sm underline"),
+                            h.Class("btn outline"),
+                            h.AriaLabel("View pickup map"),
                           ],
-                          ["View pickup map"],
+                          [icon(h, "map"), h.span([], ["Pickup map"])],
                         ),
                       ],
                     ),
@@ -461,7 +466,7 @@ export function trips(h: H, model: Model): Child[] {
     [
       ask(
         h,
-        "Analyze these trips",
+        "Ask Genie about these trips",
         null,
         "Summarize the visible trips and point out unusual fares or distances.",
       ),
@@ -671,7 +676,7 @@ export function pickupMap(h: H, model: Model): Child[] {
                     badge(h, `${compact(model.mappedTrips ?? 0)} mapped trips`),
                     ask(
                       h,
-                      "Explain map",
+                      "Ask Genie about this map",
                       null,
                       "Explain the pickup distribution in this map and compare the busiest areas.",
                     ),
@@ -850,25 +855,25 @@ export function notebook(h: H, model: Model, embedded = false): Child[] {
     : [
         title(
           h,
-          "Analyst notebook",
-          "Browse shared findings and saved views. You can also save a view directly from Explore.",
+          "Saved views",
+          "Save and reopen Explore views with their filters. Views are shared across this app.",
           [
             button(
               h,
-              "New note",
-              M.NewNote({ view: false }),
+              "Save this view",
+              M.NewNote({ view: true }),
               [h.Id("new-note")],
               "primary",
             ),
           ],
         ),
         h.section(
-          [h.AriaLabel("Explore view for new notes"), h.Class("context mb-6")],
+          [h.AriaLabel("Current Explore filters"), h.Class("context mb-6")],
           [
             h.div(
               [h.Class("flex flex-wrap justify-between gap-3 mb-3")],
               [
-                h.h2([], ["Explore view for new notes"]),
+                h.h2([], ["Current Explore filters"]),
                 h.a(
                   [
                     h.Href(href("/trips", model.query)),
@@ -882,17 +887,14 @@ export function notebook(h: H, model: Model, embedded = false): Child[] {
             h.p(
               [h.Class("muted text-xs mt-3")],
               [
-                "New notes save these filters. Saved notes keep their own view.",
+                "Save these filters as a view. Existing saved views keep their own filters.",
               ],
             ),
           ],
         ),
       ];
   if (model.notes.loading && !data)
-    return [
-      ...heading,
-      loading(h, embedded ? "Loading saved views…" : "Loading saved notes…"),
-    ];
+    return [...heading, loading(h, "Loading saved views…")];
   if (model.notes.error && !data)
     return [
       ...heading,
@@ -907,18 +909,18 @@ export function notebook(h: H, model: Model, embedded = false): Child[] {
         [
           h.h2(
             [],
-            [embedded ? "Keep a view worth returning to" : "No saved notes"],
+            [embedded ? "Keep a view worth returning to" : "No saved views"],
           ),
           h.p(
             [h.Class("muted text-sm mt-2 mb-6")],
             [
-              "Create a note to save your findings and the Explore view shown above.",
+              "Save the current Explore filters as a named view to return to later.",
             ],
           ),
           button(
             h,
-            embedded ? "Save this view" : "Create note",
-            M.NewNote({ view: embedded }),
+            embedded ? "Save this view" : "Create saved view",
+            M.NewNote({ view: true }),
             [],
             "primary",
           ),
@@ -931,7 +933,7 @@ export function notebook(h: H, model: Model, embedded = false): Child[] {
     h.p(
       [h.AriaLive("polite"), h.Class("muted text-sm mb-4")],
       [
-        `${rows.length} saved ${embedded ? (rows.length === 1 ? "view" : "views") : rows.length === 1 ? "note" : "notes"} shown · shared across this app`,
+        `${rows.length} saved ${rows.length === 1 ? "view" : "views"} shown · shared across this app`,
       ],
     ),
     h.div(
@@ -1002,7 +1004,7 @@ export function notebook(h: H, model: Model, embedded = false): Child[] {
                         button(
                           h,
                           icon(h, "pencil"),
-                          M.EditNote({ note, view: embedded }),
+                          M.EditNote({ note, view: true }),
                           [h.AriaLabel(`Edit ${note.title}`)],
                           "ghost",
                         ),
@@ -1033,12 +1035,10 @@ export function notebook(h: H, model: Model, embedded = false): Child[] {
               button(
                 h,
                 model.notes.loading
-                  ? "Loading notes…"
+                  ? "Loading views…"
                   : model.notes.error
-                    ? "Retry loading notes"
-                    : embedded
-                      ? "Load more views"
-                      : "Load more notes",
+                    ? "Retry loading views"
+                    : "Load more views",
                 M.LoadNotes({ more: !!data?.nextCursor }),
                 [h.Disabled(model.notes.loading)],
               ),
