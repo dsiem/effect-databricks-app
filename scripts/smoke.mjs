@@ -57,10 +57,11 @@ try {
     assert.equal(response.status, 200, `${asset} is served`);
     assert.doesNotMatch(response.body, /<!doctype html>/i);
   }
-  for (const path of ["/trips", "/map", "/genie"]) {
+  for (const path of ["/trips", "/gps-map", "/genie"]) {
     assert.equal((await request(path)).status, 200);
   }
-  assert.equal((await request("/nyc-zips.geojson")).status, 200);
+  assert.equal((await request("/map")).status, 404);
+  assert.equal((await request("/nyc-zips.geojson")).status, 404);
   const initialStatus = await request("/api/status");
   assert.equal(initialStatus.status, 200);
   assert.equal(JSON.parse(initialStatus.body).lakebase, true);

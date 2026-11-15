@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-for (const path of ["/", "/trips", "/map", "/genie"]) {
+for (const path of ["/", "/trips", "/gps-map", "/genie"]) {
   for (const search of [
     "from=2016-02-01&to=2016-01-01",
     "from=2016-02-30",
@@ -15,6 +15,7 @@ for (const path of ["/", "/trips", "/map", "/genie"]) {
         if (
           [
             "/api/overview",
+            "/api/gps-activity",
             "/api/trips",
             "/api/saved-views",
             "/api/genie",
@@ -37,7 +38,12 @@ for (const path of ["/", "/trips", "/map", "/genie"]) {
       ).not.toBeVisible();
       await expect(page).toHaveURL(path);
       if (path !== "/genie") {
-        const expected = path === "/trips" ? "/api/trips" : "/api/overview";
+        const expected =
+          path === "/trips"
+            ? "/api/trips"
+            : path === "/gps-map"
+              ? "/api/gps-activity"
+              : "/api/overview";
         await expect.poll(() => dataRequests).toContain(expected);
       }
     });

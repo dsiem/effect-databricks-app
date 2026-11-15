@@ -1,11 +1,11 @@
-import { tableFromArrays, tableToIPC } from "apache-arrow";
+import { type Table, tableFromArrays, tableToIPC } from "apache-arrow";
 
 // Exercise the real SQL adapter without a workspace or signed storage endpoint.
 export const warehouseFetch = (
   beforeStatement: (
     sql: string,
     signal: AbortSignal,
-  ) => Promise<void> = async () => {},
+  ) => Promise<void> | Promise<Table> = async () => {},
 ): typeof globalThis.fetch => {
   const chunks = new Map<string, Uint8Array>();
   let sequence = 0;
@@ -21,16 +21,18 @@ export const warehouseFetch = (
         `Unexpected warehouse request: ${request.method} ${request.url}`,
       );
     const { statement } = (await request.json()) as { statement: string };
-    await beforeStatement(statement, request.signal);
+    const result = await beforeStatement(statement, request.signal);
     const id = String(++sequence);
     const url = `https://results.invalid/${id}`;
-    const table = /MIN\(tpep_pickup_datetime\)/.test(statement)
-      ? tableFromArrays({
-          from: ["2016-01-01"],
-          to: ["2016-12-31"],
-          trips: [10],
-        })
-      : tableFromArrays({});
+    const table =
+      result ??
+      (/MIN\(tpep_pickup_datetime\)/.test(statement)
+        ? tableFromArrays({
+            from: ["2016-01-01"],
+            to: ["2016-12-31"],
+            trips: [10],
+          })
+        : tableFromArrays({}));
     chunks.set(url, tableToIPC(table));
     return Response.json({
       statement_id: id,

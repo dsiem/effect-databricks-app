@@ -42,7 +42,7 @@ for (const { failure, catalog, schema } of [
   { failure: "seed", catalog: "seed_catalog", schema: "seed-schema" },
   { failure: "migration", catalog: "seed_catalog", schema: "seed-schema" },
 ]) {
-  test(`workspace setup ${failure ? `stops after a failed ${failure}` : `seeds, migrates, and starts with ${catalog}.${schema}.trips`}`, async (t) => {
+  test(`workspace setup ${failure ? `stops after a failed ${failure}` : `seeds, migrates, and starts with ${catalog}.${schema}.trips_2016`}`, async (t) => {
     const directory = await mkdtemp(join(tmpdir(), "metrocab-setup-"));
     t.after(() => rm(directory, { recursive: true, force: true }));
     await writeFile(join(directory, ".env.example"), "DATABRICKS_HOST=\n");
@@ -120,10 +120,15 @@ for (const { failure, catalog, schema } of [
     );
     if (failure !== "seed")
       assert.equal(calls[seedIndex + 1]?.principal, principal);
-    assert.ok(
-      (await readFile(join(directory, ".env"), "utf8"))
-        .split("\n")
-        .includes(`TRIP_SNAPSHOT_TABLE=${catalog}.${schema}.trips`),
-    );
+    if (failure === "seed")
+      await assert.rejects(readFile(join(directory, ".env")), {
+        code: "ENOENT",
+      });
+    else
+      assert.ok(
+        (await readFile(join(directory, ".env"), "utf8"))
+          .split("\n")
+          .includes(`TRIP_SNAPSHOT_TABLE=${catalog}.${schema}.trips_2016`),
+      );
   });
 }

@@ -1,4 +1,5 @@
 import { expect, type Page, type TestInfo, test } from "@playwright/test";
+import { gpsFixture } from "../client/test/gps-fixture";
 import type { Overview, Trip } from "../shared/domain";
 
 // Deliberately offline review data: production continues to use the warehouse.
@@ -122,6 +123,7 @@ test.beforeEach(async ({ page }) => {
       },
       "/api/metadata": { from: "2016-01-01", to: "2016-02-29", trips: total },
       "/api/overview": overview,
+      "/api/gps-activity": gpsFixture(),
       "/api/trips": { rows: trips, total, page: 1, pageSize: 25 },
       "/api/saved-views": {
         rows: [
@@ -156,7 +158,7 @@ test.beforeEach(async ({ page }) => {
       json: data[path] ?? { message: "Unmocked visual review request" },
     });
   });
-  // The bundled boundaries are real; omit network tiles to make review repeatable offline.
+  // Omit network tiles to make review repeatable offline.
   await page.route("https://tile.openstreetmap.org/**", (route) =>
     route.fulfill({
       contentType: "image/png",
@@ -277,9 +279,9 @@ for (const colorScheme of ["light", "dark"] as const) {
         .getByRole("textbox", { name: "View name", exact: true })
         .fill("January fare review");
       await capture(page, info, "save-view", false);
-      await page.goto(`/map${query}`);
+      await page.goto(`/gps-map${query}`);
       const map = page.locator(".map-panel");
-      await expect(map).toHaveAttribute("data-map-ready", "true");
+      await expect(map).toHaveAttribute("data-gps-ready", "true");
       // The map mount must keep the panel's responsive height.
       expect((await map.boundingBox())?.height).toBeGreaterThanOrEqual(350);
       await expect(

@@ -6,6 +6,7 @@ export default defineConfig(base, {
     "browser-compat.spec.ts",
     "filter-workflow.spec.ts",
     "date-range.spec.ts",
+    "gps-map.spec.ts",
     "explore-context.spec.ts",
     "saved-views-conflicts.spec.ts",
     "saved-views-pagination.spec.ts",

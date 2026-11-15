@@ -86,19 +86,19 @@ for (const [name, file, source, allowed] of [
   ],
   [
     "feature types cannot depend on a sibling model",
-    "client/src/features/map/view-model.ts",
+    "client/src/features/gps/view-model.ts",
     'import type { Model } from "../overview/model";',
     false,
   ],
   [
     "aliases cannot bypass sibling feature boundaries",
-    "client/src/features/map/view.ts",
+    "client/src/features/gps/view.ts",
     'export { view } from "@/features/overview/view";',
     false,
   ],
   [
     "dynamic imports cannot bypass sibling feature boundaries",
-    "client/src/features/map/view.ts",
+    "client/src/features/gps/view.ts",
     'const view = import("../overview/view");',
     false,
   ],
@@ -135,7 +135,7 @@ for (const [name, file, source, allowed] of [
   [
     "the style entry point composes feature styles",
     "client/src/styles.css",
-    '@import "./features/map/styles.css";',
+    '@import "./features/gps/styles.css";',
     true,
   ],
   [
@@ -170,13 +170,13 @@ for (const [name, file, source, allowed] of [
   ],
   [
     "CSS aliases cannot bypass sibling feature boundaries",
-    "client/src/features/map/styles.css",
+    "client/src/features/gps/styles.css",
     '@import "@/features/overview/styles.css";',
     false,
   ],
   [
     "a feature may style a vendor integration",
-    "client/src/features/map/styles.css",
+    "client/src/features/gps/styles.css",
     '@import "maplibre-gl/dist/maplibre-gl.css" layer(components);',
     true,
   ],
@@ -188,7 +188,7 @@ for (const [name, file, source, allowed] of [
   ],
   [
     "feature styles cannot depend on sibling styles",
-    "client/src/features/map/styles.css",
+    "client/src/features/gps/styles.css",
     '@import "../overview/styles.css";',
     false,
   ],

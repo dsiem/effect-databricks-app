@@ -1,6 +1,7 @@
 import { Dialog, Textarea } from "@foldkit/ui";
 import type { HtmlBuilder } from "foldkit/html";
 import { defineView } from "foldkit/submodel";
+import type { Coordinates } from "../../../../shared/domain";
 import { money } from "../../lib/format";
 import { dialog } from "../../ui/dialog";
 import { icon } from "../../ui/icons";
@@ -28,6 +29,22 @@ const close = (h: H, label = "Close") =>
 function inspector(h: H, model: Model) {
   const trip = model.selectedTrip;
   if (!trip) return null;
+  const details = trip.details;
+  const location = (point: typeof Coordinates.Type | null) =>
+    point
+      ? `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`
+      : "Unavailable";
+  const amount = (value: number | null) =>
+    value === null ? "Unavailable" : money(value, 2);
+  const payment = [
+    "Unknown",
+    "Credit card",
+    "Cash",
+    "No charge",
+    "Dispute",
+    "Unknown",
+    "Voided trip",
+  ];
   const draft = model.commentDrafts[trip.trip_id];
   const rows = model.comments.data?.rows ?? [];
   const info = (label: string, value: string) =>
@@ -155,6 +172,48 @@ function inspector(h: H, model: Model) {
                     "Distance · duration",
                     `${trip.distance.toFixed(2)} mi · ${trip.duration.toFixed(1)} min`,
                   ),
+                  ...(details
+                    ? [
+                        info(
+                          "Pickup GPS · latitude, longitude",
+                          location(details.pickup_location),
+                        ),
+                        info(
+                          "Drop-off GPS · latitude, longitude",
+                          location(details.dropoff_location),
+                        ),
+                        info(
+                          "Passengers · driver reported",
+                          details.passenger_count === null
+                            ? "Unavailable"
+                            : String(details.passenger_count),
+                        ),
+                        info(
+                          "Payment",
+                          payment[details.payment_type ?? 0] ?? "Unknown",
+                        ),
+                        info(
+                          "Recorded tip · excludes cash tips",
+                          amount(details.tip_amount),
+                        ),
+                        info("Tolls", amount(details.tolls_amount)),
+                        info("Extras", amount(details.extra)),
+                        info("MTA tax", amount(details.mta_tax)),
+                        info(
+                          "Improvement surcharge",
+                          amount(details.improvement_surcharge),
+                        ),
+                        info(
+                          "Total charge · excludes cash tips",
+                          amount(details.total_amount),
+                        ),
+                        info(
+                          "Rate code · provider",
+                          `${details.rate_code_id ?? "Unknown"} · ${details.vendor_id ?? "Unknown"}`,
+                        ),
+                        info("Source file", details.source_file),
+                      ]
+                    : []),
                 ],
               ),
             ],

@@ -38,6 +38,36 @@ const metadata = await request("/api/metadata");
 const overview = await request("/api/overview");
 assert.ok(metadata.trips > 0);
 assert.equal(overview.summary.trips, metadata.trips);
+const trips = await request("/api/trips?page=1");
+assert.equal(trips.total, metadata.trips);
+assert.ok(trips.rows.length > 0);
+assert.ok(
+  trips.rows.every(
+    (trip) =>
+      trip.details?.source_file.startsWith("yellow_tripdata_2016-") &&
+      Object.hasOwn(trip.details, "total_amount"),
+  ),
+  "Hosted trip records must include source lineage and itemized charges",
+);
+assert.ok(
+  trips.rows.some((trip) => trip.details.pickup_location),
+  "Hosted trip records must expose recorded GPS endpoints",
+);
+for (const endpoint of ["pickup", "dropoff"]) {
+  const activity = await request(`/api/gps-activity?endpoint=${endpoint}`);
+  assert.equal(activity.endpoint, endpoint);
+  assert.equal(activity.matchingTrips, metadata.trips);
+  assert.ok(
+    activity.locatedTrips > 0 && activity.locatedTrips <= metadata.trips,
+  );
+  assert.equal(
+    activity.cells.reduce((total, cell) => total + cell.trips, 0),
+    activity.shownTrips,
+  );
+  assert.ok(activity.cells.every((cell) => cell.boundary.type === "Polygon"));
+  if (!activity.truncated)
+    assert.equal(activity.shownTrips, activity.locatedTrips);
+}
 const id = randomUUID();
 const created = await request("/api/saved-views", "PUT", {
   id,
@@ -64,7 +94,7 @@ try {
 }
 const operation = await request("/api/genie", "POST", {
   content:
-    "How many trips are in samples.nyctaxi.trips? Return a single total_trips column.",
+    "How many trips are in the configured trips table? Return a single total_trips column.",
 });
 assert.ok(operation.conversationId);
 assert.ok(operation.messageId);
@@ -89,5 +119,5 @@ assert.ok(
   ),
 );
 console.log(
-  `Deployed app verified: SQL, Lakebase persistence, and a grounded Genie answer using the app identity. ${app.url}`,
+  `Deployed app verified: SQL, pickup/drop-off GPS maps, Lakebase persistence, and a grounded Genie answer using the app identity. ${app.url}`,
 );

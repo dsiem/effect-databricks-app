@@ -96,9 +96,9 @@ const questions = {
     "Compare average fare by trip distance.",
   ],
   map: [
-    "Explain the pickup distribution in this view.",
-    "Compare the busiest pickup ZIP codes.",
-    "Which pickup areas have the highest average fare?",
+    "Explain the spatial pattern in this view.",
+    "Compare the busiest areas shown here.",
+    "Which areas have the highest average fare?",
   ],
   "saved-views": [
     "Summarize trip activity for the current filters.",

@@ -134,6 +134,9 @@ test("calendars open within the dataset and disable out-of-range dates before se
   const trigger = page.getByRole("button", {
     name: "Choose start date",
     exact: true,
+    // Modal calendars hide background controls from the accessibility tree.
+    // Keep measuring the same rendered trigger after the dialog opens.
+    includeHidden: true,
   });
   const before = await trigger.boundingBox();
   const inputBefore = await start.boundingBox();

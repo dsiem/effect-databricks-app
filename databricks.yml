@@ -10,10 +10,10 @@ variables:
     description: Prefix for the data resources managed by this bundle target.
     default: metrocab-${bundle.target}
   data_catalog:
-    description: Unity Catalog catalog for the persistent sample snapshot.
-    default: main
+    description: Unity Catalog catalog for the processed NYC taxi dataset.
+    default: workspace
   data_schema:
-    description: Unity Catalog schema for the persistent sample snapshot, independent of the other data resource names.
+    description: Unity Catalog schema for the processed NYC taxi dataset.
     default: ${var.data_name}
 
   warehouse_name:
@@ -25,7 +25,14 @@ resources:
     data:
       name: ${var.data_schema}
       catalog_name: ${var.data_catalog}
-      comment: Persistent NYC taxi sample snapshot with stable trip IDs.
+      comment: Full January-February 2016 NYC taxi source, quality checks, and enriched trips.
+  volumes:
+    taxi_sources:
+      name: taxi_sources
+      catalog_name: ${resources.schemas.data.catalog_name}
+      schema_name: ${resources.schemas.data.name}
+      volume_type: MANAGED
+      comment: Pinned geographic boundaries for reproducible taxi enrichment.
   sql_warehouses:
     analytics:
       name: ${var.warehouse_name}
@@ -40,7 +47,7 @@ resources:
   jobs:
     seed_trip_snapshot:
       name: ${var.data_name}-seed-trip-snapshot
-      description: One-time taxi snapshot and app read grants; safe to rerun without changing trip IDs.
+      description: Full Jan-Feb 2016 taxi ingestion, quality audit, ZIP enrichment, and app grants; preserves trip IDs on rerun.
       max_concurrent_runs: 1
       parameters:
         - name: catalog
@@ -51,7 +58,7 @@ resources:
           default: ""
       tasks:
         - task_key: seed_trip_snapshot
-          timeout_seconds: 900
+          timeout_seconds: 3600
           notebook_task:
             notebook_path: ./jobs/seed-trip-snapshot.sql
             warehouse_id: ${resources.sql_warehouses.analytics.id}
@@ -60,7 +67,55 @@ resources:
       title: ${var.app_name} NYC taxi analyst
       description: Historical NYC taxi analytics with source-grounded SQL.
       warehouse_id: ${resources.sql_warehouses.analytics.id}
-      file_path: ./config/taxi.geniespace.json
+      serialized_space: |
+        {
+          "version": 2,
+          "config": {
+            "sample_questions": [
+              {
+                "id": "01f1df70000000000000000000000001",
+                "question": [
+                  "Which pickup ZIP codes have the most trips?"
+                ]
+              },
+              {
+                "id": "01f1df70000000000000000000000002",
+                "question": [
+                  "How does the average fare change by hour of day?"
+                ]
+              },
+              {
+                "id": "01f1df70000000000000000000000003",
+                "question": [
+                  "Show total trips and fare revenue by month."
+                ]
+              }
+            ]
+          },
+          "data_sources": {
+            "tables": [
+              {
+                "identifier": "${var.data_catalog}.${var.data_schema}.trip_quality_2016",
+                "description": [
+                  "Full-source monthly ingestion counts: raw, accepted, rejected and accepted trips missing GPS. These file-level counts do not support arbitrary date/ZIP filters."
+                ]
+              },
+              {
+                "identifier": "${var.data_catalog}.${var.data_schema}.trips_2016"
+              }
+            ]
+          },
+          "instructions": {
+            "text_instructions": [
+              {
+                "id": "01f1df70000000000000000000000004",
+                "content": [
+                  "Use the configured trips_2016 table: full January-February 2016 NYC yellow taxi source files, with invalid trip records excluded from analytics. Each row is a trip with a persisted trip_id; source_file provides lineage. All 19 original fields are retained. tpep_pickup_datetime and tpep_dropoff_datetime are local New York wall-clock times stored as TIMESTAMP_NTZ, not UTC instants. fare_amount is USD excluding tips and tolls; SUM(fare_amount) is fare revenue. total_amount includes the recorded fare, taxes, tips, tolls and surcharges; cash tips are absent from tip_amount and total_amount. trip_distance is miles. Passenger counts are driver-reported; payment_type: 1 credit card, 2 cash, 3 no charge, 4 dispute, 5 unknown, 6 voided. VendorID identifies the technology provider, not the driver or taxi. RatecodeID is the rate type. GPS coordinates are recorded endpoints, not a driven route. Only use pickup/dropoff coordinates for maps when the corresponding pickup_coordinates_valid/dropoff_coordinates_valid flag is true. These flags use a broad NYC-region box: longitude [-75,-72], latitude [40,42]. ZIP codes are derived by point-in-polygon against the pinned Census 2020 ZCTA geometry distributed by NYC, not recorded postal addresses or historical 2016 boundaries. Unknown ZIPs remain NULL, including trips outside the boundary coverage. Trips with missing GPS are retained if other trip fields pass validation. Accepted trips have pickup in Jan-Feb 2016, positive distance and fare, and duration greater than zero and no more than 24 hours; all source records remain in the engineering table trips_2016_raw. The attached trip_quality_2016 view provides full-file quality counts. State its full-source scope explicitly; those counts cannot be narrowed to arbitrary date or ZIP filters. Do not assume current dates. User to dates are inclusive; duration minutes is timestampdiff(SECOND,tpep_pickup_datetime,tpep_dropoff_datetime)/60.0. Do not invent identities, ratings, explanations or routes. Read-only analytics only. The GPS activity map groups matching trips into H3 resolution-10 cells for the selected pickup or dropoff endpoint, requiring its corresponding coordinates_valid flag. Area IDs use h3_h3tostring(h3_longlatash3(endpoint_longitude,endpoint_latitude,10)). When analyzing a selected GPS area, restrict further queries to its cell ID, endpoint and current pickup date/ZIP filters. The area center is derived from the cell, not an individual recorded endpoint. Use the supplied located, shown and matching trip counts to explain coverage and any truncation."
+                ]
+              }
+            ]
+          }
+        }
   postgres_projects:
     # These resource keys are deployed bundle-state identities; keep them stable.
     notebook_project:
@@ -96,7 +151,7 @@ resources:
           - name: DATABRICKS_WAREHOUSE_ID
             value_from: lakehouse
           - name: TRIP_SNAPSHOT_TABLE
-            value: ${resources.schemas.data.catalog_name}.${resources.schemas.data.name}.trips
+            value: ${resources.schemas.data.catalog_name}.${resources.schemas.data.name}.trips_2016
           - name: GENIE_SPACE_ID
             value_from: genie
           - name: LAKEBASE_ENDPOINT
@@ -123,11 +178,13 @@ sync:
   exclude:
     - .github/**
     - docs/**
+    - design/**
     - examples/**
     - scripts/**
     - test/**
     - e2e/**
     - config/**
+    - jobs/nyc-zcta.jsonl
     - README.md
     - biome.json
     - playwright.config.ts

@@ -1,6 +1,6 @@
 import type { Update } from "foldkit";
 import { filtersFromQuery } from "../domain/filters";
-import { RefreshMap } from "../features/map/mount";
+import { reloadGps } from "../features/gps/update";
 import * as OverviewCommands from "../features/overview/commands";
 import * as TripsCommands from "../features/trips/commands";
 import type { ApiClient } from "../lib/api-client";
@@ -12,31 +12,26 @@ export function loadPage(
 ): Update.Return<Model, Message, ApiClient> {
   const filters = filtersFromQuery(model.query);
   if (!filters) return { model };
-  if (model.path === "/" || model.path === "/map")
+  if (model.path === "/gps-map") {
+    const loaded = reloadGps(model.gpsState, model.query);
     return {
       model: {
         ...model,
-        overviewState: {
-          ...model.overviewState,
-          overview:
-            model.path === "/map"
-              ? { ...model.overviewState.overview, loading: true, error: "" }
-              : pending,
-        },
-        mapState: { ...model.mapState, mappedTrips: null, mapError: "" },
+        gpsState: loaded.model,
+        genieState: { ...model.genieState, genieSelection: null },
+      },
+      commands: loaded.commands ?? [],
+    };
+  }
+  if (model.path === "/")
+    return {
+      model: {
+        ...model,
+        overviewState: { ...model.overviewState, overview: pending },
         genieState: { ...model.genieState, genieSelection: null },
       },
       commands: [
         OverviewCommands.LoadOverview({ key: requestKey(model), filters }),
-        ...(model.path === "/map" && model.overviewState.overview.data
-          ? [
-              RefreshMap({
-                zones: model.overviewState.overview.data.zones,
-                query: model.query,
-                loading: true,
-              }),
-            ]
-          : []),
       ],
     };
   if (model.path === "/trips")

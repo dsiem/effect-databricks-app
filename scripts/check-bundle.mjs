@@ -54,6 +54,21 @@ assert.equal(
 const seedParameters = Object.fromEntries(
   seed.parameters.map(({ name, default: value }) => [name, value]),
 );
+const genie = JSON.parse(bundle.resources.genie_spaces.taxi.serialized_space);
+const genieTables = genie.data_sources.tables.map(
+  ({ identifier }) => identifier,
+);
+assert.deepEqual(
+  genieTables,
+  [...genieTables].sort(),
+  "Genie API requires sorted source identifiers",
+);
+assert.ok(
+  genieTables.includes(
+    `${substitution("var.data_catalog")}.${substitution("var.data_schema")}.trips_2016`,
+  ),
+  "Genie must query the target dataset rather than the small public demo",
+);
 assert.equal(
   seedParameters.catalog,
   substitution("resources.schemas.data.catalog_name"),
@@ -66,7 +81,7 @@ assert.equal(
   bundle.resources.apps.app.config.env.find(
     ({ name }) => name === "TRIP_SNAPSHOT_TABLE",
   )?.value,
-  `${seedParameters.catalog}.${seedParameters.schema}.trips`,
+  `${seedParameters.catalog}.${seedParameters.schema}.trips_2016`,
   "Seed job and app must use the same catalog, schema, and table",
 );
 

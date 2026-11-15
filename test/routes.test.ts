@@ -37,6 +37,7 @@ const appFor = (
             metadata: effect,
             overview: () => effect,
             trips: () => effect,
+            gpsActivity: () => effect,
           }),
           Layer.succeed(
             Genie,

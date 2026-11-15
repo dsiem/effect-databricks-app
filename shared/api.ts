@@ -13,6 +13,8 @@ import {
   GenieOperation,
   GenieProgress,
   GenieReply,
+  GpsActivity,
+  GpsSearch,
   Metadata,
   Overview,
   SavedView,
@@ -108,6 +110,10 @@ export const AppApi = HttpApi.make("taxi").add(
       HttpApiEndpoint.get("trips", "/api/trips", {
         query: TripSearch,
         success: Trips,
+      }),
+      HttpApiEndpoint.get("gpsActivity", "/api/gps-activity", {
+        query: GpsSearch,
+        success: GpsActivity,
       }),
       HttpApiEndpoint.post("submitGenie", "/api/genie", {
         payload: GenieInput,

@@ -169,6 +169,7 @@ test("distinct overview, trip, and metadata requests share the warehouse stateme
           analytics.overview({ zip: "10001" }),
           analytics.trips({ page: 1 }),
           analytics.trips({ page: 2 }),
+          analytics.gpsActivity({}),
           analytics.metadata,
         ],
         { concurrency: "unbounded" },
@@ -182,7 +183,7 @@ test("distinct overview, trip, and metadata requests share the warehouse stateme
       );
       release();
       yield* Fiber.join(requests);
-      assert.equal(statements, 13);
+      assert.equal(statements, 15);
       assert.equal(peak, 2);
     }).pipe(
       Effect.provide(

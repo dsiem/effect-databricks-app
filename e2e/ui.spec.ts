@@ -134,11 +134,11 @@ test("mobile sidebar traps focus, closes on navigation and Escape, and leaves de
     animations: "disabled",
   });
 
-  await drawer.getByRole("link", { name: "Pickup map", exact: true }).click();
-  await expect(page).toHaveURL(/\/map\?zip=10001$/);
+  await drawer.getByRole("link", { name: "GPS activity", exact: true }).click();
+  await expect(page).toHaveURL(/\/gps-map\?zip=10001$/);
   await expect(drawer).not.toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Pickups by ZIP area", exact: true }),
+    page.getByRole("heading", { name: "GPS activity", exact: true }),
   ).toBeVisible();
   await trigger.click();
   await expect(drawer).toBeVisible();

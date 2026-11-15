@@ -4,7 +4,8 @@ import * as D from "../../../shared/domain";
 import { href } from "../domain/filters";
 import * as Filters from "../features/filters/model";
 import * as Genie from "../features/genie/model";
-import * as PickupMap from "../features/map/model";
+import { gpsContext } from "../features/gps/context";
+import * as Gps from "../features/gps/model";
 import * as Overview from "../features/overview/model";
 import * as SavedViews from "../features/saved-views/model";
 import * as Trips from "../features/trips/model";
@@ -28,7 +29,7 @@ export const Model = Schema.Struct({
   tripsState: Trips.Model,
   savedViewsState: SavedViews.Model,
   genieState: Genie.Model,
-  mapState: PickupMap.Model,
+  gpsState: Gps.Model,
 });
 export type Model = typeof Model.Type;
 export const requestKey = (model: Model) =>
@@ -36,12 +37,14 @@ export const requestKey = (model: Model) =>
 export const navigation = [
   { path: "/", label: "Overview", icon: "layout-dashboard" },
   { path: "/trips", label: "Trip explorer", icon: "table-2" },
-  { path: "/map", label: "Pickup map", icon: "map" },
+  { path: "/gps-map", label: "GPS activity", icon: "activity" },
 ] as const;
 export const pageContext = (model: Model): D.GenieContext => {
   const overview = model.overviewState.overview.data;
   const trips = model.tripsState.trips.data;
   switch (model.path) {
+    case "/gps-map":
+      return gpsContext(model.gpsState);
     case "/":
       return {
         page: "overview",
@@ -71,26 +74,6 @@ export const pageContext = (model: Model): D.GenieContext => {
                 totalMatchingTrips: trips.total,
                 pageSize: trips.pageSize,
                 visibleRows: trips.rows,
-              }),
-            }
-          : {}),
-      };
-    case "/map":
-      return {
-        page: "map",
-        title: "Pickup activity by ZIP area",
-        ...(overview &&
-        model.mapState.mappedTrips !== null &&
-        !model.mapState.mapError &&
-        !model.overviewState.overview.error
-          ? {
-              data: JSON.stringify({
-                topPickupZIPs: overview.zones.slice(0, 10),
-                totalTrips: overview.summary.trips,
-                mappedTrips: model.mapState.mappedTrips,
-                geography:
-                  "NYC Health MODZCTA; postal ZIPs may be grouped; trips outside boundaries are not drawn.",
-                queriedAt: overview.queriedAt,
               }),
             }
           : {}),

@@ -1,9 +1,9 @@
 # Databricks Apps + Effect
 
 A working NYC taxi analytics workspace with Foldkit, Effect 4, Tailwind CSS 4,
-SVG charts, and MapLibre GL JS with deck.gl. The app starts from the real
-`samples.nyctaxi.trips` data and persists a managed snapshot for stable trip
-identity. No synthetic dashboard data or mock Genie answers.
+SVG charts, and MapLibre GL JS with deck.gl. The app processes the complete
+January–February 2016 yellow taxi CSVs bundled with Databricks into managed
+Delta tables with stable trip identity. No synthetic dashboard data or mock Genie answers.
 
 The UI pairs Foldkit's accessible behavior with a small, reusable visual layer:
 neutral surfaces, an indigo accent, consistent controls, and responsive data panels.
@@ -21,7 +21,7 @@ local development uses the current workspace user's profile when available.
 - **Trip explorer:** date/ZIP filters, server-side sorting and pagination, CSV export
   of the visible page. Open any trip to inspect its details and add shared,
   attributed comments persisted in Lakebase.
-- **Pickup map:** interactive ZIP-area choropleth using official NYC boundaries.
+- **GPS activity:** interactive pickup and drop-off density with fine H3 hexagons.
 - **Contextual Genie helper:** open Ask Genie from any page without leaving the
   data. Explain a chart, analyze visible trips, or ask for further analytics with
   the applied date/ZIP filters. Expand the helper for result tables and generated
@@ -31,29 +31,42 @@ local development uses the current workspace user's profile when available.
   Choosing a view applies it on the current page and replaces pending edits.
   The chooser supports paginated browsing of the shared library.
 
-The pickup map uses MapLibre GL JS for OpenStreetMap streets, navigation, and
-camera control, with a deck.gl `GeoJsonLayer` for GPU-rendered ZIP areas and
-selection. Its renderer and Vite worker load only when the map mounts. Filtering
-updates one mount-owned input stream and preserves the camera. The scoped renderer
-consumes the latest data even when filters change during loading; releasing the map
-also releases its GPU overlay, popups, and observers. Readiness comes from Foldkit's
-Model after the renderer finishes a frame. Both the layer and map controls follow
-the app theme. Boundary files are validated and postal ZIP lists normalized once
-at fetch; aggregation operates on that typed data. Geographic boundaries remain
-usable when street tiles are offline.
-The current sample has no point coordinates. A future coordinate source can use
-deck.gl's binary `ScatterplotLayer` attributes with Arrow lon/lat buffers without
-converting each point into a GeoJSON object.
+The GPS activity map uses MapLibre GL JS for OpenStreetMap streets and camera
+control, with deck.gl polygons showing recorded endpoints at H3 resolution 10.
+Its renderer and Vite worker load when the map mounts. Filters and endpoint
+selection update the mounted map while preserving the camera. The map follows
+the app theme and supports area selection by pointer or the busiest-area list.
+Open `/gps-map` to switch between pickups and drop-offs. Run
+`npm run data:check:gps` to reconcile both full-data maps and a filtered cohort.
+The [three-map comparison](design/maps/DECISION.md) records the design evidence.
 
-An unscheduled SQL job copies `samples.nyctaxi.trips` once per bundle target into a
-managed Delta table and persists a UUID `trip_id` on each row. App analytics read this snapshot;
-re-running setup keeps its IDs and does not refresh its rows. The sample contains
-21,932 trips from January–February 2016 in the verified workspace. It contains ZIP
-codes rather than GPS points. Fares exclude tips and tolls. All dates and amounts
-in the UI come from the warehouse. The map groups postal ZIPs into NYC Health
-MODZCTAs and explicitly counts unmapped trips. Genie remains connected to the
-source sample table; configure its data source alongside `data_catalog` when
-adapting the bundle to a different dataset.
+Trip details and CSV exports include recorded pickup/drop-off GPS endpoints,
+passenger counts, payment type, itemized charges and source-file lineage. The map
+aggregates recorded GPS endpoints; these do not describe the driven route.
+
+The unscheduled ingestion job reads
+`/Volumes/samples/databricks/datasets/nyctaxi/tripdata/yellow/yellow_tripdata_2016-0[12].csv.gz`
+with an explicit 19-column schema. `trips_2016_raw` preserves **22,288,907** source
+rows, all original fields, persisted UUIDs and quality flags. `trips_2016` contains
+**22,145,892** accepted trips: pickup in January–February 2016, positive finite
+fare and distance, and duration greater than zero and no more than 24 hours.
+The **143,015** excluded records remain in raw; `trip_quality_2016` reports counts
+by source file. Missing GPS never removes otherwise valid trips or revenue.
+Coordinates outside the broad NYC region (longitude -75 to -72, latitude 40 to 42)
+are flagged and presented as unavailable in the API.
+
+All original GPS values stay in Delta. ZIP labels are derived using exact
+point-in-polygon tests against pinned Census 2020 ZCTAs distributed by NYC Open
+Data. They are approximate ZIP areas, not recorded postal addresses or historical
+2016 boundaries. Unmatched locations stay NULL. The GPS map aggregates recorded
+endpoints independently of ZIP boundaries.
+Source timestamps are New York local wall-clock values stored as `TIMESTAMP_NTZ`.
+Fare revenue excludes tips and tolls; recorded tips and total charges exclude
+cash tips. Genie and app analytics query the same target-specific `trips_2016`.
+
+Re-running ingestion keeps existing tables and trip IDs. The former six-column
+`trips` demo and its comment records remain intact. Use a new table version for a
+source refresh or a changed cleaning/boundary policy.
 
 ## Run locally
 
@@ -73,8 +86,8 @@ npm run dev
 Open http://localhost:5173 (frontend). The Effect API runs on port 3000. Setup
 populates the ignored `.env` with resource IDs and connection parameters. Tokens
 are obtained from the CLI locally and from the platform app identity when deployed;
-no token is copied into the frontend. To rerun snapshot provisioning for a deployed
-bundle target, run
+no token is copied into the frontend. To prepare and validate data on an existing bundle target without restarting the app,
+run `npm run data:prepare -- dev`. To rerun the deployed ingestion job, run
 `npm run data:seed:snapshot -- -t dev --params app_service_principal_id=<app-client-id>`
 using that target's catalog/schema. Local analytics use `TRIP_SNAPSHOT_TABLE` from
 `.env`. For manual Lakebase setup, configure its values in `.env`, then run
@@ -88,14 +101,14 @@ return useful configuration errors instead of fabricated results.
 
 [databricks.yml](databricks.yml) declares and connects:
 
-| Resource         | Configuration                                                          |
-| ---------------- | ---------------------------------------------------------------------- |
-| SQL warehouse    | Serverless PRO, 2X-Small, one cluster, ten-minute auto-stop            |
-| Unity Catalog    | Target-specific schema with a persistent copy of the taxi sample       |
-| Snapshot job     | Unscheduled SQL notebook on the existing warehouse; preserves trip IDs |
-| Genie space      | NYC taxi table, sample questions, domain instructions                  |
-| Lakebase project | Postgres 17, production branch, 1 CU primary endpoint                  |
-| Databricks App   | Existing or new app identity, SQL/Genie/Lakebase resource bindings     |
+| Resource         | Configuration                                                                 |
+| ---------------- | ----------------------------------------------------------------------------- |
+| SQL warehouse    | Serverless PRO, 2X-Small, one cluster, ten-minute auto-stop                   |
+| Unity Catalog    | Target-specific schema with raw, accepted trips, geography and quality counts |
+| Snapshot job     | Unscheduled SQL notebook on the existing warehouse; preserves trip IDs        |
+| Genie space      | NYC taxi table, sample questions, domain instructions                         |
+| Lakebase project | Postgres 17, production branch, 1 CU primary endpoint                         |
+| Databricks App   | Existing or new app identity, SQL/Genie/Lakebase resource bindings            |
 
 Lakebase project defaults include a five-minute idle suspension; the default
 endpoint inherits it. The app uses the endpoint's direct TLS host. Resource names
@@ -116,17 +129,18 @@ them as environment overrides when running setup:
 BUNDLE_VAR_data_catalog=my_catalog BUNDLE_VAR_data_schema=my_schema npm run workspace:setup -- dev
 ```
 
-Both the seed job and deployed app use `my_catalog.my_schema.trips`. Setup writes
-that same fully qualified name to `TRIP_SNAPSHOT_TABLE` in the local `.env`.
-The defaults remain `main` and `${var.data_name}` (for example, `metrocab-dev`),
-preserving the existing table location. `data_schema` can be changed independently
+Both the seed job and deployed app use `my_catalog.my_schema.trips_2016`. Setup writes
+that same fully qualified name after successful ingestion to `TRIP_SNAPSHOT_TABLE` in the local `.env`.
+The defaults are `workspace` and `${var.data_name}` (for example, `metrocab-dev`),
+preserving the existing catalog/schema selection. `data_schema` can be changed independently
 of the warehouse and Lakebase resource prefix. Keep these overrides in the target
 configuration for subsequent deployments. Changing the catalog or schema selects
 a separate snapshot; existing trip IDs and comments are not migrated.
 
-Setup deploys the bundle and waits for its `seed_trip_snapshot` SQL job to finish
-on the existing warehouse. The job creates a target-specific managed Delta
-snapshot with one persisted UUID per sample row, validates the IDs, and grants
+Setup deploys the bundle, uploads pinned boundaries to its `taxi_sources` volume,
+and waits for its `seed_trip_snapshot` SQL job to finish
+on the existing warehouse. The job creates target-specific managed Delta
+source and accepted-trip tables with persisted UUIDs, validates the IDs, and grants
 the app identity catalog/schema/table read access. Setup then runs an explicit
 idempotent application-schema migration and starts the app.
 Re-running setup preserves the snapshot and IDs; it does not copy newly changed
@@ -375,9 +389,8 @@ Live checks create and remove a temporary saved view. Browser checks verify filt
 sorting, pagination, CSV, map rendering, responsive navigation, and saved-view
 persistence across reloads. Screenshots and traces go to ignored `test-results/`.
 
-The map geometry is bundled for reproducible rendering; the street basemap uses
-OpenStreetMap tiles. See [boundary provenance](client/public/SOURCES.md).
-`node scripts/refresh-geography.mjs` refreshes the official boundary artifact.
+The map hexagons come from warehouse H3 aggregates; the street basemap uses
+OpenStreetMap tiles. See [data provenance](client/public/SOURCES.md).
 
 Frontend state lives in a Schema-defined Foldkit model. Messages enter the pure
 `update` function, which returns the next model and named Effect commands. URL

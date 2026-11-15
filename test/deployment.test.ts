@@ -8,11 +8,21 @@ import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
 import { parse } from "yaml";
+import { gpsFixture } from "../client/test/gps-fixture.js";
 import type { SavedView } from "../shared/domain.js";
 
 const run = promisify(execFile);
 
-for (const failure of [null, "warehouse", "create", "list", "genie"] as const) {
+for (const failure of [
+  null,
+  "warehouse",
+  "trips",
+  "details",
+  "gps",
+  "create",
+  "list",
+  "genie",
+] as const) {
   test(`hosted verification ${failure ? `fails on ${failure} errors despite RUNNING` : "checks SQL, paginated persistence, and Genie"}`, async (t) => {
     const directory = await mkdtemp(join(tmpdir(), "deployed-check-"));
     t.after(() => rm(directory, { recursive: true, force: true }));
@@ -40,6 +50,42 @@ for (const failure of [null, "warehouse", "create", "list", "genie"] as const) {
           : reply({ trips: 10 });
       if (url.pathname === "/api/overview")
         return reply({ summary: { trips: 10 } });
+      if (url.pathname === "/api/trips")
+        return failure === "trips"
+          ? reply({ error: { message: "Trips unavailable" } }, 503)
+          : reply({
+              total: 10,
+              rows: [
+                {
+                  details:
+                    failure === "details"
+                      ? undefined
+                      : {
+                          source_file: "yellow_tripdata_2016-01.csv.gz",
+                          total_amount: 10,
+                          pickup_location: {
+                            longitude: -73.99,
+                            latitude: 40.75,
+                          },
+                        },
+                },
+              ],
+            });
+      if (url.pathname === "/api/gps-activity") {
+        if (failure === "gps")
+          return reply({ error: { message: "GPS unavailable" } }, 503);
+        const endpoint =
+          url.searchParams.get("endpoint") === "dropoff" ? "dropoff" : "pickup";
+        const activity = gpsFixture(endpoint);
+        return reply({
+          ...activity,
+          matchingTrips: 10,
+          locatedTrips: 8,
+          shownTrips: 8,
+          totalCells: 1,
+          cells: [{ ...activity.cells[0], trips: 8 }],
+        });
+      }
       if (url.pathname === "/api/saved-views" && request.method === "PUT") {
         if (failure === "create")
           return reply({ error: { message: "Create failed" } }, 503);
@@ -128,7 +174,9 @@ console.log(JSON.stringify(responses[process.argv.slice(2, 4).join(" ")]));
     else assert.match((await verification).stdout, /Deployed app verified/);
     assert.equal(
       created,
-      failure === "warehouse" || failure === "create" ? 0 : 1,
+      ["warehouse", "trips", "details", "gps", "create"].includes(failure ?? "")
+        ? 0
+        : 1,
     );
     assert.equal(
       deleted,

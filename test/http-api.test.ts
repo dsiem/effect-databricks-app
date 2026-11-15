@@ -62,6 +62,17 @@ const fixture = () => {
             availability: Effect.succeed("unconfigured" as const),
             metadata: Effect.succeed(metadata),
             overview: (input) => record("overview", input, overview),
+            gpsActivity: (input) =>
+              record("gps", input, {
+                endpoint: input.endpoint ?? "pickup",
+                matchingTrips: 10,
+                locatedTrips: 0,
+                shownTrips: 0,
+                totalCells: 0,
+                truncated: false,
+                cells: [],
+                queriedAt: "2016-02-01T00:00:00Z",
+              }),
             trips: (input) =>
               record("trips", input, {
                 rows: [],
@@ -184,6 +195,12 @@ test("generated client round-trips every endpoint through the real HTTP contract
       assert.equal(yield* client.currentUser(), null);
       assert.deepEqual(yield* client.metadata(), metadata);
       assert.deepEqual(yield* client.overview({ query: filters }), overview);
+      assert.equal(
+        (yield* client.gpsActivity({
+          query: { ...filters, endpoint: "dropoff" },
+        })).matchingTrips,
+        10,
+      );
       assert.deepEqual(
         yield* client.trips({ query: { ...filters, page: 2, sort: "fare" } }),
         {
@@ -244,6 +261,7 @@ test("generated client round-trips every endpoint through the real HTTP contract
   );
   assert.deepEqual(calls, [
     ["overview", filters],
+    ["gps", { ...filters, endpoint: "dropoff" }],
     ["trips", { ...filters, page: 2, sort: "fare" }],
     ["submit", { content: "Count trips", conversationId: "previous-1" }],
     ["poll", operation],
@@ -261,6 +279,8 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
     ["/api/overview?zip=invalid", undefined],
     ["/api/overview?from=2016-02-01&to=2016-01-01", undefined],
     ["/api/trips?from=2016-02-01&to=2016-01-01", undefined],
+    ["/api/gps-activity?from=2016-02-01&to=2016-01-01", undefined],
+    ["/api/gps-activity?endpoint=coordinates", undefined],
     [
       "/api/saved-views",
       {

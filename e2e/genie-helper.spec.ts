@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { gpsFixture } from "../client/test/gps-fixture";
 
 const filters = { from: "2016-01-10", to: "2016-01-20", zip: "10001" };
 const query = new URLSearchParams(filters).toString();
@@ -66,6 +67,9 @@ test.beforeEach(async ({ page }) => {
     route.fulfill({
       json: { from: "2016-01-01", to: "2016-02-29", trips: 21932 },
     }),
+  );
+  await page.route("**/api/gps-activity**", (route) =>
+    route.fulfill({ json: gpsFixture() }),
   );
   await page.route("**/api/overview**", (route) =>
     route.fulfill({ json: overview }),
@@ -272,7 +276,7 @@ test("an open helper follows navigation to the map and includes geographic cover
   let submitted:
     | { context: { page: string; data: string }; filters: unknown }
     | undefined;
-  await page.route("https://*.tile.openstreetmap.org/**", (route) =>
+  await page.route("https://tile.openstreetmap.org/**", (route) =>
     route.abort(),
   );
   await page.route("**/api/genie", (route) => {
@@ -281,11 +285,9 @@ test("an open helper follows navigation to the map and includes geographic cover
   });
   await page.goto(`/?${query}`);
   const helper = await openHelper(page);
-  await page.getByRole("link", { name: "Pickup map", exact: true }).click();
-  await expect(page).toHaveURL(`/map?${query}`);
-  await expect(helper.getByRole("region")).toContainText(
-    "Pickup activity by ZIP area",
-  );
+  await page.getByRole("link", { name: "GPS activity", exact: true }).click();
+  await expect(page).toHaveURL(`/gps-map?${query}`);
+  await expect(helper.getByRole("region")).toContainText("GPS pickups");
   await expect(helper.getByRole("region")).toContainText(
     "Displayed data and applied filters included",
   );
@@ -296,9 +298,10 @@ test("an open helper follows navigation to the map and includes geographic cover
   await expect.poll(() => submitted?.context.page).toBe("map");
   expect(submitted?.filters).toEqual(filters);
   expect(JSON.parse(submitted?.context.data ?? "{}")).toMatchObject({
-    topPickupZIPs: overview.zones,
-    totalTrips: overview.summary.trips,
-    mappedTrips: overview.summary.trips,
+    endpoint: "pickup",
+    locatedTrips: 80,
+    shownTrips: 80,
+    resolution: 10,
   });
 });
 

@@ -4,5 +4,5 @@
 @import "./app/styles.css";
 @import "./features/overview/styles.css";
 @import "./features/trips/styles.css";
-@import "./features/map/styles.css";
+@import "./features/gps/styles.css";
 @import "./features/genie/styles.css";

@@ -12,7 +12,6 @@ import { updateFilters } from "../src/features/filters/update";
 import { Message as GenieMessage } from "../src/features/genie/messages";
 import * as Genie from "../src/features/genie/model";
 import { presentGenie, updateGenie } from "../src/features/genie/update";
-import { Message as MapViewMessage } from "../src/features/map/view-messages";
 import { Message as OverviewMessage } from "../src/features/overview/messages";
 import * as Overview from "../src/features/overview/model";
 import { updateOverview } from "../src/features/overview/update";
@@ -77,16 +76,15 @@ test("view intents are translated by the shell with their analysis scope intact"
   assert.equal(changed.model.genieState.genieOpen, true);
   assert.deepEqual(changed.model.genieState.genieSelection, context);
   assert.equal(changed.model.genieState.genieDraft, "Explain these fares");
-  const picked = update(
-    app("/map"),
-    exploreMessage(MapViewMessage.SelectZip({ zip: "10019" })),
-  );
+  const picked = update(app("/gps-map"), AppMessage.PickZip({ zip: "10019" }));
   assert.ok(
-    picked.commands?.some((command) => command.args?.href === "/map?zip=10019"),
+    picked.commands?.some(
+      (command) => command.args?.href === "/gps-map?zip=10019",
+    ),
   );
   const navigated = update(
     picked.model,
-    AppMessage.Navigated({ path: "/map", query: "zip=10019" }),
+    AppMessage.Navigated({ path: "/gps-map", query: "zip=10019" }),
   );
   assert.equal(navigated.model.filtersState.filterDraft.zip, "10019");
 });

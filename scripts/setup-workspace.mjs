@@ -43,7 +43,7 @@ const values = {
     config.workspace.host ||
     cli(["auth", "describe"]).details.host,
   DATABRICKS_WAREHOUSE_ID: warehouseId,
-  TRIP_SNAPSHOT_TABLE: `${snapshotSchema.catalog_name}.${snapshotSchema.name}.trips`,
+  TRIP_SNAPSHOT_TABLE: `${snapshotSchema.catalog_name}.${snapshotSchema.name}.trips_2016`,
   GENIE_SPACE_ID: genieId,
   LAKEBASE_ENDPOINT: endpointName,
   PGHOST: endpoint.status.hosts.host,
@@ -60,9 +60,19 @@ for (const [key, value] of Object.entries(values)) {
     ? env.replace(pattern, line)
     : `${env.trimEnd()}\n${line}\n`;
 }
-writeFileSync(".env", env, { mode: 0o600 });
 const principal = app.service_principal_client_id;
 if (!principal) throw new Error("App service principal is not available yet.");
+execFileSync(
+  "databricks",
+  [
+    "fs",
+    "cp",
+    "jobs/nyc-zcta.jsonl",
+    `dbfs:/Volumes/${snapshotSchema.catalog_name}/${snapshotSchema.name}/taxi_sources/nyc-zcta.jsonl`,
+    "--overwrite",
+  ],
+  { stdio: "inherit" },
+);
 execFileSync(
   "databricks",
   [
@@ -76,6 +86,7 @@ execFileSync(
   ],
   { stdio: "inherit" },
 );
+writeFileSync(".env", env, { mode: 0o600 });
 execFileSync(
   process.execPath,
   ["--env-file-if-exists=.env", "--import", "tsx", "scripts/migrate.ts"],

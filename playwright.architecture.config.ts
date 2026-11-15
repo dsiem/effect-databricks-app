@@ -8,7 +8,7 @@ export default defineConfig({
     "theme.spec.ts",
     "browser-compat.spec.ts",
     "foldkit.spec.ts",
-    "map.spec.ts",
+    "gps-map.spec.ts",
     "genie-recovery.spec.ts",
     "genie-helper.spec.ts",
     "saved-views-conflicts.spec.ts",

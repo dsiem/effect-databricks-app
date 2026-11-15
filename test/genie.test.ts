@@ -331,7 +331,10 @@ test("Genie builds structured filter context server-side for initial and follow-
       ),
       Effect.provideService(
         ConfigProvider.ConfigProvider,
-        ConfigProvider.fromEnvRecord({ GENIE_SPACE_ID: "space" }),
+        ConfigProvider.fromEnvRecord({
+          GENIE_SPACE_ID: "space",
+          TRIP_SNAPSHOT_TABLE: "custom.taxi.trips_2016",
+        }),
       ),
     ),
   );
@@ -347,6 +350,8 @@ test("Genie builds structured filter context server-side for initial and follow-
   assert.ok(content.includes(JSON.stringify(filters)));
   assert.match(content, /tpep_pickup_datetime/);
   assert.match(content, /pickup_zip/);
+  assert.match(content, /custom.taxi.trips_2016/);
+  assert.doesNotMatch(content, /samples.nyctaxi.trips/);
   assert.match(content, /to includes the entire day/);
   assert.match(content, /Omitted bounds or ZIP mean unrestricted/);
   assert.ok(content.includes(JSON.stringify(context)));

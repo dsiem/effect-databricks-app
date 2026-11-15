@@ -9,9 +9,8 @@ import { updateFilters } from "../features/filters/update";
 import * as GenieCommands from "../features/genie/commands";
 import * as Genie from "../features/genie/model";
 import { presentGenie, updateGenie } from "../features/genie/update";
-import * as PickupMap from "../features/map/model";
-import { RefreshMap } from "../features/map/mount";
-import { updateMap } from "../features/map/update";
+import * as Gps from "../features/gps/model";
+import { updateGps } from "../features/gps/update";
 import * as Overview from "../features/overview/model";
 import { updateOverview } from "../features/overview/update";
 import * as SavedViews from "../features/saved-views/model";
@@ -52,7 +51,7 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
     tripsState: Trips.init(),
     savedViewsState: SavedViews.init(),
     genieState: Genie.init(),
-    mapState: PickupMap.init(),
+    gpsState: Gps.init(),
   };
   const loaded = loadPage(model);
   return {
@@ -259,21 +258,7 @@ function updateApplication(
               genieState: { ...next.genieState, genieSelection: null },
             }
           : next,
-        commands: [
-          ...(changed.commands ?? []),
-          ...(changed.outMessage &&
-          message._tag === "LoadedOverview" &&
-          model.path === "/map" &&
-          message.data
-            ? [
-                RefreshMap({
-                  zones: message.data.zones,
-                  query: model.query,
-                  loading: false,
-                }),
-              ]
-            : []),
-        ],
+        commands: changed.commands ?? [],
       };
     }
     case "CloseTrip":
@@ -390,12 +375,22 @@ function updateApplication(
         ],
       };
     }
-    case "MapReady": {
-      const changed = updateMap(model.mapState, message, {
+    case "GpsTabs":
+    case "LoadedGps":
+    case "GpsReady":
+    case "GpsSelect": {
+      if (model.path !== "/gps-map") return { model };
+      const changed = updateGps(model.gpsState, message, {
         query: model.query,
       });
-      const next = { ...model, mapState: changed.model };
-      return { model: next, commands: changed.commands ?? [] };
+      return {
+        model: {
+          ...model,
+          gpsState: changed.model,
+          genieState: { ...model.genieState, genieSelection: null },
+        },
+        commands: changed.commands ?? [],
+      };
     }
   }
 }

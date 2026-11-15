@@ -29,6 +29,22 @@ const trip = {
   distance: 3,
   fare: 12,
   duration: 15,
+  details: {
+    source_file: "yellow_tripdata_2016-01.csv.gz",
+    vendor_id: 2,
+    passenger_count: 1,
+    rate_code_id: 1,
+    store_and_fwd_flag: "N",
+    payment_type: 2,
+    pickup_location: { longitude: -73.99, latitude: 40.75 },
+    dropoff_location: { longitude: -73.98, latitude: 40.76 },
+    tip_amount: 0,
+    tolls_amount: 2.5,
+    extra: 0.5,
+    mta_tax: 0.5,
+    improvement_surcharge: 0.3,
+    total_amount: 15.8,
+  },
 };
 
 test("overview charts, navigation, paging, CSV download, and browser history work through the runtime", async ({
@@ -88,8 +104,8 @@ test("overview charts, navigation, paging, CSV download, and browser history wor
   expect(path).not.toBeNull();
   const text = await readFile(path ?? "", "utf8");
   expect(text.split("\r\n")).toEqual([
-    "trip_id,pickup_at,dropoff_at,pickup_zip,dropoff_zip,distance,fare,duration",
-    '"stable-trip","2016-01-01 10:00:00","2016-01-01 10:15:00","10001","10019","3","12","15"',
+    "trip_id,pickup_at,dropoff_at,pickup_zip,dropoff_zip,distance,fare,duration,source_file,vendor_id,passenger_count,rate_code_id,store_and_fwd_flag,payment_type,pickup_longitude,pickup_latitude,dropoff_longitude,dropoff_latitude,tip_amount,tolls_amount,extra,mta_tax,improvement_surcharge,total_amount",
+    '"stable-trip","2016-01-01 10:00:00","2016-01-01 10:15:00","10001","10019","3","12","15","yellow_tripdata_2016-01.csv.gz","2","1","1","N","2","-73.99","40.75","-73.98","40.76","0","2.5","0.5","0.5","0.3","15.8"',
   ]);
   await page.getByRole("button", { name: "Next page" }).click();
   await expect(page.getByText("Page 2", { exact: true })).toBeVisible();
@@ -352,5 +368,37 @@ test("trip sorting exposes a native dropdown and applies every choice from page 
   await page.screenshot({
     path: "test-results/foldkit-sort.png",
     fullPage: true,
+  });
+});
+
+test("trip inspector shows recorded endpoints, payment and the full charge", async ({
+  page,
+}) => {
+  await page.route("**/api/trips**", (route) =>
+    route.fulfill({ json: { rows: [trip], total: 1, page: 1, pageSize: 25 } }),
+  );
+  await page.route("**/api/trip-comments**", (route) =>
+    route.fulfill({ json: { rows: [], nextCursor: null } }),
+  );
+  await page.goto("/trips");
+  await page
+    .getByRole("button", { name: /^Details and comments for trip/ })
+    .click();
+  const panel = page.getByRole("dialog", { name: "Trip details", exact: true });
+  await expect(
+    panel.getByText("40.75000, -73.99000", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel.getByText("40.76000, -73.98000", { exact: true }),
+  ).toBeVisible();
+  await expect(panel.getByText("Cash", { exact: true })).toBeVisible();
+  await expect(panel.getByText("$15.80", { exact: true })).toBeVisible();
+  await expect(
+    panel.getByText("yellow_tripdata_2016-01.csv.gz", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/enriched-trip.png",
+    fullPage: true,
+    animations: "disabled",
   });
 });

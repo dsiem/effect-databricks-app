@@ -5,7 +5,7 @@ import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../shared/domain";
 import * as Filters from "../features/filters/messages";
 import * as Genie from "../features/genie/messages";
-import * as PickupMap from "../features/map/messages";
+import * as Gps from "../features/gps/messages";
 import * as Overview from "../features/overview/messages";
 import * as SavedViews from "../features/saved-views/messages";
 import * as Trips from "../features/trips/messages";
@@ -39,6 +39,6 @@ export const Message = defineMessageUnion({
   ...Trips.messages,
   ...SavedViews.messages,
   ...Genie.messages,
-  ...PickupMap.messages,
+  ...Gps.messages,
 });
 export type Message = typeof Message.Type;

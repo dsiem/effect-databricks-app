@@ -219,11 +219,11 @@ function overview(h: H, model: Model): Child[] {
                     ),
                     h.a(
                       [
-                        h.Href(href("/map", model.query)),
+                        h.Href(href("/gps-map", model.query)),
                         h.Class("btn btn-small"),
                         h.AriaLabel("View pickup map"),
                       ],
-                      [icon(h, "map"), "Pickup map"],
+                      [icon(h, "map"), "GPS activity"],
                     ),
                   ],
                 }),

@@ -43,12 +43,12 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export this page" }).click();
   expect((await download).suggestedFilename()).toBe("taxi-trips-page-2.csv");
-  await page.getByRole("link", { name: "Pickup map", exact: true }).click();
+  await page.getByRole("link", { name: "GPS activity", exact: true }).click();
   await expect(
-    page.getByRole("region", { name: "Pickup activity map" }),
-  ).toHaveAttribute("data-map-ready", "true", { timeout: 120_000 });
+    page.getByRole("region", { name: "GPS pickups density map" }),
+  ).toHaveAttribute("data-gps-ready", "true", { timeout: 120_000 });
   await page.screenshot({
-    path: "test-results/pickup-map.png",
+    path: "test-results/gps-map.png",
     fullPage: true,
     animations: "disabled",
   });
@@ -65,7 +65,7 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByLabel("Open navigation").click();
   await expect(
-    page.getByRole("link", { name: "Pickup map", exact: true }),
+    page.getByRole("link", { name: "GPS activity", exact: true }),
   ).toBeVisible();
   await page.getByLabel("Close navigation", { exact: true }).last().click();
   await expect(
@@ -142,7 +142,7 @@ test("Genie renders real answers, result tables, generated SQL and follow-up con
   await page
     .getByLabel("Ask a question about taxi data")
     .fill(
-      "How many trips are in samples.nyctaxi.trips? Return a single total_trips column.",
+      "How many trips are in the configured trips table? Return a single total_trips column.",
     );
   await page
     .getByRole("button", { name: "Send question", exact: true })

@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>NYC taxi · map directions</title></head>
+<body><main><header><p class="eyebrow">NYC TAXI · DESIGN STUDY</p><h1>Three ways to see the city move.</h1><p class="subtitle">The same January–February 2016 trips. Three different questions.</p><div id="scope"></div></header>
+<nav><button type="button" id="city">City view</button><button type="button" id="street">Street view</button></nav>
+<section class="comparison">
+<article><div class="copy"><span class="index">01 / DETAIL</span><h2>Every pickup, in place</h2><p>Where do individual journeys begin?</p></div><div id="points" class="map"></div><footer><strong>GPS points</strong><span id="sample"></span><p>Precise endpoints. A sample can reveal street patterns, but it cannot show exact demand.</p></footer></article>
+<article><div class="copy"><span class="index">02 / PATTERN</span><h2>The city’s pickup pulse</h2><p>Where is taxi demand concentrated?</p></div><div id="density" class="map"></div><footer><strong>Density cells</strong><span>Every valid pickup · no sampling</span><p>Comparable neighborhoods, accurate counts and a clean path from overview to detail.</p></footer></article>
+<article><div class="copy"><span class="index">03 / CONNECTION</span><h2>Where journeys connect</h2><p>Which parts of the city exchange trips?</p></div><div id="flows" class="map"></div><footer><strong>Origin → destination</strong><span>80 busiest cross-area pairs</span><p>Reveals connections between areas. Lines join endpoints; they are not driving routes.</p></footer></article>
+</section><p class="hint">Pan and zoom each map. Hover to inspect the actual data.</p></main><script type="module" src="./prototype.ts"></script></body></html>

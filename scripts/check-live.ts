@@ -40,6 +40,12 @@ await Effect.runPromise(
     assert.ok(zip);
     const search = yield* analytics.trips({ zip, sort: "fare", page: 1 });
     assert.ok(search.rows.length > 0);
+    assert.ok(
+      search.rows.every((trip) =>
+        trip.details?.source_file.startsWith("yellow_tripdata_2016-"),
+      ),
+    );
+    assert.ok(search.rows.some((trip) => trip.details?.pickup_location));
     assert.ok(search.rows.every((trip) => trip.pickup_zip === zip));
     assert.ok(
       search.rows.every(
@@ -122,7 +128,7 @@ await Effect.runPromise(
         }).pipe(Effect.timeout("3 minutes"));
       const reply = yield* answer({
         content:
-          "How many trips are in samples.nyctaxi.trips? Return a single total_trips column.",
+          "How many trips are in the configured trips table? Return a single total_trips column.",
       });
       assert.ok(reply.conversationId);
       assert.ok(reply.queries.length);

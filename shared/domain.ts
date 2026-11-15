@@ -24,6 +24,12 @@ export const Filters = Schema.Struct({
   zip: Schema.optionalKey(Zip),
 }).check(dateOrder);
 export type Filters = typeof Filters.Type;
+export const GpsEndpoint = Schema.Literals(["pickup", "dropoff"]);
+export type GpsEndpoint = typeof GpsEndpoint.Type;
+export const GpsSearch = Schema.Struct({
+  ...Filters.fields,
+  endpoint: Schema.optionalKey(GpsEndpoint),
+}).check(dateOrder);
 export const TripSort = Schema.Literals(["newest", "fare", "distance"]);
 export const Id = Schema.String.check(Schema.isUUID(4));
 export const TripSearch = Schema.Struct({
@@ -74,6 +80,58 @@ export const Overview = Schema.Struct({
   queriedAt: Schema.String,
 });
 export type Overview = typeof Overview.Type;
+export const Coordinates = Schema.Struct({
+  longitude: Schema.Number.check(
+    Schema.isBetween({ minimum: -180, maximum: 180 }),
+  ),
+  latitude: Schema.Number.check(
+    Schema.isBetween({ minimum: -90, maximum: 90 }),
+  ),
+});
+const GpsRing = Schema.mutable(
+  Schema.Array(Schema.mutable(Schema.Tuple([Schema.Number, Schema.Number]))),
+);
+export const GpsCell = Schema.Struct({
+  id: Schema.String,
+  longitude: Schema.Number,
+  latitude: Schema.Number,
+  boundary: Schema.Struct({
+    type: Schema.Literal("Polygon"),
+    coordinates: Schema.mutable(Schema.Array(GpsRing)),
+  }),
+  trips: Schema.Number,
+  avg_fare: Schema.Number,
+  avg_distance: Schema.Number,
+  zip: Schema.NullOr(Zip),
+});
+export type GpsCell = typeof GpsCell.Type;
+export const GpsActivity = Schema.Struct({
+  endpoint: GpsEndpoint,
+  matchingTrips: Schema.Number,
+  locatedTrips: Schema.Number,
+  shownTrips: Schema.Number,
+  totalCells: Schema.Number,
+  truncated: Schema.Boolean,
+  cells: Schema.Array(GpsCell),
+  queriedAt: Schema.String,
+});
+export type GpsActivity = typeof GpsActivity.Type;
+export const TripDetails = Schema.Struct({
+  source_file: boundedText(160),
+  vendor_id: Schema.NullOr(Schema.Int),
+  passenger_count: Schema.NullOr(Schema.Int),
+  rate_code_id: Schema.NullOr(Schema.Int),
+  store_and_fwd_flag: Schema.NullOr(Schema.String),
+  payment_type: Schema.NullOr(Schema.Int),
+  pickup_location: Schema.NullOr(Coordinates),
+  dropoff_location: Schema.NullOr(Coordinates),
+  tip_amount: Schema.NullOr(Schema.Number),
+  tolls_amount: Schema.NullOr(Schema.Number),
+  extra: Schema.NullOr(Schema.Number),
+  mta_tax: Schema.NullOr(Schema.Number),
+  improvement_surcharge: Schema.NullOr(Schema.Number),
+  total_amount: Schema.NullOr(Schema.Number),
+});
 export const Trip = Schema.Struct({
   trip_id: boundedText(256),
   pickup_at: boundedText(80),
@@ -83,6 +141,8 @@ export const Trip = Schema.Struct({
   distance: Schema.Number,
   fare: Schema.Number,
   duration: Schema.Number,
+  // Lakebase comments retain historical trip snapshots from before enrichment.
+  details: Schema.optionalKey(TripDetails),
 });
 export type Trip = typeof Trip.Type;
 export const Trips = Schema.Struct({

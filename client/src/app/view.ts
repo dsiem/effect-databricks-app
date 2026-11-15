@@ -10,7 +10,7 @@ import {
 } from "../domain/filters";
 import { filterFields } from "../features/filters/view";
 import { genieHelperView, genieView } from "../features/genie/view";
-import { pickupMapView } from "../features/map/view";
+import { gpsMapView } from "../features/gps/view";
 import { overviewView } from "../features/overview/view";
 import {
   deleteDialogView,
@@ -271,17 +271,13 @@ export function view(model: Model, h: H): Document {
           ),
         ];
         break;
-      case "/map":
+      case "/gps-map":
         content = [
           featureView(
             h,
-            "pickupMap",
-            pickupMapView,
-            {
-              ...model.mapState,
-              overview: model.overviewState.overview,
-              query: model.query,
-            },
+            "gpsMap",
+            gpsMapView,
+            { ...model.gpsState, query: model.query },
             exploreMessage,
           ),
         ];

@@ -6,7 +6,7 @@ flowchart LR
   API --> Analytics[Analytics service]
   Analytics --> Arrow[Effect SQL Databricks / Arrow]
   Arrow --> Warehouse[SQL warehouse]
-  Warehouse --> Source[samples.nyctaxi.trips]
+  Warehouse --> Source[Bundled Jan-Feb 2016 CSVs]
   Setup --> Seed[Unscheduled SQL snapshot job]
   Seed --> Warehouse
   Warehouse --> Snapshot[target Unity Catalog snapshot with trip_id]
@@ -50,32 +50,52 @@ run with concurrency three. Metadata is cached for five minutes. Trip pages have
 25 rows and include the exact matching row count. Ordering includes the source
 columns for stable pagination; identical duplicate source rows remain identical.
 
-Setup runs the bundle's unscheduled `seed_trip_snapshot` job, whose SQL notebook
-is `jobs/seed-trip-snapshot.sql`. It uses the existing SQL warehouse to materialize
-the sample with `CREATE TABLE IF NOT EXISTS ... AS SELECT
-uuid() AS trip_id, * FROM samples.nyctaxi.trips`. The UUID is nondeterministic at
-creation time but stored in Delta, so subsequent setup runs preserve each ID.
-Analytics read the configured three-part `TRIP_SNAPSHOT_TABLE`; metadata,
-overview, trip pages, exports, and comment threads all use the same snapshot.
-Validation confirms the snapshot is non-empty and each row has a unique non-null
-ID. Source refreshes do not rewrite it. The app service principal receives
-`USE CATALOG`, `USE SCHEMA`, and `SELECT` on that table. Bundle variables
-`data_catalog` (default `main`) and `data_schema` (default `${var.data_name}`)
-configure the managed schema. Both the job's catalog/schema parameters and the
-app's `TRIP_SNAPSHOT_TABLE` derive from that schema resource, and setup writes the
-same fully qualified table name to local `.env`. Overriding `data_schema` does not
-rename the warehouse or Lakebase resources. Use separate schemas per target to
-keep snapshots isolated. The deployer needs permission to create the schema and
-grant access. For a future dataset with a source primary key, copy that value into
-`trip_id` instead of generating one.
+Setup uploads `jobs/nyc-zcta.jsonl` to the target's managed `taxi_sources` volume,
+then runs the unscheduled `seed_trip_snapshot` SQL notebook on the existing warehouse.
+The explicit CSV schema retains all 19 original fields from the January–February
+2016 archive. `trips_2016_raw` stores all 22,288,907 records, source filename,
+persisted UUID `trip_id`, and quality flags. Timestamps use `TIMESTAMP_NTZ` to
+preserve the source's New York local wall-clock times.
 
-The job receives the target catalog/schema and app principal as parameters,
-validates them before executing DDL, and fails if the snapshot is empty or has
-missing or duplicate IDs. Counts stay in SQL without JavaScript precision loss.
-It has a 15-minute task timeout and no recurring schedule. Setup waits for success
-before running the Lakebase migration and starting the app. Manual reruns use
-`npm run data:seed:snapshot -- -t TARGET --params app_service_principal_id=APP_CLIENT_ID`.
-`test/workspace-setup.test.ts` checks setup ordering and that job failures stop deployment.
+The accepted `trips_2016` table contains 22,145,892 rows. Its policy requires
+pickup in [2016-01-01,2016-03-01), positive finite fare and distance, and duration
+in (0,24 hours]. Invalid source records stay in raw. GPS validity uses a broad
+NYC-region bounding box: longitude [-75,-72], latitude [40,42]. Missing or invalid
+GPS does not exclude an otherwise valid trip from counts or fare revenue.
+`trip_quality_2016` reports raw, accepted, rejected and missing-GPS counts per file.
+
+`taxi_zip_cells_2016` stores pinned Census 2020 ZCTA geometry as WKB and a grid of
+candidate cells. `trip_locations_2016` tests distinct, unrounded GPS endpoints
+against those polygons with `ST_Covers`; shared boundaries choose the lowest ZIP
+for a deterministic single label. Unmatched locations retain NULL ZIPs. These
+labels are geographic approximations, not recorded postal addresses or 2016 ZIP
+boundaries. `scripts/prepare-zcta.mjs` regenerates the pinned boundary artifact
+from NYC Open Data; changing boundaries or cleaning policy requires a new table
+version rather than silently changing an existing snapshot.
+
+The pipeline uses `CREATE TABLE IF NOT EXISTS` for each materialized step, so a
+retry resumes from existing tables and preserves IDs. Validation reconciles the
+accepted count with raw quality flags and checks unique, non-null IDs. The app
+principal receives catalog/schema usage and SELECT on the accepted table and
+quality-summary view.
+`data_catalog` (default `workspace`) and `data_schema` (default `${var.data_name}`)
+control the job, app, source volume and Genie dataset. The old `trips` demo and
+its existing comments remain intact; new dataset rows have their own identities.
+
+`npm run data:prepare -- TARGET` runs the same notebook statements through the SQL
+API on an existing target, uploads boundaries, cancels an interrupted in-progress
+statement, and saves `.databricks/taxi-ingestion-report.json`. It prepares data
+without changing the running app. Normal setup writes `.env` only after the seed
+succeeds, then migrates Lakebase and starts the app. The SQL task has a one-hour
+timeout and no schedule. `test/workspace-setup.test.ts` verifies that failures
+stop setup before app startup and preserve the previous local configuration.
+
+Warehouse trip rows decode enriched details from SQL JSON through the shared
+`TripDetails` schema. API coordinates are either a complete validated endpoint or
+NULL; the original values remain in raw and accepted Delta rows. Historical
+Lakebase comment snapshots may omit details, while new warehouse trip rows
+always include them. CSV export flattens endpoints and all additional source
+fields; the inspector distinguishes metered fare from recorded total charges.
 
 All metadata, overview, and trip statements share one per-process admission pool,
 including distinct cache keys and trip pages. `WAREHOUSE_MAX_CONCURRENCY` defaults
@@ -108,10 +128,31 @@ automatically retried: a missing response can represent a completed operation.
 The HTTP server uses app identity access. Per-viewer Databricks user authorization
 is a separate extension; saved views and trip comments are intentionally shared.
 
+## GPS activity
+
+`GET /api/gps-activity` accepts the shared pickup date/ZIP filters and a pickup
+or dropoff endpoint. The warehouse groups original coordinates into H3
+resolution-10 cells and returns their native boundaries, exact trip counts,
+average fare/distance, and common ZIP area. Dropoff mode retains pickup filters.
+Invalid endpoints are excluded from geometry but remain in matching-trip totals.
+
+The response reports matching, located and shown trips, total cell count, and
+truncation. Up to 100,000 busiest cells are returned; a bounded response must
+display its partial coverage. Successful results are cached for five minutes
+across 16 filter/endpoint keys. Reads use the same warehouse admission pool as
+other analytics; failed results are not retained in the cache.
+
+Request identities reject obsolete filter/endpoint responses. Frame identities
+also include the selected cell, so readiness tracks the actual rendered state.
+The scoped lazy renderer keeps its camera across updates and releases the map,
+GPU overlay, popup and observers on navigation. Areas can be selected on the map
+or through keyboard-accessible ranked buttons. Genie receives endpoint, coverage
+and selected-cell statistics, without the full geometry payload.
+
 ## Genie
 
 The bundle creates a classic conversational Genie space from
-`config/taxi.geniespace.json`. The service starts conversations, posts follow-ups,
+the `serialized_space` definition in `databricks.yml`. The service starts conversations, posts follow-ups,
 exposes message status, and fetches query attachment results.
 Submission (`POST /api/genie`) returns conversation and message IDs without
 waiting for an answer. Status polling (`GET
@@ -124,7 +165,7 @@ Ask Genie opens a contextual helper over the current page. Desktop users can
 continue interacting with the page or expand the helper for wider query results;
 mobile uses a modal sheet. Chart actions select a specific visualization, while
 the page action includes the overview, visible trip records and their sort/page,
-or the map's ranked ZIPs and coverage. Applied filters are shown before sending.
+or the GPS map's endpoint, selected area and coverage. Applied filters are shown before sending.
 Changing the page, filters, chart metric, or trip pagination invalidates a chart
 selection. Closing and reopening the helper keeps the draft and current selection.
 
@@ -132,9 +173,9 @@ selection. Closing and reopening the helper keeps the draft and current selectio
 24,000 characters. The server labels this as client-provided context rather than
 instructions. Additional analytics query the source table with the current
 filters; visible records and ranked subsets are not treated as the full dataset.
-This demo's Genie space is attached directly to the public NYC sample table;
-custom bundle targets should point the Genie data source at their configured
-snapshot when it needs to share the app's frozen data view.
+The Genie definition is embedded in the bundle so catalog/schema substitutions
+resolve before deployment. Its data source and server-side prompt use the same
+configured `trips_2016` table as app analytics.
 Each saved turn retains its own filters and context alongside the answer.
 The floating helper preserves the existing chart widths and page position.
 
