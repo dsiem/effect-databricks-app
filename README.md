@@ -21,7 +21,7 @@ local development uses the current workspace user's profile when available.
 - **Trip explorer:** date/ZIP filters, server-side sorting and pagination, CSV export
   of the visible page. Open any trip to inspect its details and add shared,
   attributed comments persisted in Lakebase.
-- **GPS activity:** interactive pickup and drop-off density with fine H3 hexagons.
+- **Trip map:** interactive pickup and drop-off density with fine H3 hexagons.
 - **Contextual Genie helper:** open Ask Genie from any page without leaving the
   data. Explain a chart, analyze visible trips, or ask for further analytics with
   the applied date/ZIP filters. Expand the helper for result tables and generated
@@ -31,7 +31,7 @@ local development uses the current workspace user's profile when available.
   Choosing a view applies it on the current page and replaces pending edits.
   The chooser supports paginated browsing of the shared library.
 
-The GPS activity map uses MapLibre GL JS for OpenStreetMap streets and camera
+The trip map uses MapLibre GL JS for OpenStreetMap streets and camera
 control, with deck.gl polygons showing recorded endpoints at H3 resolution 10.
 Its renderer and Vite worker load when the map mounts. Filters and endpoint
 selection update the mounted map while preserving the camera. The map follows

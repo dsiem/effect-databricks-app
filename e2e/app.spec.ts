@@ -43,7 +43,7 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export this page" }).click();
   expect((await download).suggestedFilename()).toBe("taxi-trips-page-2.csv");
-  await page.getByRole("link", { name: "GPS activity", exact: true }).click();
+  await page.getByRole("link", { name: "Trip map", exact: true }).click();
   await expect(
     page.getByRole("region", { name: "GPS pickups density map" }),
   ).toHaveAttribute("data-gps-ready", "true", { timeout: 120_000 });
@@ -65,7 +65,7 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByLabel("Open navigation").click();
   await expect(
-    page.getByRole("link", { name: "GPS activity", exact: true }),
+    page.getByRole("link", { name: "Trip map", exact: true }),
   ).toBeVisible();
   await page.getByLabel("Close navigation", { exact: true }).last().click();
   await expect(

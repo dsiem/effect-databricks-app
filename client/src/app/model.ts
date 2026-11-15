@@ -37,7 +37,7 @@ export const requestKey = (model: Model) =>
 export const navigation = [
   { path: "/", label: "Overview", icon: "layout-dashboard" },
   { path: "/trips", label: "Trip explorer", icon: "table-2" },
-  { path: "/gps-map", label: "GPS activity", icon: "activity" },
+  { path: "/gps-map", label: "Trip map", icon: "map" },
 ] as const;
 export const pageContext = (model: Model): D.GenieContext => {
   const overview = model.overviewState.overview.data;

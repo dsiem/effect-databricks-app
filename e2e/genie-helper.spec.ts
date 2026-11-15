@@ -285,7 +285,7 @@ test("an open helper follows navigation to the map and includes geographic cover
   });
   await page.goto(`/?${query}`);
   const helper = await openHelper(page);
-  await page.getByRole("link", { name: "GPS activity", exact: true }).click();
+  await page.getByRole("link", { name: "Trip map", exact: true }).click();
   await expect(page).toHaveURL(`/gps-map?${query}`);
   await expect(helper.getByRole("region")).toContainText("GPS pickups");
   await expect(helper.getByRole("region")).toContainText(

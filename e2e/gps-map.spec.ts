@@ -41,7 +41,7 @@ test("GPS map selects areas by keyboard and pointer and switches endpoints witho
   const map = await ready(page);
   const navigation = page.getByRole("navigation", { name: "Main navigation" });
   await expect(
-    navigation.getByRole("link", { name: "GPS activity", exact: true }),
+    navigation.getByRole("link", { name: "Trip map", exact: true }),
   ).toHaveCount(1);
   await expect(
     navigation.getByRole("link", { name: "Pickup map", exact: true }),
@@ -205,7 +205,7 @@ test("selected GPS area reaches Genie with the correct endpoint and coverage", a
     .getByRole("button", { name: "Area 1, 60 pickups", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Ask Genie about GPS activity", exact: true })
+    .getByRole("button", { name: "Ask Genie about trip hotspots", exact: true })
     .click();
   await expect(
     page.getByRole("textbox", { name: "Ask a question about taxi data" }),
@@ -218,7 +218,7 @@ test("selected GPS area reaches Genie with the correct endpoint and coverage", a
 });
 
 for (const width of [390, 1440])
-  test(`GPS activity fits ${width}px in light and dark themes`, async ({
+  test(`Trip map fits ${width}px in light and dark themes`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 1000 });

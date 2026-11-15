@@ -128,7 +128,7 @@ automatically retried: a missing response can represent a completed operation.
 The HTTP server uses app identity access. Per-viewer Databricks user authorization
 is a separate extension; saved views and trip comments are intentionally shared.
 
-## GPS activity
+## Trip map
 
 `GET /api/gps-activity` accepts the shared pickup date/ZIP filters and a pickup
 or dropoff endpoint. The warehouse groups original coordinates into H3

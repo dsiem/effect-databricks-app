@@ -21,13 +21,13 @@ export type ViewModel = Model & { query: string };
 function gpsMap(h: H, model: ViewModel): Child[] {
   const heading = title(
     h,
-    "GPS activity",
+    "Trip hotspots",
     "See where journeys begin and end, beyond ZIP boundaries.",
     [badge(h, "NYC yellow taxis")],
   );
   const activity = model.activity;
   if (!activity.data && activity.loading)
-    return [heading, loading(h, "Loading recorded GPS activity…")];
+    return [heading, loading(h, "Loading trip map…")];
   if (activity.error || model.mapError)
     return [heading, error(h, activity.error || model.mapError, M.Reload())];
   const data = activity.data;
@@ -107,7 +107,7 @@ function gpsMap(h: H, model: ViewModel): Child[] {
                                 h,
                                 (context, question) =>
                                   M.Analyze({ context, question }),
-                                "Ask Genie about GPS activity",
+                                "Ask Genie about trip hotspots",
                                 analysis,
                                 "Explain the spatial pattern and the selected area, including any limits of this map.",
                               ),
@@ -200,7 +200,7 @@ function gpsMap(h: H, model: ViewModel): Child[] {
             ? [
                 card(
                   h,
-                  [h.p([h.Class("muted text-sm")], ["Updating GPS activity…"])],
+                  [h.p([h.Class("muted text-sm")], ["Updating trip map…"])],
                   "p-5",
                 ),
               ]
