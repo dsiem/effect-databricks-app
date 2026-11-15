@@ -1,4 +1,5 @@
 import { Dialog, Textarea } from "@foldkit/ui";
+import type { HtmlBuilder } from "foldkit/html";
 import { defineView } from "foldkit/submodel";
 import { money } from "../../lib/format";
 import { dialog } from "../../ui/dialog";
@@ -11,14 +12,15 @@ import {
   error,
   loading,
 } from "../../ui/primitives";
-import type { H } from "./view-messages";
-import { Message as M } from "./view-messages";
-import type { ViewModel as Model } from "./view-model";
+import { Message as M } from "./messages";
+import type { Model } from "./model";
+
+type H = HtmlBuilder<typeof M.Type>;
 
 const close = (h: H, label = "Close") =>
   button(h, {
     label: icon(h, "x"),
-    onClick: M.CloseOverlay(),
+    onClick: M.CloseTrip(),
     attributes: [h.AriaLabel(label)],
     className: " dialog-close",
     variant: "ghost",
@@ -115,8 +117,8 @@ function inspector(h: H, model: Model) {
               : []),
           ];
   return dialog(h, {
-    model: model.dialogs.trip,
-    onMessage: (message) => M.Dialog({ id: "trip", message }),
+    model: model.inspectorDialog,
+    onMessage: (message) => M.InspectorDialog({ message }),
     className: "workspace-dialog sheet trip-inspector",
     children: [
       close(h),
@@ -124,7 +126,7 @@ function inspector(h: H, model: Model) {
         [h.Class("dialog-header")],
         [
           h.h2(
-            [h.Id(Dialog.titleId(model.dialogs.trip)), h.Tabindex(-1)],
+            [h.Id(Dialog.titleId(model.inspectorDialog)), h.Tabindex(-1)],
             ["Trip details"],
           ),
           h.p(

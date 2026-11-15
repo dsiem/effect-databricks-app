@@ -1,9 +1,13 @@
+import { Dialog } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
 import { CommentDraft, Sort } from "./model";
 
 export const messages = {
+  CloseTrip: {},
+  ResetTrips: {},
+  InspectorDialog: { message: Dialog.Message },
   LoadedTrips: {
     key: Schema.String,
     data: Schema.NullOr(D.Trips),

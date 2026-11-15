@@ -1,11 +1,11 @@
 import { DatePicker } from "@foldkit/ui";
 import { Command, type Update } from "foldkit";
+import { filterError, filtersFromQuery, queryFor } from "../../domain/filters";
 import type { FeatureUpdate } from "../../lib/feature-update";
 import { isoDay } from "../../lib/format";
 import { focusOnOpen, type Metadata, reset, syncDates } from "./dates";
 import { Message as M, type Message } from "./messages";
 import type { Model } from "./model";
-import { filterError, filtersFromQuery, queryFor } from "./query";
 export function updateFilters(
   model: Model,
   message: Message,

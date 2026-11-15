@@ -1,6 +1,8 @@
-import type { Command } from "foldkit";
+import { Dialog } from "@foldkit/ui";
+import { Command } from "foldkit";
 import type * as D from "../../../../shared/domain";
 import type { ApiClient } from "../../lib/api-client";
+import { syncDialog } from "../../lib/dialog";
 import type { FeatureUpdate } from "../../lib/feature-update";
 import * as GenieCommands from "./commands";
 import { Message as M, type Message } from "./messages";
@@ -13,6 +15,39 @@ export function updateGenie(
   switch (message._tag) {
     case "Idle":
       return { model };
+    case "RestoredConversation":
+      return {
+        model: {
+          ...model,
+          turns: message.turns,
+          persistenceError: message.persistenceError,
+        },
+        commands: message.turns.flatMap<
+          Command.Command<Message, never, ApiClient>
+        >((turn) =>
+          turn.state === "waiting"
+            ? [GenieCommands.PollQuestion({ turn })]
+            : turn.state === "retrieving"
+              ? [GenieCommands.RetrieveQuestion({ turn })]
+              : [],
+        ),
+      };
+    case "CloseGenie":
+      return { model: { ...model, genieOpen: false } };
+    case "GenieDialog": {
+      const changed = Dialog.update(model.helperDialog, message.message);
+      return {
+        model: {
+          ...model,
+          helperDialog: changed.model,
+          genieOpen:
+            changed.outMessage?._tag === "Closed" ? false : model.genieOpen,
+        },
+        commands: (changed.commands ?? []).map((command) =>
+          Command.mapMessage(command, (message) => M.GenieDialog({ message })),
+        ),
+      };
+    }
     case "OpenGenie":
       return {
         model: {
@@ -129,3 +164,17 @@ export type Context = {
 export type Out =
   | { readonly _tag: "Opened" }
   | { readonly _tag: "FocusComposer" };
+
+/** The shell supplies presentation context; the feature owns the modal lifecycle. */
+export function presentGenie(
+  model: Model,
+  modal: boolean,
+): FeatureUpdate<Model, Message> {
+  const dialog = syncDialog(model.helperDialog, modal && model.genieOpen);
+  return {
+    model: { ...model, helperDialog: dialog.model },
+    commands: (dialog.commands ?? []).map((command) =>
+      Command.mapMessage(command, (message) => M.GenieDialog({ message })),
+    ),
+  };
+}

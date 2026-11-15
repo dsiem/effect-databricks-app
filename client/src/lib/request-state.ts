@@ -6,5 +6,9 @@ export const request = <S extends Schema.Top>(data: S) =>
     loading: Schema.Boolean,
   });
 
+export type RequestState<S extends Schema.Top> = ReturnType<
+  typeof request<S>
+>["Type"];
+
 export const empty = { data: null, error: "", loading: false };
 export const pending = { ...empty, loading: true };

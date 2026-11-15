@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import * as D from "../../../../shared/domain";
+import * as D from "../../../shared/domain";
 export const filtersFromQuery = (query: string) => {
   const parsed = Schema.decodeUnknownOption(D.Filters)(
     Object.fromEntries(new URLSearchParams(query)),

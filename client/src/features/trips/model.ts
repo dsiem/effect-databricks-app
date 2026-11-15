@@ -1,3 +1,4 @@
+import { Dialog } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as D from "../../../../shared/domain";
 import { empty, request } from "../../lib/request-state";
@@ -7,6 +8,7 @@ export const CommentDraft = Schema.Struct({
   body: Schema.String,
 });
 export const Model = Schema.Struct({
+  inspectorDialog: Dialog.Model,
   trips: request(D.Trips),
   page: Schema.Number,
   sort: Sort,
@@ -21,6 +23,10 @@ export const Model = Schema.Struct({
 export type Model = typeof Model.Type;
 
 export const init = (): Model => ({
+  inspectorDialog: Dialog.init({
+    id: "trip-details",
+    focusSelector: "#trip-details-dialog-title",
+  }),
   trips: empty,
   page: 1,
   sort: "newest",

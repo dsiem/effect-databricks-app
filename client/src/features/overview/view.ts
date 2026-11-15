@@ -1,4 +1,6 @@
 import { defineView } from "foldkit/submodel";
+import { ask } from "../../domain/analysis";
+import { filtersFromQuery, href, queryFor } from "../../domain/filters";
 import { compact, money, number } from "../../lib/format";
 import { chart } from "../../ui/chart";
 import { icon } from "../../ui/icons";
@@ -13,8 +15,6 @@ import {
   table,
   title,
 } from "../../ui/primitives";
-import { filtersFromQuery, href, queryFor } from "../filters/query";
-import { ask } from "../genie/ask";
 import { MetricTabs } from "./metric-tabs";
 import type { H } from "./view-messages";
 import { Message as M } from "./view-messages";
@@ -28,7 +28,7 @@ function overview(h: H, model: Model): Child[] {
   );
   if (model.overview.loading) return [heading, loading(h)];
   if (model.overview.error)
-    return [heading, error(h, model.overview.error, M.LoadPage())];
+    return [heading, error(h, model.overview.error, M.Reload())];
   const data = model.overview.data;
   if (!data) return [heading];
   const { summary, daily, hourly, zones, queriedAt } = data;
@@ -101,7 +101,7 @@ function overview(h: H, model: Model): Child[] {
                               ask(
                                 h,
                                 (context, question) =>
-                                  M.OpenGenie({ context, question }),
+                                  M.Analyze({ context, question }),
                                 `Ask Genie about ${dailyTitle.toLowerCase()}`,
                                 {
                                   page: "overview",
@@ -168,7 +168,7 @@ function overview(h: H, model: Model): Child[] {
                   actions: [
                     ask(
                       h,
-                      (context, question) => M.OpenGenie({ context, question }),
+                      (context, question) => M.Analyze({ context, question }),
                       "Ask Genie about pickup hours",
                       {
                         page: "overview",
@@ -205,7 +205,7 @@ function overview(h: H, model: Model): Child[] {
                   actions: [
                     ask(
                       h,
-                      (context, question) => M.OpenGenie({ context, question }),
+                      (context, question) => M.Analyze({ context, question }),
                       "Ask Genie about top pickup ZIP codes",
                       {
                         page: "overview",
@@ -279,7 +279,7 @@ function overview(h: H, model: Model): Child[] {
                       [h.Class("inline-flex items-center gap-2")],
                       ["Explore with Genie", icon(h, "arrow-up-right")],
                     ),
-                    onClick: M.OpenGenie({
+                    onClick: M.Analyze({
                       context: null,
                       question:
                         "Compare weekday and weekend trip activity for this view.",

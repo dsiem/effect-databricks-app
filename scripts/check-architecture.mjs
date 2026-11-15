@@ -58,12 +58,32 @@ for (const [file, source] of sources) {
     }
     if (
       (file.startsWith("client/src/features/") ||
-        file.startsWith("client/src/lib/")) &&
+        file.startsWith("client/src/lib/") ||
+        file.startsWith("client/src/domain/")) &&
       target
     ) {
       check(
         !target.startsWith("client/src/app/"),
         "features and client helpers must not depend on the application composition",
+      );
+    }
+    if (
+      file.startsWith("client/src/features/") &&
+      target?.startsWith("client/src/features/")
+    ) {
+      check(
+        file.split("/")[3] === target.split("/")[3],
+        "features must not import sibling features; compose their contracts in app/ or share domain helpers",
+      );
+    }
+    if (
+      (file.startsWith("client/src/lib/") ||
+        file.startsWith("client/src/domain/")) &&
+      target
+    ) {
+      check(
+        !target.startsWith("client/src/features/"),
+        "shared helpers must not depend on feature implementations",
       );
     }
     if (file.startsWith("client/src/ui/") && target) {

@@ -1,7 +1,10 @@
+import { Dialog } from "@foldkit/ui";
+import { Command } from "foldkit";
+import { syncDialog } from "../../lib/dialog";
 import type { FeatureUpdate } from "../../lib/feature-update";
 import { empty } from "../../lib/request-state";
 import * as TripsCommands from "./commands";
-import type { Message } from "./messages";
+import { Message as M, type Message } from "./messages";
 import type { Model } from "./model";
 
 const comments = (
@@ -23,7 +26,7 @@ const comments = (
         ],
       }
     : { model };
-export function updateTrips(
+function updateTripsState(
   model: Model,
   message: Message,
   context: Context,
@@ -31,6 +34,28 @@ export function updateTrips(
   switch (message._tag) {
     case "Idle":
       return { model };
+    case "ResetTrips":
+      return {
+        model: { ...model, page: 1, sort: "newest", selectedTrip: null },
+      };
+    case "CloseTrip":
+      return { model: { ...model, selectedTrip: null } };
+    case "InspectorDialog": {
+      const changed = Dialog.update(model.inspectorDialog, message.message);
+      return {
+        model: {
+          ...model,
+          inspectorDialog: changed.model,
+          selectedTrip:
+            changed.outMessage?._tag === "Closed" ? null : model.selectedTrip,
+        },
+        commands: (changed.commands ?? []).map((command) =>
+          Command.mapMessage(command, (message) =>
+            M.InspectorDialog({ message }),
+          ),
+        ),
+      };
+    }
     case "LoadedTrips":
       return message.key !== context.requestKey
         ? { model }
@@ -182,3 +207,27 @@ export type Context = { readonly requestKey: string };
 export type Out =
   | { readonly _tag: "Reload" }
   | { readonly _tag: "SelectionInvalidated" };
+
+export function updateTrips(
+  model: Model,
+  message: Message,
+  context: Context,
+): FeatureUpdate<Model, Message, Out> {
+  const result = updateTripsState(model, message, context);
+  const dialog = syncDialog(
+    result.model.inspectorDialog,
+    result.model.selectedTrip !== null,
+  );
+  return {
+    ...result,
+    model: { ...result.model, inspectorDialog: dialog.model },
+    commands: [
+      ...(result.commands ?? []),
+      ...(dialog.commands ?? []).map((command) =>
+        Command.mapMessage(command, (message) =>
+          M.InspectorDialog({ message }),
+        ),
+      ),
+    ],
+  };
+}

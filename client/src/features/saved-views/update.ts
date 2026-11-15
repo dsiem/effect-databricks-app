@@ -1,8 +1,9 @@
-import { Popover } from "@foldkit/ui";
+import { Dialog, Popover } from "@foldkit/ui";
 import { Command, type Update } from "foldkit";
 import type * as D from "../../../../shared/domain";
+import { queryFor } from "../../domain/filters";
+import { syncDialog } from "../../lib/dialog";
 import type { FeatureUpdate } from "../../lib/feature-update";
-import { queryFor } from "../filters/query";
 import * as SavedViewsCommands from "./commands";
 import { Message as M, type Message } from "./messages";
 import type { Model } from "./model";
@@ -36,7 +37,7 @@ const loadNotes = (
     }),
   ],
 });
-export function updateSavedViews(
+function updateSavedViewsState(
   model: Model,
   message: Message,
   context: Context,
@@ -44,6 +45,53 @@ export function updateSavedViews(
   switch (message._tag) {
     case "Idle":
       return { model };
+    case "CloseNote":
+      return model.editor?.saving
+        ? { model }
+        : { model: { ...model, editor: null } };
+    case "CloseDelete":
+      return model.noteBusy
+        ? { model }
+        : { model: { ...model, deleting: null } };
+    case "NoteDialog":
+    case "DeleteDialog": {
+      const id = message._tag === "NoteDialog" ? "note" : "delete";
+      const busy = id === "note" ? model.editor?.saving : model.noteBusy;
+      if (busy && message.message._tag === "RequestedClose") return { model };
+      const changed = Dialog.update(model.dialogs[id], message.message);
+      const commands: Command.Command<Message>[] = (changed.commands ?? []).map(
+        (command) =>
+          Command.mapMessage(command, (message) =>
+            id === "note"
+              ? M.NoteDialog({ message })
+              : M.DeleteDialog({ message }),
+          ),
+      );
+      // Deletion removes the opener. Restore focus after the dialog releases it.
+      if (
+        id === "delete" &&
+        message.message._tag === "CompletedCloseDialog" &&
+        model.picker.isOpen
+      )
+        commands.push(
+          Command.mapMessage(
+            Popover.FocusPanel({ id: model.picker.id }),
+            (message) => M.SavedViewsPicker({ message }),
+          ),
+        );
+      return {
+        model: {
+          ...model,
+          dialogs: { ...model.dialogs, [id]: changed.model },
+          ...(changed.outMessage?._tag === "Closed"
+            ? id === "note"
+              ? { editor: null }
+              : { deleting: null }
+            : {}),
+        },
+        commands,
+      };
+    }
     case "SavedViewsPicker": {
       const changed = Popover.update(model.picker, message.message);
       const folded = foldPicker(model, changed);
@@ -235,3 +283,35 @@ export type Out = {
   readonly _tag: "RestoreFilters";
   readonly filters: D.Filters;
 };
+
+export function updateSavedViews(
+  model: Model,
+  message: Message,
+  context: Context,
+): FeatureUpdate<Model, Message, Out> {
+  const result = updateSavedViewsState(model, message, context);
+  const note = syncDialog(
+    result.model.dialogs.note,
+    result.model.editor !== null,
+  );
+  const deletion = syncDialog(
+    result.model.dialogs.delete,
+    result.model.deleting !== null,
+  );
+  return {
+    ...result,
+    model: {
+      ...result.model,
+      dialogs: { note: note.model, delete: deletion.model },
+    },
+    commands: [
+      ...(result.commands ?? []),
+      ...(note.commands ?? []).map((command) =>
+        Command.mapMessage(command, (message) => M.NoteDialog({ message })),
+      ),
+      ...(deletion.commands ?? []).map((command) =>
+        Command.mapMessage(command, (message) => M.DeleteDialog({ message })),
+      ),
+    ],
+  };
+}

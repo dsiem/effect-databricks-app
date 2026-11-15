@@ -3,11 +3,11 @@ import { Option } from "effect";
 import { defineView } from "foldkit/submodel";
 import { Lexer, type MarkedToken, type Token } from "marked";
 import type { GenieReply } from "../../../../shared/domain";
+import { filterSummary } from "../../domain/filter-summary";
+import { filtersFromQuery } from "../../domain/filters";
 import { dialog } from "../../ui/dialog";
 import { icon } from "../../ui/icons";
 import { alert, button, type Child, table } from "../../ui/primitives";
-import { filtersFromQuery } from "../filters/query";
-import { filterSummary } from "../filters/summary";
 import { PanelReturnFocus } from "./focus";
 import { busy } from "./model";
 import type { H } from "./view-messages";
@@ -196,7 +196,7 @@ function genie(h: H, model: Model, floating = false) {
                   [
                     h.Id(
                       floating && model.mobile
-                        ? Dialog.titleId(model.dialogs.genie)
+                        ? Dialog.titleId(model.helperDialog)
                         : "genie-title",
                     ),
                   ],
@@ -235,7 +235,7 @@ function genie(h: H, model: Model, floating = false) {
                   }),
                   button(h, {
                     label: icon(h, "x"),
-                    onClick: M.CloseOverlay(),
+                    onClick: M.CloseGenie(),
                     attributes: [h.AriaLabel("Close Genie")],
                     variant: "ghost",
                   }),
@@ -489,8 +489,8 @@ function genie(h: H, model: Model, floating = false) {
   const classes = `genie-panel ${model.genieExpanded ? "expanded" : ""}`;
   if (model.mobile)
     return dialog(h, {
-      model: model.dialogs.genie,
-      onMessage: (message) => M.Dialog({ id: "genie", message }),
+      model: model.helperDialog,
+      onMessage: (message) => M.GenieDialog({ message }),
       className: classes,
       children: content,
     });
@@ -503,7 +503,7 @@ function genie(h: H, model: Model, floating = false) {
       h.AriaLabelledBy("genie-title"),
       h.Class(classes),
       h.OnKeyDownPreventDefault((key) =>
-        key === "Escape" ? Option.some(M.CloseOverlay()) : Option.none(),
+        key === "Escape" ? Option.some(M.CloseGenie()) : Option.none(),
       ),
     ],
     content,

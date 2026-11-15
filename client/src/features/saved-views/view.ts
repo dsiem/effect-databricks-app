@@ -1,21 +1,21 @@
 import { Dialog, Popover, Textarea } from "@foldkit/ui";
 import { defineView } from "foldkit/submodel";
+import { filterSummary } from "../../domain/filter-summary";
+import { filtersFromQuery, queryFor } from "../../domain/filters";
 import { dialog } from "../../ui/dialog";
 import { field } from "../../ui/field";
 import { icon } from "../../ui/icons";
 import { alert, button, type Child, error, loading } from "../../ui/primitives";
 import { viewOption, viewPicker } from "../../ui/view-picker";
-import { filtersFromQuery, queryFor } from "../filters/query";
-import { filterSummary } from "../filters/summary";
+import type { Model } from "./model";
 import { appliedView } from "./selection";
 import type { H } from "./view-messages";
 import { Message as M } from "./view-messages";
-import type { ViewModel as Model } from "./view-model";
 
 const close = (h: H, label = "Close") =>
   button(h, {
     label: icon(h, "x"),
-    onClick: M.CloseOverlay(),
+    onClick: M.CloseNote(),
     attributes: [h.AriaLabel(label)],
     className: " dialog-close",
     variant: "ghost",
@@ -194,7 +194,7 @@ function editor(h: H, model: Model) {
   const name = draft.version !== null ? "Edit saved view" : "Save this view";
   return dialog(h, {
     model: model.dialogs.note,
-    onMessage: (message) => M.Dialog({ id: "note", message }),
+    onMessage: (message) => M.NoteDialog({ message }),
     className: "workspace-dialog note-dialog",
     children: [
       close(h),
@@ -265,7 +265,7 @@ function editor(h: H, model: Model) {
             [
               button(h, {
                 label: "Cancel",
-                onClick: M.CloseOverlay(),
+                onClick: M.CloseNote(),
                 disabled: saving,
               }),
               button(h, {
@@ -284,7 +284,7 @@ function editor(h: H, model: Model) {
 function deleteDialog(h: H, model: Model) {
   return dialog(h, {
     model: model.dialogs.delete,
-    onMessage: (message) => M.Dialog({ id: "delete", message }),
+    onMessage: (message) => M.DeleteDialog({ message }),
     className: "workspace-dialog note-dialog",
     children: [
       h.div(
@@ -308,7 +308,7 @@ function deleteDialog(h: H, model: Model) {
         [
           button(h, {
             label: "Cancel",
-            onClick: M.CloseOverlay(),
+            onClick: M.CloseDelete(),
             disabled: model.noteBusy,
           }),
           button(h, {

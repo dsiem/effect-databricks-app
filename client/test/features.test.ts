@@ -1,24 +1,281 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { Dialog, Tabs } from "@foldkit/ui";
 import { Option } from "effect";
 import { Url } from "foldkit";
 import { Message as AppMessage } from "../src/app/message";
 import { init, update } from "../src/app/update";
+import { exploreMessage } from "../src/app/view-messages";
 import { Message as FilterMessage } from "../src/features/filters/messages";
 import * as Filters from "../src/features/filters/model";
 import { updateFilters } from "../src/features/filters/update";
 import { Message as GenieMessage } from "../src/features/genie/messages";
 import * as Genie from "../src/features/genie/model";
-import { updateGenie } from "../src/features/genie/update";
+import { presentGenie, updateGenie } from "../src/features/genie/update";
+import { Message as MapViewMessage } from "../src/features/map/view-messages";
 import { Message as OverviewMessage } from "../src/features/overview/messages";
 import * as Overview from "../src/features/overview/model";
 import { updateOverview } from "../src/features/overview/update";
 import { Message as SavedMessage } from "../src/features/saved-views/messages";
 import * as SavedViews from "../src/features/saved-views/model";
 import { updateSavedViews } from "../src/features/saved-views/update";
+import { Message as TripMessage } from "../src/features/trips/messages";
+import * as Trips from "../src/features/trips/model";
+import { updateTrips } from "../src/features/trips/update";
+import { Message as TripViewMessage } from "../src/features/trips/view-messages";
 
 const app = (path: string) =>
   init(Option.getOrThrow(Url.fromString(`http://localhost${path}`))).model;
+
+const trip = {
+  trip_id: "trip-1",
+  pickup_at: "2016-01-01 10:00:00",
+  dropoff_at: "2016-01-01 10:15:00",
+  pickup_zip: "10001",
+  dropoff_zip: "10019",
+  distance: 2,
+  fare: 12,
+  duration: 15,
+};
+
+test("overview owns metric selection and asks the shell to invalidate analysis", () => {
+  const message = OverviewMessage.MetricTabs({
+    message: Tabs.Message.SelectedTab({ index: 1, value: "revenue" }),
+  });
+  const changed = updateOverview(Overview.init(), message, {
+    requestKey: "current",
+  });
+  assert.equal(changed.model.series, "revenue");
+  assert.deepEqual(changed.outMessage, { _tag: "SelectionInvalidated" });
+  const model = app("/");
+  const coordinated = update(
+    {
+      ...model,
+      genieState: {
+        ...model.genieState,
+        genieSelection: { page: "overview", title: "Trip counts" },
+      },
+    },
+    message,
+  );
+  assert.equal(coordinated.model.overviewState.series, "revenue");
+  assert.equal(coordinated.model.genieState.genieSelection, null);
+});
+
+test("view intents are translated by the shell with their analysis scope intact", () => {
+  const context = {
+    page: "trips" as const,
+    title: "Selected trips",
+    data: "[]",
+  };
+  const changed = update(
+    app("/trips"),
+    exploreMessage(
+      TripViewMessage.Analyze({ context, question: "Explain these fares" }),
+    ),
+  );
+  assert.equal(changed.model.genieState.genieOpen, true);
+  assert.deepEqual(changed.model.genieState.genieSelection, context);
+  assert.equal(changed.model.genieState.genieDraft, "Explain these fares");
+  const picked = update(
+    app("/map"),
+    exploreMessage(MapViewMessage.SelectZip({ zip: "10019" })),
+  );
+  assert.ok(
+    picked.commands?.some((command) => command.args?.href === "/map?zip=10019"),
+  );
+  const navigated = update(
+    picked.model,
+    AppMessage.Navigated({ path: "/map", query: "zip=10019" }),
+  );
+  assert.equal(navigated.model.filtersState.filterDraft.zip, "10019");
+});
+
+test("a standalone trip feature closes its inspector and ignores late comments", () => {
+  const context = { requestKey: "current" };
+  const opened = updateTrips(
+    Trips.init(),
+    TripMessage.InspectTrip({ trip }),
+    context,
+  );
+  assert.equal(opened.model.inspectorDialog.isOpen, true);
+  const closed = updateTrips(
+    opened.model,
+    TripMessage.InspectorDialog({ message: Dialog.Message.RequestedClose() }),
+    context,
+  );
+  assert.equal(closed.model.selectedTrip, null);
+  assert.equal(closed.model.inspectorDialog.isOpen, false);
+  assert.ok(closed.commands?.some((command) => command.name === "CloseDialog"));
+  const late = updateTrips(
+    closed.model,
+    TripMessage.LoadedComments({
+      tripId: trip.trip_id,
+      data: { rows: [], nextCursor: null },
+      error: "",
+      more: false,
+    }),
+    context,
+  );
+  assert.equal(late.model.selectedTrip, null);
+  assert.equal(late.model.inspectorDialog.isOpen, false);
+});
+
+test("navigation retains the trip feature's dialog cleanup commands", () => {
+  const opened = update(app("/trips"), AppMessage.InspectTrip({ trip }));
+  const navigated = update(
+    opened.model,
+    AppMessage.Navigated({ path: "/", query: "" }),
+  );
+  assert.equal(navigated.model.tripsState.selectedTrip, null);
+  assert.equal(navigated.model.tripsState.inspectorDialog.isOpen, false);
+  assert.ok(
+    navigated.commands?.some((command) => command.name === "CloseDialog"),
+  );
+});
+
+test("saved views own editor dismissal and prevent closing an in-flight save", () => {
+  const context = { filters: {} };
+  const created = updateSavedViews(
+    SavedViews.init(),
+    SavedMessage.CreatedNote({ id: "draft" }),
+    context,
+  );
+  assert.equal(created.model.dialogs.note.isOpen, true);
+  const named = updateSavedViews(
+    created.model,
+    SavedMessage.NoteChanged({ field: "title", value: "My view" }),
+    context,
+  );
+  const saving = updateSavedViews(
+    named.model,
+    SavedMessage.SaveNote(),
+    context,
+  );
+  for (const message of [
+    SavedMessage.CloseNote(),
+    SavedMessage.NoteDialog({ message: Dialog.Message.RequestedClose() }),
+  ]) {
+    const blocked = updateSavedViews(saving.model, message, context);
+    assert.equal(blocked.model.editor?.saving, true);
+    assert.equal(blocked.model.dialogs.note.isOpen, true);
+  }
+  const failed = updateSavedViews(
+    saving.model,
+    SavedMessage.SavedNote({ note: null, error: "Try again" }),
+    context,
+  );
+  const closed = updateSavedViews(
+    failed.model,
+    SavedMessage.CloseNote(),
+    context,
+  );
+  assert.equal(closed.model.editor, null);
+  assert.equal(closed.model.dialogs.note.isOpen, false);
+});
+
+test("saved views keep deletion open during a write and close it after success", () => {
+  const context = { filters: {} };
+  const note = {
+    id: "8aa0cc1a-6033-4fd0-9a61-908958570382",
+    title: "View",
+    body: "",
+    filters: {},
+    version: 1,
+    pinned: false,
+    created_at: "",
+    updated_at: "",
+  };
+  const opened = updateSavedViews(
+    SavedViews.init(),
+    SavedMessage.DeleteNote({ note }),
+    context,
+  );
+  assert.equal(opened.model.dialogs.delete.isOpen, true);
+  const busy = updateSavedViews(
+    opened.model,
+    SavedMessage.ConfirmDelete(),
+    context,
+  );
+  for (const message of [
+    SavedMessage.CloseDelete(),
+    SavedMessage.DeleteDialog({ message: Dialog.Message.RequestedClose() }),
+  ]) {
+    const blocked = updateSavedViews(busy.model, message, context);
+    assert.equal(blocked.model.deleting?.id, note.id);
+    assert.equal(blocked.model.dialogs.delete.isOpen, true);
+  }
+  const deleted = updateSavedViews(
+    busy.model,
+    SavedMessage.MutatedNote({ removed: true, error: "" }),
+    context,
+  );
+  assert.equal(deleted.model.deleting, null);
+  assert.equal(deleted.model.dialogs.delete.isOpen, false);
+});
+
+test("Genie owns its modal presentation without discarding the conversation on resize", () => {
+  const context = {
+    filters: {},
+    context: { page: "trips" as const, title: "Trips" },
+    enabled: true,
+  };
+  const opened = updateGenie(
+    Genie.init(),
+    GenieMessage.OpenGenie({ context: null, question: "Explain" }),
+    context,
+  );
+  const mobile = presentGenie(opened.model, true);
+  assert.equal(mobile.model.helperDialog.isOpen, true);
+  const desktop = presentGenie(mobile.model, false);
+  assert.equal(desktop.model.helperDialog.isOpen, false);
+  assert.equal(desktop.model.genieOpen, true);
+  assert.equal(desktop.model.genieDraft, "Explain");
+  const remounted = presentGenie(desktop.model, true);
+  const closed = updateGenie(
+    remounted.model,
+    GenieMessage.GenieDialog({ message: Dialog.Message.RequestedClose() }),
+    context,
+  );
+  assert.equal(closed.model.genieOpen, false);
+  assert.equal(closed.model.helperDialog.isOpen, false);
+});
+
+test("Genie resumes restored reads without replaying conversation submissions", () => {
+  const context = {
+    filters: {},
+    context: { page: "genie" as const, title: "Analysis" },
+    enabled: true,
+  };
+  const operation = { conversationId: "conversation", messageId: "message" };
+  const restored = updateGenie(
+    Genie.init(),
+    GenieMessage.RestoredConversation({
+      turns: [
+        { id: "waiting", question: "First", state: "waiting", operation },
+        {
+          id: "retrieving",
+          question: "Second",
+          state: "retrieving",
+          operation,
+        },
+        {
+          id: "unknown",
+          question: "Third",
+          state: "submission-unknown",
+          error: "Response lost",
+        },
+      ],
+      persistenceError: "",
+    }),
+    context,
+  );
+  assert.equal(restored.model.turns.length, 3);
+  assert.deepEqual(
+    restored.commands?.map((command) => command.name),
+    ["PollQuestion", "RetrieveQuestion"],
+  );
+});
 
 test("overview accepts only the active response and requests selection invalidation", () => {
   const model = Overview.init();

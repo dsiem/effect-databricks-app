@@ -1,7 +1,8 @@
+import { Schema } from "effect";
 import type { HtmlBuilder } from "foldkit/html";
-import type * as D from "../../../../shared/domain";
-import { icon } from "../../ui/icons";
-import { button } from "../../ui/primitives";
+import * as D from "../../../shared/domain";
+import { icon } from "../ui/icons";
+import { button } from "../ui/primitives";
 
 export const ask = <Message>(
   h: HtmlBuilder<Message>,
@@ -17,3 +18,9 @@ export const ask = <Message>(
     onClick: onOpen(context, question),
     attributes: [h.AriaLabel(label), h.Attribute("title", label)],
   });
+
+// A request to analyze displayed data; the application chooses its recipient.
+export const analysisRequest = {
+  context: Schema.NullOr(D.GenieContext),
+  question: Schema.NullOr(Schema.String),
+};

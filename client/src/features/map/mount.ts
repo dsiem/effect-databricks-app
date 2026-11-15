@@ -36,10 +36,10 @@ export const activityColors = [20, 40, 60, 80, 100].map(
 );
 export const MapMount = Mount.defineStream("PickupMap", {
   args: { zones: Schema.Array(D.Zone), query: Schema.String },
-  messages: [M.MapReady, M.PickZip],
+  messages: [M.MapReady, M.SelectZip],
   execute: ({ element, zones, query, viewStateChanges }) =>
     Stream.callback<
-      ReturnType<typeof M.MapReady> | ReturnType<typeof M.PickZip>
+      ReturnType<typeof M.MapReady> | ReturnType<typeof M.SelectZip>
     >((queue) =>
       Effect.gen(function* () {
         const [L, geography] = yield* Effect.all([
@@ -105,7 +105,7 @@ export const MapMount = Mount.defineStream("PickupMap", {
                         (byZip.get(b)?.trips ?? 0) - (byZip.get(a)?.trips ?? 0),
                     )[0];
                   if (selected)
-                    Queue.offerUnsafe(queue, M.PickZip({ zip: selected }));
+                    Queue.offerUnsafe(queue, M.SelectZip({ zip: selected }));
                 });
               },
             }).addTo(map);

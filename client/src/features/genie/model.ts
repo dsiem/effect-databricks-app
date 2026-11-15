@@ -1,3 +1,4 @@
+import { Dialog } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as D from "../../../../shared/domain";
 export const TurnBase = {
@@ -46,6 +47,7 @@ export const turnBase = ({ id, question, filters, context }: Turn) => ({
 });
 export const History = Schema.Array(Turn);
 export const Model = Schema.Struct({
+  helperDialog: Dialog.Model,
   genieOpen: Schema.Boolean,
   genieExpanded: Schema.Boolean,
   genieDraft: Schema.String,
@@ -63,6 +65,10 @@ export const busy = (model: Model) =>
   );
 
 export const init = (): Model => ({
+  helperDialog: Dialog.init({
+    id: "genie-helper",
+    focusSelector: "#genie-composer",
+  }),
   genieOpen: false,
   genieExpanded: false,
   genieDraft: "",

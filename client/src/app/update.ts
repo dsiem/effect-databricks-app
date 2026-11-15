@@ -2,16 +2,15 @@ import { Dialog, Menu, Tooltip } from "@foldkit/ui";
 import { Option } from "effect";
 import { Command, Update } from "foldkit";
 import type { Url } from "foldkit/url";
+import { filtersFromQuery, href, queryFor } from "../domain/filters";
 import * as FilterDates from "../features/filters/dates";
 import * as Filters from "../features/filters/model";
-import { filtersFromQuery, href, queryFor } from "../features/filters/query";
 import { updateFilters } from "../features/filters/update";
 import * as GenieCommands from "../features/genie/commands";
 import * as Genie from "../features/genie/model";
-import { updateGenie } from "../features/genie/update";
+import { presentGenie, updateGenie } from "../features/genie/update";
 import * as PickupMap from "../features/map/model";
 import { updateMap } from "../features/map/update";
-import { MetricTabs } from "../features/overview/metric-tabs";
 import * as Overview from "../features/overview/model";
 import { updateOverview } from "../features/overview/update";
 import * as SavedViews from "../features/saved-views/model";
@@ -19,13 +18,14 @@ import { updateSavedViews } from "../features/saved-views/update";
 import * as Trips from "../features/trips/model";
 import { updateTrips } from "../features/trips/update";
 import type { ApiClient } from "../lib/api-client";
+import { syncDialog } from "../lib/dialog";
 import { pending } from "../lib/request-state";
 import * as AppCommands from "./commands";
 import { Message as M, type Message } from "./message";
 import { type Model, pageContext, requestKey } from "./model";
 import { loadPage } from "./navigation";
 import { ThemeMenu } from "./theme";
-import { DialogId, initDialogs, initTooltip } from "./ui-state";
+import { initTooltip } from "./ui-state";
 
 export function init(url: Url): Update.Return<Model, Message, ApiClient> {
   const query = Option.getOrElse(url.search, () => "").replace(/^\?/, "");
@@ -39,7 +39,10 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
     mobile: false,
     mobileNavigation: false,
     tooltips: {},
-    dialogs: initDialogs(),
+    navigationDialog: Dialog.init({
+      id: "mobile-navigation",
+      focusSelector: "a",
+    }),
     metadata: pending,
     status: pending,
     user: null,
@@ -56,6 +59,7 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
     commands: [
       ...(loaded.commands ?? []),
       AppCommands.Boot(),
+      GenieCommands.RestoreConversation(),
       AppCommands.LoadMetadata(),
       AppCommands.LoadStatus(),
       AppCommands.LoadUser(),
@@ -75,7 +79,10 @@ function updateApplication(
       if (model.path === message.path && model.query === message.query)
         return { model: { ...model, mobileNavigation: false } };
       const filters = filtersFromQuery(message.query) ?? {};
-      return loadPage({
+      const reset = updateTrips(model.tripsState, M.ResetTrips(), {
+        requestKey: requestKey(model),
+      });
+      const loaded = loadPage({
         ...model,
         path: message.path,
         query: message.query,
@@ -87,14 +94,13 @@ function updateApplication(
           model.metadata.data,
         ),
         savedViewsState: { ...model.savedViewsState, notice: "" },
-        tripsState: {
-          ...model.tripsState,
-          page: 1,
-          sort: "newest",
-          selectedTrip: null,
-        },
+        tripsState: reset.model,
         genieState: { ...model.genieState, genieSelection: null },
       });
+      return {
+        ...loaded,
+        commands: [...(reset.commands ?? []), ...(loaded.commands ?? [])],
+      };
     }
     case "Booted":
       return {
@@ -103,25 +109,12 @@ function updateApplication(
           sidebar: message.sidebar,
           mobile: message.mobile,
           themePreference: message.themePreference,
-          genieState: {
-            ...model.genieState,
-            turns: message.turns,
-            persistenceError: message.persistenceError,
-          },
         },
         commands: [
           AppCommands.SetTheme({
             preference: message.themePreference,
             persist: false,
           }),
-          ...message.turns.flatMap<Command.Command<Message, never, ApiClient>>(
-            (turn) =>
-              turn.state === "waiting"
-                ? [GenieCommands.PollQuestion({ turn })]
-                : turn.state === "retrieving"
-                  ? [GenieCommands.RetrieveQuestion({ turn })]
-                  : [],
-          ),
         ],
       };
     case "ThemeMenu": {
@@ -167,41 +160,8 @@ function updateApplication(
             model: { ...model, sidebar: !model.sidebar, tooltips: {} },
             commands: [AppCommands.PersistSidebar({ open: !model.sidebar })],
           };
-    case "CloseOverlay": {
-      if (model.savedViewsState.editor)
-        return model.savedViewsState.editor.saving
-          ? { model }
-          : {
-              model: {
-                ...model,
-                savedViewsState: { ...model.savedViewsState, editor: null },
-              },
-            };
-      if (model.savedViewsState.deleting)
-        return model.savedViewsState.noteBusy
-          ? { model }
-          : {
-              model: {
-                ...model,
-                savedViewsState: { ...model.savedViewsState, deleting: null },
-              },
-            };
-      if (model.tripsState.selectedTrip)
-        return {
-          model: {
-            ...model,
-            tripsState: { ...model.tripsState, selectedTrip: null },
-          },
-        };
-      if (model.mobileNavigation)
-        return { model: { ...model, mobileNavigation: false } };
-      return {
-        model: {
-          ...model,
-          genieState: { ...model.genieState, genieOpen: false },
-        },
-      };
-    }
+    case "CloseNavigation":
+      return { model: { ...model, mobileNavigation: false } };
     case "Tooltip":
       return Update.foldChild({
         update: Tooltip.update,
@@ -215,59 +175,23 @@ function updateApplication(
           M.Tooltip({ id: message.id, message: child }),
         foldOutMessage: () => (model) => ({ model }),
       })(model, message.message);
-    case "MetricTabs":
-      return Update.foldChild({
-        update: MetricTabs.update,
-        read: (model: Model) => Option.some(model.overviewState.metricTabs),
-        write: (model, metricTabs) => ({
+    case "NavigationDialog": {
+      const changed = Dialog.update(model.navigationDialog, message.message);
+      return {
+        model: {
           ...model,
-          overviewState: { ...model.overviewState, metricTabs },
-        }),
-        toParentMessage: (message) => M.MetricTabs({ message }),
-        foldOutMessage: (out) => (model) => ({
-          model: {
-            ...model,
-            overviewState: { ...model.overviewState, series: out.value },
-            genieState: { ...model.genieState, genieSelection: null },
-          },
-        }),
-      })(model, message.message);
-    case "Dialog": {
-      if (
-        message.message._tag === "RequestedClose" &&
-        ((message.id === "note" && model.savedViewsState.editor?.saving) ||
-          (message.id === "delete" && model.savedViewsState.noteBusy))
-      )
-        return { model };
-      const changed = Update.foldChild({
-        update: Dialog.update,
-        read: (model: Model) => Option.some(model.dialogs[message.id]),
-        write: (model, child) => ({
-          ...model,
-          dialogs: { ...model.dialogs, [message.id]: child },
-        }),
-        toParentMessage: (child) =>
-          M.Dialog({ id: message.id, message: child }),
-        foldOutMessage: (out) => (model) => ({
-          model:
-            out._tag === "Closed" ? dismissDialog(model, message.id) : model,
-        }),
-      })(model, message.message);
-      // Domain-driven closure skips Dialog's Closed output. Restore focus after
-      // its resources are actually released; the deleted opener may be gone.
-      return message.id === "delete" &&
-        message.message._tag === "CompletedCloseDialog" &&
-        changed.model.savedViewsState.picker.isOpen
-        ? {
-            ...changed,
-            commands: [
-              ...(changed.commands ?? []),
-              AppCommands.Focus({
-                selector: `#${changed.model.savedViewsState.picker.id}-panel`,
-              }),
-            ],
-          }
-        : changed;
+          navigationDialog: changed.model,
+          mobileNavigation:
+            changed.outMessage?._tag === "Closed"
+              ? false
+              : model.mobileNavigation,
+        },
+        commands: (changed.commands ?? []).map((command) =>
+          Command.mapMessage(command, (message) =>
+            M.NavigationDialog({ message }),
+          ),
+        ),
+      };
     }
     case "LoadedMetadata":
       return {
@@ -321,6 +245,7 @@ function updateApplication(
           }
         : { model: next, commands: changed.commands ?? [] };
     }
+    case "MetricTabs":
     case "LoadedOverview": {
       const changed = updateOverview(model.overviewState, message, {
         requestKey: requestKey(model),
@@ -336,6 +261,9 @@ function updateApplication(
         commands: changed.commands ?? [],
       };
     }
+    case "CloseTrip":
+    case "ResetTrips":
+    case "InspectorDialog":
     case "SetPage":
     case "SortTrips":
     case "ExportTrips":
@@ -362,6 +290,10 @@ function updateApplication(
         commands: changed.commands ?? [],
       };
     }
+    case "CloseNote":
+    case "CloseDelete":
+    case "NoteDialog":
+    case "DeleteDialog":
     case "SavedViewsPicker":
     case "ClearView":
     case "NewNote":
@@ -408,6 +340,9 @@ function updateApplication(
         ],
       };
     }
+    case "CloseGenie":
+    case "GenieDialog":
+    case "RestoredConversation":
     case "OpenGenie":
     case "ExpandGenie":
     case "ClearSelection":
@@ -450,33 +385,6 @@ function updateApplication(
   }
 }
 
-function dismissDialog(model: Model, id: DialogId): Model {
-  switch (id) {
-    case "note":
-      return {
-        ...model,
-        savedViewsState: { ...model.savedViewsState, editor: null },
-      };
-    case "delete":
-      return {
-        ...model,
-        savedViewsState: { ...model.savedViewsState, deleting: null },
-      };
-    case "trip":
-      return {
-        ...model,
-        tripsState: { ...model.tripsState, selectedTrip: null },
-      };
-    case "navigation":
-      return { ...model, mobileNavigation: false };
-    case "genie":
-      return {
-        ...model,
-        genieState: { ...model.genieState, genieOpen: false },
-      };
-  }
-}
-
 export function update(
   model: Model,
   message: Message,
@@ -494,24 +402,28 @@ export function update(
       ),
     );
   }
-  // Domain state controls visibility; Foldkit owns each dialog's lifecycle.
-  const visibility = {
-    note: next.savedViewsState.editor !== null,
-    delete: next.savedViewsState.deleting !== null,
-    trip: next.tripsState.selectedTrip !== null,
-    navigation: next.mobile && next.mobileNavigation,
-    genie: next.mobile && next.genieState.genieOpen && next.path !== "/genie",
-  };
-  for (const id of DialogId.literals) {
-    const child = next.dialogs[id];
-    if (visibility[id] === child.isOpen) continue;
-    const changed = visibility[id] ? Dialog.open(child) : Dialog.close(child);
-    next = { ...next, dialogs: { ...next.dialogs, [id]: changed.model } };
-    commands.push(
-      ...(changed.commands ?? []).map((command) =>
-        Command.mapMessage(command, (message) => M.Dialog({ id, message })),
+  const navigation = syncDialog(
+    next.navigationDialog,
+    next.mobile && next.mobileNavigation,
+  );
+  const genie = presentGenie(
+    next.genieState,
+    next.mobile && next.path !== "/genie",
+  );
+  return {
+    model: {
+      ...next,
+      navigationDialog: navigation.model,
+      genieState: genie.model,
+    },
+    commands: [
+      ...commands,
+      ...(navigation.commands ?? []).map((command) =>
+        Command.mapMessage(command, (message) =>
+          M.NavigationDialog({ message }),
+        ),
       ),
-    );
-  }
-  return { model: next, commands };
+      ...(genie.commands ?? []),
+    ],
+  };
 }

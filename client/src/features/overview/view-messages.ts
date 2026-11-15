@@ -1,12 +1,12 @@
 import type { HtmlBuilder } from "foldkit/html";
 import { defineMessageUnion } from "foldkit/message";
-import { uiMessages } from "../../lib/ui-messages";
-import { messages as genieMessages } from "../genie/messages";
+import { analysisRequest } from "../../domain/analysis";
 import { messages } from "./messages";
 
 export const Message = defineMessageUnion({
-  ...uiMessages,
+  Idle: {},
   ...messages,
-  OpenGenie: genieMessages.OpenGenie,
+  Analyze: analysisRequest,
+  Reload: {},
 });
 export type H = HtmlBuilder<typeof Message.Type>;

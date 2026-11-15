@@ -1,5 +1,5 @@
 import type { Filters } from "../../../../shared/domain";
-import { queryFor } from "../filters/query";
+import { queryFor } from "../../domain/filters";
 import type { Model } from "./model";
 
 export function appliedView(model: Model, filters: Filters) {

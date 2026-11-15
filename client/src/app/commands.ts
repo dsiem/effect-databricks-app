@@ -1,6 +1,5 @@
 import { Effect, Schema } from "effect";
 import { Calendar, Command, Navigation } from "foldkit";
-import { History, turnBase } from "../features/genie/model";
 import { request } from "../lib/api-client";
 import { done, result } from "../lib/command-result";
 import { Message as M } from "./message";
@@ -19,29 +18,7 @@ export const Navigate = Command.define("Navigate", {
 export const Boot = Command.define("RestoreWorkspace", {
   messages: [M.Booted],
   execute: Effect.sync(() => {
-    let turns: typeof History.Type = [];
-    let persistenceError = "";
-    try {
-      const stored = sessionStorage.getItem("metrocab.genie.v1");
-      if (stored)
-        turns = Schema.decodeUnknownSync(History)(JSON.parse(stored)).map(
-          (turn) =>
-            turn.state === "submitting"
-              ? {
-                  ...turnBase(turn),
-                  state: "submission-unknown" as const,
-                  error:
-                    "The submission response was lost. The question may have been accepted. Check Genie before submitting it again.",
-                }
-              : turn,
-        );
-    } catch {
-      persistenceError =
-        "Conversation recovery is unavailable in this browser session.";
-    }
     return M.Booted({
-      turns,
-      persistenceError,
       sidebar: !document.cookie.split("; ").includes("sidebar_state=false"),
       mobile: matchMedia("(max-width: 767px)").matches,
       themePreference: readThemePreference(),

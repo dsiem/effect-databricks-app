@@ -1,8 +1,8 @@
-import { Menu, Tooltip } from "@foldkit/ui";
+import { Dialog, Menu, Tooltip } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as D from "../../../shared/domain";
+import { href } from "../domain/filters";
 import * as Filters from "../features/filters/model";
-import { href } from "../features/filters/query";
 import * as Genie from "../features/genie/model";
 import * as PickupMap from "../features/map/model";
 import * as Overview from "../features/overview/model";
@@ -10,7 +10,6 @@ import * as SavedViews from "../features/saved-views/model";
 import * as Trips from "../features/trips/model";
 import { request } from "../lib/request-state";
 import { ThemePreference } from "./theme";
-import { Dialogs } from "./ui-state";
 export const Model = Schema.Struct({
   path: Schema.String,
   query: Schema.String,
@@ -20,7 +19,7 @@ export const Model = Schema.Struct({
   mobile: Schema.Boolean,
   mobileNavigation: Schema.Boolean,
   tooltips: Schema.Record(Schema.String, Tooltip.Model),
-  dialogs: Dialogs,
+  navigationDialog: Dialog.Model,
   metadata: request(D.Metadata),
   status: request(D.Status),
   user: Schema.NullOr(D.CurrentUser),

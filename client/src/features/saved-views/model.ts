@@ -1,4 +1,4 @@
-import { Popover } from "@foldkit/ui";
+import { Dialog, Popover } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as D from "../../../../shared/domain";
 import { empty, request } from "../../lib/request-state";
@@ -8,6 +8,7 @@ export const NoteEditor = Schema.Struct({
   error: Schema.String,
 });
 export const Model = Schema.Struct({
+  dialogs: Schema.Struct({ note: Dialog.Model, delete: Dialog.Model }),
   notes: request(D.Notes),
   notePages: Schema.Number,
   picker: Popover.Model,
@@ -28,6 +29,10 @@ export const Model = Schema.Struct({
 export type Model = typeof Model.Type;
 
 export const init = (): Model => ({
+  dialogs: {
+    note: Dialog.init({ id: "note", focusSelector: "#note-title" }),
+    delete: Dialog.init({ id: "delete-note", focusSelector: "button" }),
+  },
   notes: empty,
   notePages: 1,
   picker: Popover.init({

@@ -6,6 +6,32 @@ import { failure, result } from "../../lib/command-result";
 import { randomUuid } from "../../lib/uuid";
 import { Message as M } from "./messages";
 import { History, Turn, turnBase } from "./model";
+export const RestoreConversation = Command.define("RestoreConversation", {
+  messages: [M.RestoredConversation],
+  execute: Effect.sync(() => {
+    let turns: typeof History.Type = [];
+    let persistenceError = "";
+    try {
+      const stored = sessionStorage.getItem("metrocab.genie.v1");
+      if (stored)
+        turns = Schema.decodeUnknownSync(History)(JSON.parse(stored)).map(
+          (turn) =>
+            turn.state === "submitting"
+              ? {
+                  ...turnBase(turn),
+                  state: "submission-unknown" as const,
+                  error:
+                    "The submission response was lost. The question may have been accepted. Check Genie before submitting it again.",
+                }
+              : turn,
+        );
+    } catch {
+      persistenceError =
+        "Conversation recovery is unavailable in this browser session.";
+    }
+    return M.RestoredConversation({ turns, persistenceError });
+  }),
+});
 export const CreateTurn = Command.define("CreateQuestion", {
   args: { question: Schema.String },
   messages: [M.CreatedTurn],

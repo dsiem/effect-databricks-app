@@ -170,13 +170,26 @@ The root model nests those models under named state fields. Feature reducers
 receive only their own state and an explicit, read-only `Context`; they return
 local state, commands, and optional typed outputs. The application interprets
 outputs such as navigation, page reloads, and selection invalidation. Features
-keep one Foldkit runtime and never import `app/`.
+keep one Foldkit runtime and never import `app/` or sibling features.
 Feature views use `defineView` and are embedded through Foldkit submodels;
-`ViewModel` lists the extra inputs supplied by the application. View messages
-combine local messages with the shell interactions that the view can request.
+`ViewModel` lists any extra inputs supplied by the application; views needing
+only feature state use their own `Model`. View messages combine local messages
+with explicit intents such as `Analyze`, `Reload`, and `SelectZip`.
+`app/view-messages.ts` translates those intents into the destination feature's
+messages. An overview or map view never imports Genie or filter messages.
+
+Features also own their controls and dialog lifecycles: overview owns metric
+selection; trips owns its inspector; saved views owns its editor, deletion
+guards, and picker focus return; Genie owns conversation recovery and its helper
+dialog. The shell owns the navigation drawer and supplies presentation context
+when Genie switches between a desktop panel and a mobile dialog. Navigation
+retains cleanup commands returned by feature resets.
 Stateless `ui/` components are
 generic over the caller's message type and import no app or domain state.
-`lib/` holds transport, formatting, and request helpers. The independently packed
+`domain/` holds shared application vocabulary and stateless helpers for filter
+URLs, filter summaries, and analysis requests. It imports no feature state.
+`lib/` holds transport, formatting, request, and generic lifecycle helpers.
+The independently packed
 SQL adapter stays under `packages/sql-databricks/`.
 
 Add domain schemas and API endpoints in `shared/`, implement server behavior in
@@ -225,8 +238,8 @@ API or interprets a filter value. The unit examples exercise inventory filters
 and incident views with independent message types.
 
 The taxi-specific controls are in `features/filters/view.ts`, their URL/schema
-rules in `features/filters/query.ts` and `shared/domain.ts`, and their display
-summary in `features/filters/summary.ts`. Adapt these feature definitions and the
+rules in `domain/filters.ts` and `shared/domain.ts`, and their display
+summary in `domain/filter-summary.ts`. Adapt these definitions and the
 matching API contract for another dataset; keep the generic panel and chooser.
 `field` accepts the input types supported by Foldkit's `Input.ViewConfig`.
 
@@ -268,7 +281,9 @@ viewport overflow, pending edits, save/apply behavior, view selection, reset, an
 keyboard dismissal. This complements engine-independent component checks.
 
 `npm run architecture:check` enforces import boundaries, including type imports,
-re-exports and literal dynamic imports. It runs as part of `npm run check`.
+re-exports and literal dynamic imports. Features cannot import sibling features;
+shared helpers cannot hide a dependency on feature implementations. It runs as
+part of `npm run check`.
 
 ## Why Effect is central
 

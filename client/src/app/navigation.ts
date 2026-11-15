@@ -1,5 +1,5 @@
 import type { Update } from "foldkit";
-import { filtersFromQuery } from "../features/filters/query";
+import { filtersFromQuery } from "../domain/filters";
 import * as OverviewCommands from "../features/overview/commands";
 import * as TripsCommands from "../features/trips/commands";
 import type { ApiClient } from "../lib/api-client";

@@ -1,6 +1,7 @@
 import { Select } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineView } from "foldkit/submodel";
+import { ask } from "../../domain/analysis";
 import { money, number } from "../../lib/format";
 import { icon } from "../../ui/icons";
 import {
@@ -13,11 +14,10 @@ import {
   table,
   title,
 } from "../../ui/primitives";
-import { ask } from "../genie/ask";
+import type { Model } from "./model";
 import { Sort } from "./model";
 import type { H } from "./view-messages";
 import { Message as M } from "./view-messages";
-import type { ViewModel as Model } from "./view-model";
 
 function trips(h: H, model: Model): Child[] {
   const data = model.trips.data;
@@ -28,7 +28,7 @@ function trips(h: H, model: Model): Child[] {
     [
       ask(
         h,
-        (context, question) => M.OpenGenie({ context, question }),
+        (context, question) => M.Analyze({ context, question }),
         "Ask Genie about these trips",
         null,
         "Summarize the visible trips and point out unusual fares or distances.",
@@ -42,7 +42,7 @@ function trips(h: H, model: Model): Child[] {
   );
   if (model.trips.loading) return [heading, loading(h)];
   if (model.trips.error)
-    return [heading, error(h, model.trips.error, M.LoadPage())];
+    return [heading, error(h, model.trips.error, M.Reload())];
   if (!data) return [heading];
   return [
     heading,

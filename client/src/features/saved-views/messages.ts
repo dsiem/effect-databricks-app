@@ -1,9 +1,13 @@
-import { Popover } from "@foldkit/ui";
+import { Dialog, Popover } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
 
 export const messages = {
+  CloseNote: {},
+  CloseDelete: {},
+  NoteDialog: { message: Dialog.Message },
+  DeleteDialog: { message: Dialog.Message },
   SavedViewsPicker: { message: Popover.Message },
   ClearView: {},
   NewNote: {},

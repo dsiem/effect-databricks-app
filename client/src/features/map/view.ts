@@ -1,5 +1,7 @@
 import { Button } from "@foldkit/ui";
 import { defineView } from "foldkit/submodel";
+import { ask } from "../../domain/analysis";
+import { filtersFromQuery, href } from "../../domain/filters";
 import { compact, money, number } from "../../lib/format";
 import {
   badge,
@@ -9,8 +11,6 @@ import {
   loading,
   title,
 } from "../../ui/primitives";
-import { filtersFromQuery, href } from "../filters/query";
-import { ask } from "../genie/ask";
 import { activityColors, MapMount } from "./mount";
 import type { H } from "./view-messages";
 import { Message as M } from "./view-messages";
@@ -28,7 +28,7 @@ function pickupMap(h: H, model: Model): Child[] {
   if (model.overview.error || model.mapError)
     return [
       heading,
-      error(h, model.overview.error || model.mapError, M.LoadPage()),
+      error(h, model.overview.error || model.mapError, M.Reload()),
     ];
   const overview = model.overview.data;
   if (!overview) return [heading];
@@ -61,7 +61,7 @@ function pickupMap(h: H, model: Model): Child[] {
                     badge(h, `${compact(model.mappedTrips ?? 0)} mapped trips`),
                     ask(
                       h,
-                      (context, question) => M.OpenGenie({ context, question }),
+                      (context, question) => M.Analyze({ context, question }),
                       "Ask Genie about this map",
                       null,
                       "Explain the pickup distribution in this map and compare the busiest areas.",
@@ -123,7 +123,7 @@ function pickupMap(h: H, model: Model): Child[] {
                         Button.view(
                           {
                             type: "button",
-                            onClick: M.PickZip({ zip: zone.zip }),
+                            onClick: M.SelectZip({ zip: zone.zip }),
                             toView: (attributes) =>
                               h.button(
                                 [
