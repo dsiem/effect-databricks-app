@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { expect, type Page, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
@@ -138,8 +139,18 @@ test("calendars open within the dataset and disable out-of-range dates before se
     // Keep measuring the same rendered trigger after the dialog opens.
     includeHidden: true,
   });
+  // The metadata response precedes rendering the picker in place of its loading button.
+  await expect(trigger).toBeEnabled();
   const before = await trigger.boundingBox();
+  assert(
+    before,
+    "Start-date trigger has no layout before opening the calendar",
+  );
   const inputBefore = await start.boundingBox();
+  assert(
+    inputBefore,
+    "Start-date input has no layout before opening the calendar",
+  );
   await trigger.click();
   const calendar = page.getByRole("dialog", {
     name: "Choose start date",
@@ -152,9 +163,12 @@ test("calendars open within the dataset and disable out-of-range dates before se
     }),
   ).toHaveText("January 2016");
   const after = await trigger.boundingBox();
+  assert(after, "Start-date trigger has no layout after opening the calendar");
   const inputAfter = await start.boundingBox();
-  if (!before || !after || !inputBefore || !inputAfter)
-    throw new Error("Missing date field");
+  assert(
+    inputAfter,
+    "Start-date input has no layout after opening the calendar",
+  );
   expect(after.x).toBeCloseTo(before.x, 0);
   expect(after.y).toBeCloseTo(before.y, 0);
   expect(inputAfter.y).toBeCloseTo(inputBefore.y, 0);
