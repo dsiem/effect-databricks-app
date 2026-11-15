@@ -151,7 +151,7 @@ export function mountGpsMap(
               filled: true,
               stroked: false,
               pickable: true,
-              opacity: 0.72,
+              opacity: 0.35,
               getFillColor: (cell) =>
                 colors.activity[
                   Math.min(4, Math.floor((cell.trips / maximum) ** 0.32 * 5))
