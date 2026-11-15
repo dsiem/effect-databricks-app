@@ -10,6 +10,7 @@ import * as GenieCommands from "../features/genie/commands";
 import * as Genie from "../features/genie/model";
 import { presentGenie, updateGenie } from "../features/genie/update";
 import * as PickupMap from "../features/map/model";
+import { RefreshMap } from "../features/map/mount";
 import { updateMap } from "../features/map/update";
 import * as Overview from "../features/overview/model";
 import { updateOverview } from "../features/overview/update";
@@ -258,7 +259,21 @@ function updateApplication(
               genieState: { ...next.genieState, genieSelection: null },
             }
           : next,
-        commands: changed.commands ?? [],
+        commands: [
+          ...(changed.commands ?? []),
+          ...(changed.outMessage &&
+          message._tag === "LoadedOverview" &&
+          model.path === "/map" &&
+          message.data
+            ? [
+                RefreshMap({
+                  zones: message.data.zones,
+                  query: model.query,
+                  loading: false,
+                }),
+              ]
+            : []),
+        ],
       };
     }
     case "CloseTrip":

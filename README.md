@@ -1,7 +1,7 @@
 # Databricks Apps + Effect
 
 A working NYC taxi analytics workspace with Foldkit, Effect 4, Tailwind CSS 4,
-SVG charts, and Leaflet. The app starts from the real
+SVG charts, and MapLibre GL JS with deck.gl. The app starts from the real
 `samples.nyctaxi.trips` data and persists a managed snapshot for stable trip
 identity. No synthetic dashboard data or mock Genie answers.
 
@@ -30,6 +30,20 @@ local development uses the current workspace user's profile when available.
   Explore; choose, pin, edit, or delete them from the view chooser beside the filters.
   Choosing a view applies it on the current page and replaces pending edits.
   The chooser supports paginated browsing of the shared library.
+
+The pickup map uses MapLibre GL JS for OpenStreetMap streets, navigation, and
+camera control, with a deck.gl `GeoJsonLayer` for GPU-rendered ZIP areas and
+selection. Its renderer and Vite worker load only when the map mounts. Filtering
+updates one mount-owned input stream and preserves the camera. The scoped renderer
+consumes the latest data even when filters change during loading; releasing the map
+also releases its GPU overlay, popups, and observers. Readiness comes from Foldkit's
+Model after the renderer finishes a frame. Both the layer and map controls follow
+the app theme. Boundary files are validated and postal ZIP lists normalized once
+at fetch; aggregation operates on that typed data. Geographic boundaries remain
+usable when street tiles are offline.
+The current sample has no point coordinates. A future coordinate source can use
+deck.gl's binary `ScatterplotLayer` attributes with Arrow lon/lat buffers without
+converting each point into a GeoJSON object.
 
 An unscheduled SQL job copies `samples.nyctaxi.trips` once per bundle target into a
 managed Delta table and persists a UUID `trip_id` on each row. App analytics read this snapshot;
@@ -357,7 +371,7 @@ OpenStreetMap tiles. See [boundary provenance](client/public/SOURCES.md).
 Frontend state lives in a Schema-defined Foldkit model. Messages enter the pure
 `update` function, which returns the next model and named Effect commands. URL
 navigation, HTTP requests, persistence, clipboard, and downloads run through
-commands; browser events use a subscription and Leaflet uses a scoped mount.
+commands; browser events use a subscription and the MapLibre/deck.gl map uses a scoped mount.
 There are no component-local stores or hook lifecycles. `client/src/main.ts` boots
 the runtime, while `app/model.ts`, `app/message.ts`, `app/update.ts`, and the stateless views
 can be inspected independently. Run `npm run client:check` to check UI conventions

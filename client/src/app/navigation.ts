@@ -1,5 +1,6 @@
 import type { Update } from "foldkit";
 import { filtersFromQuery } from "../domain/filters";
+import { RefreshMap } from "../features/map/mount";
 import * as OverviewCommands from "../features/overview/commands";
 import * as TripsCommands from "../features/trips/commands";
 import type { ApiClient } from "../lib/api-client";
@@ -15,12 +16,27 @@ export function loadPage(
     return {
       model: {
         ...model,
-        overviewState: { ...model.overviewState, overview: pending },
+        overviewState: {
+          ...model.overviewState,
+          overview:
+            model.path === "/map"
+              ? { ...model.overviewState.overview, loading: true, error: "" }
+              : pending,
+        },
         mapState: { ...model.mapState, mappedTrips: null, mapError: "" },
         genieState: { ...model.genieState, genieSelection: null },
       },
       commands: [
         OverviewCommands.LoadOverview({ key: requestKey(model), filters }),
+        ...(model.path === "/map" && model.overviewState.overview.data
+          ? [
+              RefreshMap({
+                zones: model.overviewState.overview.data.zones,
+                query: model.query,
+                loading: true,
+              }),
+            ]
+          : []),
       ],
     };
   if (model.path === "/trips")

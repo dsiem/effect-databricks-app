@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "leaflet/dist/leaflet.css" layer(components);
+@import "maplibre-gl/dist/maplibre-gl.css" layer(components);
 
 /* The visual contract for our Foldkit views. Change the theme here, not per feature. */
 @theme {
@@ -1111,44 +1111,57 @@
   .map-panel {
     height: 31rem;
   }
-  .leaflet-container {
+  .map-panel.maplibregl-map {
     width: 100%;
     z-index: 0;
     background: var(--subtle);
     font-family: inherit;
   }
-  .map-panel .leaflet-tile-pane {
-    filter: grayscale(1) saturate(0.2);
-  }
-  :root.dark .map-panel .leaflet-tile-pane {
-    filter: grayscale(1) invert(1) brightness(0.7);
-  }
-  .map-panel .leaflet-bar {
+  .map-panel .maplibregl-ctrl-group {
     border: 1px solid var(--border);
     border-radius: 0.5rem;
     overflow: hidden;
     box-shadow: var(--shadow);
   }
-  .map-panel :where(.leaflet-bar) a {
+  .map-panel .maplibregl-ctrl-group button {
     background: var(--surface);
     color: var(--foreground);
     border-color: var(--border);
   }
-  .map-panel .leaflet-control-attribution {
+  :root.dark .map-panel .maplibregl-ctrl-icon {
+    filter: invert(1);
+  }
+  .map-panel .maplibregl-ctrl-attrib,
+  .map-panel .maplibregl-ctrl-scale {
     background: color-mix(in srgb, var(--surface) 90%, transparent);
     color: var(--muted);
     font-size: 0.625rem;
   }
-  .map-panel :where(.leaflet-control-attribution) a {
+  .map-panel .maplibregl-ctrl-scale {
+    border-color: var(--muted);
+  }
+  .map-panel :where(.maplibregl-ctrl-attrib) a {
     color: var(--color-brand-700);
   }
-  .map-panel .leaflet-tooltip {
+  .map-panel .map-tooltip .maplibregl-popup-content {
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--border);
     border-radius: 0.5rem;
     background: var(--surface);
     color: var(--foreground);
     box-shadow: var(--shadow);
+  }
+  .map-panel .map-tooltip .maplibregl-popup-tip {
+    display: none;
+  }
+  .map-updating {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--surface) 85%, transparent);
   }
   .ranking-row {
     display: flex;

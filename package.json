@@ -40,6 +40,9 @@
     "architecture:check": "node scripts/check-architecture.mjs"
   },
   "dependencies": {
+    "@deck.gl/core": "9.4.1",
+    "@deck.gl/layers": "9.4.1",
+    "@deck.gl/maplibre": "9.4.1",
     "@effect/platform-browser": "4.1.4",
     "@effect/platform-node": "4.1.4",
     "@effect/sql-pg": "4.1.4",
@@ -50,7 +53,7 @@
     "effect": "4.1.4",
     "effect-sql-databricks": "0.1.0",
     "foldkit": "0.170.0",
-    "leaflet": "1.9.4",
+    "maplibre-gl": "6.18.0",
     "marked": "17.0.1",
     "tailwindcss": "4.3.5",
     "typescript": "7.0.2",
@@ -60,7 +63,6 @@
     "@biomejs/biome": "2.6.7",
     "@electric-sql/pglite": "0.5.16",
     "@playwright/test": "1.65.0",
-    "@types/leaflet": "1.9.22",
     "ajv": "8.20.0",
     "tsx": "4.23.15",
     "yaml": "2.9.1"

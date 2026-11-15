@@ -11,7 +11,8 @@ import {
   loading,
   title,
 } from "../../ui/primitives";
-import { activityColors, MapMount } from "./mount";
+import { activityColors } from "./geography";
+import { MapMount, mapHostId } from "./mount";
 import type { H } from "./view-messages";
 import { Message as M } from "./view-messages";
 import type { ViewModel as Model } from "./view-model";
@@ -23,7 +24,7 @@ function pickupMap(h: H, model: Model): Child[] {
     "Trip counts aggregated by pickup ZIP code for the selected filters.",
     [badge(h, "New York City")],
   );
-  if (model.overview.loading)
+  if (model.overview.loading && !model.overview.data)
     return [heading, loading(h, "Loading pickup activity and NYC boundaries…")];
   if (model.overview.error || model.mapError)
     return [
@@ -34,6 +35,8 @@ function pickupMap(h: H, model: Model): Child[] {
   if (!overview) return [heading];
   const zones = overview.zones;
   const filters = filtersFromQuery(model.query) ?? {};
+  const mapped = model.mappedTrips;
+  const ready = !model.overview.loading && mapped !== null;
   return [
     heading,
     h.div(
@@ -58,7 +61,14 @@ function pickupMap(h: H, model: Model): Child[] {
                 h.div(
                   [h.Class("flex flex-wrap gap-2")],
                   [
-                    badge(h, `${compact(model.mappedTrips ?? 0)} mapped trips`),
+                    badge(
+                      h,
+                      model.overview.loading
+                        ? "Updating pickup activity…"
+                        : ready
+                          ? `${compact(mapped)} mapped trips`
+                          : "Loading map…",
+                    ),
                     ask(
                       h,
                       (context, question) => M.Analyze({ context, question }),
@@ -71,12 +81,36 @@ function pickupMap(h: H, model: Model): Child[] {
               ],
             ),
             h.div(
+              [h.Class("relative"), h.AriaBusy(model.overview.loading)],
               [
-                h.Key(`map-${model.query}`),
-                h.Class("map-panel"),
-                h.OnMount(MapMount({ zones, query: model.query })),
+                h.div(
+                  [
+                    h.Key(mapHostId),
+                    h.Id(mapHostId),
+                    h.Class("map-panel"),
+                    h.Role("region"),
+                    h.AriaLabel("Pickup activity map"),
+                    h.DataAttribute("map-ready", String(ready)),
+                    h.DataAttribute("map-query", ready ? model.query : ""),
+                    h.OnMount(
+                      MapMount({
+                        zones,
+                        query: model.query,
+                        loading: model.overview.loading,
+                      }),
+                    ),
+                  ],
+                  [],
+                ),
+                ...(model.overview.loading
+                  ? [
+                      h.div(
+                        [h.Class("map-updating"), h.Role("status")],
+                        ["Updating pickup activity…"],
+                      ),
+                    ]
+                  : []),
               ],
-              [],
             ),
             h.div(
               [h.Class("chart-footer border-t")],
@@ -194,7 +228,9 @@ function pickupMap(h: H, model: Model): Child[] {
                 h.p(
                   [h.Class("text-xs font-medium mt-3")],
                   [
-                    `${number(Math.max(0, overview.summary.trips - (model.mappedTrips ?? 0)))} trips outside mapped areas`,
+                    ready
+                      ? `${number(Math.max(0, overview.summary.trips - mapped))} trips outside mapped areas`
+                      : "Updating geographic coverage…",
                   ],
                 ),
                 h.a(

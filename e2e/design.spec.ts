@@ -279,12 +279,12 @@ for (const colorScheme of ["light", "dark"] as const) {
       await capture(page, info, "save-view", false);
       await page.goto(`/map${query}`);
       const map = page.locator(".map-panel");
-      await expect(
-        page.locator(".leaflet-overlay-pane path").first(),
-      ).toBeVisible();
-      // Leaflet adds its class to the mount itself. A 100% height override collapsed it.
+      await expect(map).toHaveAttribute("data-map-ready", "true");
+      // The map mount must keep the panel's responsive height.
       expect((await map.boundingBox())?.height).toBeGreaterThanOrEqual(350);
-      await expect(map.locator(".leaflet-control-zoom-in")).toHaveCSS(
+      await expect(
+        map.getByRole("button", { name: "Zoom in", exact: true }),
+      ).toHaveCSS(
         "background-color",
         colorScheme === "dark" ? "rgb(27, 32, 44)" : "rgb(255, 255, 255)",
       );
