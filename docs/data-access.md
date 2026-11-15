@@ -200,16 +200,9 @@ indexes, and grants. `scripts/migrate.ts` owns CLI environment handling and invo
 it with a scoped client from `makeLakebaseClient`. Application startup never
 imports or executes migrations.
 
-When upgrading an existing installation, stop the old app, run
-`npm run db:migrate`, and start the updated app. Setup runs the migration before
-starting the new build. Migration renames the legacy `metrocab.notes` table and
-listing index in place, preserving rows, IDs, versions, pins, timestamps, and
-grants. Re-running it is safe. If both old and new tables exist, it fails for
-explicit reconciliation instead of choosing or discarding a dataset.
-The old `/api/notes` endpoints and `note_*` error codes are replaced by
-`/api/saved-views` and `saved_view_*`; deploy the client and server together.
-Existing browser conversation history normalizes the old `notebook` context to
-`saved-views` during recovery.
+`npm run db:migrate` creates the current schema in a transaction guarded by an
+advisory lock. Setup runs it before starting the app; re-running it preserves
+existing rows.
 
 The bundle declares a project, its existing production branch, and primary
 endpoint. App resource permissions create the app's OAuth database identity. The

@@ -107,65 +107,6 @@ test("result retry survives navigation and reload, and follow-ups reuse the conv
   ).toBeVisible();
 });
 
-test("legacy saved-view context survives conversation recovery and is normalized on persistence", async ({
-  page,
-}) => {
-  await mockStatus(page);
-  await page.addInitScript(
-    ({ operation }) => {
-      if (!sessionStorage.getItem("metrocab.genie.v1"))
-        sessionStorage.setItem(
-          "metrocab.genie.v1",
-          JSON.stringify([
-            {
-              id: "legacy-turn",
-              question: "Explain these saved filters",
-              context: { page: "notebook", title: "Saved filters" },
-              filters: { zip: "10001" },
-              state: "waiting",
-              operation,
-            },
-          ]),
-        );
-    },
-    { operation },
-  );
-  let submissions = 0;
-  await page.route("**/api/genie", (route) => {
-    submissions++;
-    return route.fulfill({ json: operation });
-  });
-  await page.route(`**${messagePath}`, (route) =>
-    route.fulfill({
-      json: { ...operation, state: "completed", status: "COMPLETED" },
-    }),
-  );
-  await page.route(`**${messagePath}/result`, (route) =>
-    route.fulfill({ json: reply }),
-  );
-  await page.goto("/genie");
-  await expect(
-    page.getByText("Explain these saved filters", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("cell", { name: "21932", exact: true }),
-  ).toBeVisible();
-  await page.getByText("Saved filters · View context", { exact: true }).click();
-  await expect(
-    page.getByText("Pickup ZIP 10001", { exact: true }),
-  ).toBeVisible();
-  expect(submissions).toBe(0);
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          JSON.parse(sessionStorage.getItem("metrocab.genie.v1") ?? "[]")[0]
-            ?.context.page,
-      ),
-    )
-    .toBe("saved-views");
-});
-
 test("pending answers resume after reload without resubmission", async ({
   page,
 }) => {

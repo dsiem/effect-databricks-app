@@ -342,9 +342,7 @@ The server is an Effect application, including HTTP routing and lifetime:
   services. Saved views use explicit create/update versions and return conflicts
   for stale writes.
   Pinning updates only its own field. Migration uses a transaction and advisory
-  lock; `npm run db:migrate` upgrades existing installations, including the
-  in-place rename of the saved-view table. Follow the
-  [upgrade procedure](docs/data-access.md#lakebase) when updating an existing app.
+  lock; `npm run db:migrate` creates the current tables, indexes, and grants.
   Comment submissions use a stable draft ID so retrying
   after a lost response does not create duplicates; authors come from the server's
   current-viewer identity.

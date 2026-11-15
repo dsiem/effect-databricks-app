@@ -228,79 +228,15 @@ test("the credential adapter preserves every reason in a mixed cause", async () 
   assert.deepEqual(Cause.interruptors(exit.cause), new Set([42]));
 });
 
-test("legacy saved views migrate in place with their rows, versions, pins and grants intact", async () => {
-  await Effect.runPromise(
-    Effect.gen(function* () {
-      const { savedViews, sql } = yield* lakebaseFixture;
-      const created = yield* savedViews.save({
-        ...input,
-        body: "Keep this finding",
-        filters: { zip: "10001" },
-      });
-      yield* savedViews.pin(created.id, {
-        pinned: true,
-        version: created.version,
-      });
-      const before = yield* savedViews.list({});
-      yield* sql`CREATE ROLE saved_view_reader`;
-      yield* sql`GRANT SELECT ON metrocab.saved_views TO saved_view_reader`;
-      yield* sql`ALTER TABLE metrocab.saved_views RENAME TO notes`;
-      yield* sql`ALTER INDEX metrocab.saved_views_listing_idx RENAME TO notes_listing_idx`;
-      const identity =
-        yield* sql`SELECT 'metrocab.notes'::regclass::oid AS oid`;
-
-      yield* migrateAppSchema(sql);
-      yield* migrateAppSchema(sql);
-
-      assert.deepEqual(yield* savedViews.list({}), before);
-      assert.deepEqual(
-        yield* sql`SELECT 'metrocab.saved_views'::regclass::oid AS oid`,
-        identity,
-      );
-      assert.deepEqual(
-        yield* sql`SELECT has_table_privilege('saved_view_reader', 'metrocab.saved_views', 'SELECT') AS allowed`,
-        [{ allowed: true }],
-      );
-      assert.deepEqual(
-        yield* sql`SELECT to_regclass('metrocab.notes') AS legacy_table, to_regclass('metrocab.notes_listing_idx') AS legacy_index`,
-        [{ legacy_table: null, legacy_index: null }],
-      );
-      const current = before.rows[0];
-      assert.ok(current);
-      const updated = yield* savedViews.save({
-        ...current,
-        title: "Updated after migration",
-      });
-      assert.equal(updated.version, current.version + 1);
-      assert.equal(updated.pinned, true);
-    }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
-  );
-});
-
-test("migration refuses ambiguous saved-view tables without losing either dataset", async () => {
-  await Effect.runPromise(
-    Effect.gen(function* () {
-      const { savedViews, sql } = yield* lakebaseFixture;
-      yield* savedViews.save(input);
-      yield* sql`CREATE TABLE metrocab.notes AS SELECT * FROM metrocab.saved_views`;
-      const outcome = yield* Effect.result(migrateAppSchema(sql));
-      assert.equal(outcome._tag, "Failure");
-      assert.equal((yield* savedViews.list({})).rows.length, 1);
-      assert.equal((yield* sql`SELECT id FROM metrocab.notes`).length, 1);
-    }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
-  );
-});
-
 test("versioned saved-view writes reject stale editors, pin conflicts, and deleted-view resurrection", async () => {
   await Effect.runPromise(
     Effect.gen(function* () {
       const { savedViews, sql } = yield* lakebaseFixture;
-      // Migrations are repeatable and existing rows keep their content/version.
+      // Schema setup is repeatable and preserves existing rows.
       const created = yield* savedViews.save(input);
-      yield* sql`ALTER TABLE metrocab.saved_views DROP COLUMN version`;
       yield* migrateAppSchema(sql);
       yield* migrateAppSchema(sql);
-      assert.equal((yield* savedViews.list({})).rows[0]?.title, input.title);
+      assert.deepEqual((yield* savedViews.list({})).rows, [created]);
       assert.equal(created.version, 1);
       assert.equal(created.pinned, false);
       const duplicate = yield* Effect.result(
