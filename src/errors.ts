@@ -5,12 +5,12 @@ export class InvalidRequest extends Data.TaggedError("InvalidRequest")<{
   readonly cause?: unknown;
 }> {}
 
-export class NoteNotFound extends Data.TaggedError("NoteNotFound")<{
+export class SavedViewNotFound extends Data.TaggedError("SavedViewNotFound")<{
   readonly id: string;
   readonly message: string;
 }> {}
 
-export class NoteConflict extends Data.TaggedError("NoteConflict")<{
+export class SavedViewConflict extends Data.TaggedError("SavedViewConflict")<{
   readonly id: string;
   readonly message: string;
 }> {}
@@ -40,8 +40,8 @@ export class GenieFailed extends Data.TaggedError("GenieFailed")<{
 
 export type ServiceError =
   | InvalidRequest
-  | NoteNotFound
-  | NoteConflict
+  | SavedViewNotFound
+  | SavedViewConflict
   | ServiceUnavailable
   | UpstreamError
   | OperationTimeout

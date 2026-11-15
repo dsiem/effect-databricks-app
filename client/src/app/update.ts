@@ -305,24 +305,24 @@ function updateApplication(
         commands: changed.commands ?? [],
       };
     }
-    case "CloseNote":
+    case "CloseSavedView":
     case "CloseDelete":
-    case "NoteDialog":
+    case "SavedViewDialog":
     case "DeleteDialog":
     case "SavedViewsPicker":
     case "ClearView":
-    case "NewNote":
-    case "CreatedNote":
-    case "EditNote":
-    case "NoteChanged":
-    case "SaveNote":
-    case "SavedNote":
-    case "LoadNotes":
-    case "LoadedNotes":
-    case "PinNote":
-    case "DeleteNote":
+    case "NewSavedView":
+    case "CreatedSavedView":
+    case "EditSavedView":
+    case "SavedViewChanged":
+    case "SaveSavedView":
+    case "SavedViewSaved":
+    case "LoadSavedViews":
+    case "LoadedSavedViews":
+    case "PinSavedView":
+    case "DeleteSavedView":
     case "ConfirmDelete":
-    case "MutatedNote":
+    case "MutatedSavedView":
     case "RestoreView": {
       const changed = updateSavedViews(model.savedViewsState, message, {
         filters: filtersFromQuery(model.query) ?? {},

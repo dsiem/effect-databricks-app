@@ -15,7 +15,7 @@ import * as Reactivity from "effect/reactivity/Reactivity";
 import * as SqlClient from "effect/sql/SqlClient";
 import type { Connection } from "effect/sql/SqlConnection";
 import { SqlError, UnknownError } from "effect/sql/SqlError";
-import type { Note, NoteSearch } from "../shared/domain.js";
+import type { SavedView, SavedViewSearch } from "../shared/domain.js";
 import { type ServiceError, UpstreamError } from "../src/errors.js";
 import { Lakebase } from "../src/lakebase.js";
 import { migrateAppSchema } from "../src/migrations.js";
@@ -27,7 +27,7 @@ import { lakebaseFixture } from "./lakebase-fixture.js";
 
 const input = {
   id: "1b7f2115-e891-46a7-a3ad-c26405b2f5a2",
-  title: "A note",
+  title: "A saved view",
   body: "",
   filters: {},
   version: null,
@@ -185,13 +185,13 @@ test("saved views preserves row decoding diagnostics", async () => {
   assert.equal(Reflect.get(error.value.cause as object, "_tag"), "SchemaError");
 });
 
-test("removing a missing note keeps its distinct not-found error", async () => {
+test("removing a missing saved view keeps its distinct not-found error", async () => {
   const exit = await withRows(Effect.succeed([]), (savedViews) =>
     savedViews.remove(input.id, 1),
   );
   assert.ok(Exit.isFailure(exit));
   const error = Cause.findErrorOption(exit.cause);
-  assert.ok(error._tag === "Some" && error.value._tag === "NoteNotFound");
+  assert.ok(error._tag === "Some" && error.value._tag === "SavedViewNotFound");
   assert.equal(error.value.id, input.id);
 });
 
@@ -228,13 +228,76 @@ test("the credential adapter preserves every reason in a mixed cause", async () 
   assert.deepEqual(Cause.interruptors(exit.cause), new Set([42]));
 });
 
-test("versioned saved-view writes reject stale editors, pin conflicts, and deleted-note resurrection", async () => {
+test("legacy saved views migrate in place with their rows, versions, pins and grants intact", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const { savedViews, sql } = yield* lakebaseFixture;
+      const created = yield* savedViews.save({
+        ...input,
+        body: "Keep this finding",
+        filters: { zip: "10001" },
+      });
+      yield* savedViews.pin(created.id, {
+        pinned: true,
+        version: created.version,
+      });
+      const before = yield* savedViews.list({});
+      yield* sql`CREATE ROLE saved_view_reader`;
+      yield* sql`GRANT SELECT ON metrocab.saved_views TO saved_view_reader`;
+      yield* sql`ALTER TABLE metrocab.saved_views RENAME TO notes`;
+      yield* sql`ALTER INDEX metrocab.saved_views_listing_idx RENAME TO notes_listing_idx`;
+      const identity =
+        yield* sql`SELECT 'metrocab.notes'::regclass::oid AS oid`;
+
+      yield* migrateAppSchema(sql);
+      yield* migrateAppSchema(sql);
+
+      assert.deepEqual(yield* savedViews.list({}), before);
+      assert.deepEqual(
+        yield* sql`SELECT 'metrocab.saved_views'::regclass::oid AS oid`,
+        identity,
+      );
+      assert.deepEqual(
+        yield* sql`SELECT has_table_privilege('saved_view_reader', 'metrocab.saved_views', 'SELECT') AS allowed`,
+        [{ allowed: true }],
+      );
+      assert.deepEqual(
+        yield* sql`SELECT to_regclass('metrocab.notes') AS legacy_table, to_regclass('metrocab.notes_listing_idx') AS legacy_index`,
+        [{ legacy_table: null, legacy_index: null }],
+      );
+      const current = before.rows[0];
+      assert.ok(current);
+      const updated = yield* savedViews.save({
+        ...current,
+        title: "Updated after migration",
+      });
+      assert.equal(updated.version, current.version + 1);
+      assert.equal(updated.pinned, true);
+    }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
+  );
+});
+
+test("migration refuses ambiguous saved-view tables without losing either dataset", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const { savedViews, sql } = yield* lakebaseFixture;
+      yield* savedViews.save(input);
+      yield* sql`CREATE TABLE metrocab.notes AS SELECT * FROM metrocab.saved_views`;
+      const outcome = yield* Effect.result(migrateAppSchema(sql));
+      assert.equal(outcome._tag, "Failure");
+      assert.equal((yield* savedViews.list({})).rows.length, 1);
+      assert.equal((yield* sql`SELECT id FROM metrocab.notes`).length, 1);
+    }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
+  );
+});
+
+test("versioned saved-view writes reject stale editors, pin conflicts, and deleted-view resurrection", async () => {
   await Effect.runPromise(
     Effect.gen(function* () {
       const { savedViews, sql } = yield* lakebaseFixture;
       // Migrations are repeatable and existing rows keep their content/version.
       const created = yield* savedViews.save(input);
-      yield* sql`ALTER TABLE metrocab.notes DROP COLUMN version`;
+      yield* sql`ALTER TABLE metrocab.saved_views DROP COLUMN version`;
       yield* migrateAppSchema(sql);
       yield* migrateAppSchema(sql);
       assert.equal((yield* savedViews.list({})).rows[0]?.title, input.title);
@@ -245,7 +308,7 @@ test("versioned saved-view writes reject stale editors, pin conflicts, and delet
       );
       assert.ok(
         duplicate._tag === "Failure" &&
-          duplicate.failure._tag === "NoteConflict",
+          duplicate.failure._tag === "SavedViewConflict",
       );
 
       const edits = yield* Effect.all(
@@ -263,7 +326,8 @@ test("versioned saved-view writes reject stale editors, pin conflicts, and delet
       assert.equal(successes.length, 1);
       const failure = edits.find((edit) => edit._tag === "Failure");
       assert.ok(
-        failure?._tag === "Failure" && failure.failure._tag === "NoteConflict",
+        failure?._tag === "Failure" &&
+          failure.failure._tag === "SavedViewConflict",
       );
       const current = (yield* savedViews.list({})).rows[0];
       assert.ok(current);
@@ -274,7 +338,8 @@ test("versioned saved-view writes reject stale editors, pin conflicts, and delet
         savedViews.pin(created.id, { version: 1, pinned: true }),
       );
       assert.ok(
-        stalePin._tag === "Failure" && stalePin.failure._tag === "NoteConflict",
+        stalePin._tag === "Failure" &&
+          stalePin.failure._tag === "SavedViewConflict",
       );
       const pinned = yield* savedViews.pin(current.id, {
         version: current.version,
@@ -291,14 +356,14 @@ test("versioned saved-view writes reject stale editors, pin conflicts, and delet
       );
       assert.ok(
         staleEdit._tag === "Failure" &&
-          staleEdit.failure._tag === "NoteConflict",
+          staleEdit.failure._tag === "SavedViewConflict",
       );
       const staleDelete = yield* Effect.result(
         savedViews.remove(current.id, current.version),
       );
       assert.ok(
         staleDelete._tag === "Failure" &&
-          staleDelete.failure._tag === "NoteConflict",
+          staleDelete.failure._tag === "SavedViewConflict",
       );
       const updated = yield* savedViews.save({
         ...pinned,
@@ -313,7 +378,8 @@ test("versioned saved-view writes reject stale editors, pin conflicts, and delet
       ]) {
         const result = yield* Effect.result(operation);
         assert.ok(
-          result._tag === "Failure" && result.failure._tag === "NoteNotFound",
+          result._tag === "Failure" &&
+            result.failure._tag === "SavedViewNotFound",
         );
       }
       assert.deepEqual(yield* savedViews.list({}), {
@@ -324,7 +390,7 @@ test("versioned saved-view writes reject stale editors, pin conflicts, and delet
   );
 });
 
-test("saved views pages reach every note beyond 200, preserving pins, timestamp precision, and ties", async () => {
+test("saved views pages reach every saved view beyond 200, preserving pins, timestamp precision, and ties", async () => {
   await Effect.runPromise(
     Effect.gen(function* () {
       const { savedViews, sql } = yield* lakebaseFixture;
@@ -337,8 +403,8 @@ test("saved views pages reach every note beyond 200, preserving pins, timestamp 
         id: randomUUID(),
         title: String(index),
       }));
-      yield* Effect.forEach(inputs, (note) => savedViews.save(note));
-      yield* sql`UPDATE metrocab.notes SET pinned = title::int < 26,
+      yield* Effect.forEach(inputs, (savedView) => savedViews.save(savedView));
+      yield* sql`UPDATE metrocab.saved_views SET pinned = title::int < 26,
         updated_at = '2026-11-13T10:00:00Z'::timestamptz +
           (title::int % 3) * INTERVAL '1 microsecond'`;
       const expected = [...inputs].sort(
@@ -347,8 +413,8 @@ test("saved views pages reach every note beyond 200, preserving pins, timestamp 
           (Number(b.title) % 3) - (Number(a.title) % 3) ||
           b.id.localeCompare(a.id),
       );
-      const collected: Note[] = [];
-      let search: NoteSearch = {};
+      const collected: SavedView[] = [];
+      let search: SavedViewSearch = {};
       let pages = 0;
       while (true) {
         const page = yield* savedViews.list(search);
@@ -361,15 +427,18 @@ test("saved views pages reach every note beyond 200, preserving pins, timestamp 
       }
       assert.equal(pages, 10);
       assert.deepEqual(
-        collected.map((note) => note.id),
-        expected.map((note) => note.id),
+        collected.map((savedView) => savedView.id),
+        expected.map((savedView) => savedView.id),
       );
-      assert.equal(new Set(collected.map((note) => note.id)).size, 217);
+      assert.equal(
+        new Set(collected.map((savedView) => savedView.id)).size,
+        217,
+      );
     }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
   );
 });
 
-test("continuation survives deletion of the boundary note and ignores newer inserts", async () => {
+test("continuation survives deletion of the boundary saved view and ignores newer inserts", async () => {
   await Effect.runPromise(
     Effect.gen(function* () {
       const { savedViews, sql } = yield* lakebaseFixture;
@@ -380,7 +449,7 @@ test("continuation survives deletion of the boundary note and ignores newer inse
           title: String(index),
         });
       }
-      yield* sql`UPDATE metrocab.notes SET updated_at = '2026-11-13T10:00:00Z'::timestamptz
+      yield* sql`UPDATE metrocab.saved_views SET updated_at = '2026-11-13T10:00:00Z'::timestamptz
         + title::int * INTERVAL '1 second'`;
       const first = yield* savedViews.list({});
       assert.ok(first.nextCursor);
@@ -393,10 +462,10 @@ test("continuation survives deletion of the boundary note and ignores newer inse
         id: randomUUID(),
         title: "New arrival",
       });
-      yield* sql`UPDATE metrocab.notes SET updated_at = '2026-11-14T00:00:00Z'::timestamptz WHERE id = ${arrival.id}::uuid`;
+      yield* sql`UPDATE metrocab.saved_views SET updated_at = '2026-11-14T00:00:00Z'::timestamptz WHERE id = ${arrival.id}::uuid`;
       const last = yield* savedViews.list({ cursor: first.nextCursor });
       assert.deepEqual(
-        last.rows.map((note) => note.title),
+        last.rows.map((savedView) => savedView.title),
         ["0"],
       );
       assert.equal(last.nextCursor, null);

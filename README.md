@@ -342,8 +342,10 @@ The server is an Effect application, including HTTP routing and lifetime:
   services. Saved views use explicit create/update versions and return conflicts
   for stale writes.
   Pinning updates only its own field. Migration uses a transaction and advisory
-  lock; run `npm run db:migrate` to add note versions and the trip-comments table
-  to existing installations. Comment submissions use a stable draft ID so retrying
+  lock; `npm run db:migrate` upgrades existing installations, including the
+  in-place rename of the saved-view table. Follow the
+  [upgrade procedure](docs/data-access.md#lakebase) when updating an existing app.
+  Comment submissions use a stable draft ID so retrying
   after a lost response does not create duplicates; authors come from the server's
   current-viewer identity.
 - `NodeRuntime` manages graceful signal shutdown for the HTTP/1.1 server.
@@ -371,7 +373,7 @@ npm start              # separate terminal, with the configured .env
 npm run test:e2e       # real browser checks, no mocked data routes
 ```
 
-Live checks create and remove a temporary note. Browser checks verify filtering,
+Live checks create and remove a temporary saved view. Browser checks verify filtering,
 sorting, pagination, CSV, map rendering, responsive navigation, and saved-view
 persistence across reloads. Screenshots and traces go to ignored `test-results/`.
 

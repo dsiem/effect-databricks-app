@@ -80,7 +80,7 @@ test.beforeEach(async ({ page }) => {
       json: { from: "2016-01-01", to: "2016-02-29", trips: 100 },
     }),
   );
-  await page.route("**/api/notes**", (route) =>
+  await page.route("**/api/saved-views**", (route) =>
     route.fulfill({ json: { rows: [airportView], nextCursor: null } }),
   );
 });
@@ -89,7 +89,7 @@ test("pending edits must be applied before saving and the saved view keeps those
   page,
 }) => {
   let submitted: unknown;
-  await page.route("**/api/notes", (route) => {
+  await page.route("**/api/saved-views", (route) => {
     if (route.request().method() !== "PUT")
       return route.fulfill({ json: { rows: [airportView], nextCursor: null } });
     submitted = route.request().postDataJSON();
@@ -222,7 +222,7 @@ test("saved view management returns to the chooser after editing and deletion", 
   page,
 }) => {
   let views = [airportView];
-  await page.route("**/api/notes**", (route) => {
+  await page.route("**/api/saved-views**", (route) => {
     const request = route.request();
     if (request.method() === "PUT") {
       const saved = { ...airportView, ...request.postDataJSON(), version: 2 };
@@ -289,7 +289,7 @@ test("loading more views preserves keyboard focus and returns it to the chooser 
     id: "57b7651d-c553-4fcf-815d-104cc57fd745",
     title: "City pickups",
   };
-  await page.route("**/api/notes**", async (route) => {
+  await page.route("**/api/saved-views**", async (route) => {
     if (new URL(route.request().url()).searchParams.has("cursor")) {
       await pending;
       return route.fulfill({ json: { rows: [second], nextCursor: null } });

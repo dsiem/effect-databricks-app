@@ -158,7 +158,7 @@ test("mobile sidebar traps focus, closes on navigation and Escape, and leaves de
   ).toBeVisible();
 });
 
-test("note dialog has labelled fields, keyboard dismissal, and restores focus", async ({
+test("saved view dialog has labelled fields, keyboard dismissal, and restores focus", async ({
   page,
 }) => {
   await page.goto("/trips?zip=10001");
@@ -185,7 +185,7 @@ test("note dialog has labelled fields, keyboard dismissal, and restores focus", 
   ).toBeEnabled();
   await expect(dialog).toContainText("ZIP 10001");
   await page.screenshot({
-    path: "test-results/foldkit-note-dialog.png",
+    path: "test-results/foldkit-saved-view-dialog.png",
     fullPage: true,
     animations: "disabled",
   });

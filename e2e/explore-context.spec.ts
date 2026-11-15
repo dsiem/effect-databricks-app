@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import type { Note, NoteInput } from "../shared/domain";
+import type { SavedView, SavedViewInput } from "../shared/domain";
 
 const filters = { from: "2016-01-10", to: "2016-01-20", zip: "10001" };
 const query = new URLSearchParams(filters).toString();
-const savedNote: Note = {
+const savedView: SavedView = {
   id: "8aa0cc1a-6033-4fd0-9a61-908958570382",
   title: "Airport pickup patterns",
   body: "Compare this view with the next week.",
@@ -36,8 +36,8 @@ test.beforeEach(async ({ page }) => {
       json: { from: "2016-01-01", to: "2016-02-29", trips: 21932 },
     }),
   );
-  await page.route("**/api/notes", (route) =>
-    route.fulfill({ json: { rows: [savedNote], nextCursor: null } }),
+  await page.route("**/api/saved-views", (route) =>
+    route.fulfill({ json: { rows: [savedView], nextCursor: null } }),
   );
 });
 
@@ -69,12 +69,12 @@ test("Explore applies changes before saving, and saved views reopen on the curre
   await dialog
     .getByRole("textbox", { name: "Finding (optional)", exact: true })
     .fill("Review the unusually high fares.");
-  let saved: NoteInput | undefined;
-  await page.route("**/api/notes", (route) => {
+  let saved: SavedViewInput | undefined;
+  await page.route("**/api/saved-views", (route) => {
     if (route.request().method() !== "PUT")
-      return route.fulfill({ json: { rows: [savedNote], nextCursor: null } });
-    saved = route.request().postDataJSON() as NoteInput;
-    return route.fulfill({ json: { ...savedNote, ...saved, version: 1 } });
+      return route.fulfill({ json: { rows: [savedView], nextCursor: null } });
+    saved = route.request().postDataJSON() as SavedViewInput;
+    return route.fulfill({ json: { ...savedView, ...saved, version: 1 } });
   });
   await dialog.getByRole("button", { name: "Save view", exact: true }).click();
   await expect(dialog).not.toBeVisible();
@@ -95,7 +95,7 @@ test("Explore applies changes before saving, and saved views reopen on the curre
   const views = page.getByRole("dialog", { name: "Saved views", exact: true });
   await expect(
     views.getByRole("button", {
-      name: `Open saved view for ${savedNote.title}`,
+      name: `Open saved view for ${savedView.title}`,
       exact: true,
     }),
   ).toBeVisible();
@@ -104,19 +104,19 @@ test("Explore applies changes before saving, and saved views reopen on the curre
     fullPage: true,
   });
   await views
-    .getByRole("button", { name: `Open saved view for ${savedNote.title}` })
+    .getByRole("button", { name: `Open saved view for ${savedView.title}` })
     .click();
   await expect(views).not.toBeVisible();
   await expect(page).toHaveURL("/trips?to=2016-02-20&zip=11430");
 });
 
-test("editing a saved note retains its original view and the visible action restores it", async ({
+test("editing a saved view retains its original view and the visible action restores it", async ({
   page,
 }) => {
   await page.goto(`/trips?${query}`);
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
   await page
-    .getByRole("button", { name: `Edit ${savedNote.title}`, exact: true })
+    .getByRole("button", { name: `Edit ${savedView.title}`, exact: true })
     .click();
   const dialog = page.getByRole("dialog", { name: "Edit saved view" });
   await expect(dialog).toContainText("Through Feb 20, 2016");
@@ -126,9 +126,9 @@ test("editing a saved note retains its original view and the visible action rest
   );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   const open = page.getByRole("button", {
-    name: `Open saved view for ${savedNote.title}`,
+    name: `Open saved view for ${savedView.title}`,
   });
-  await expect(open).toContainText(savedNote.title);
+  await expect(open).toContainText(savedView.title);
   await open.click();
   await expect(page).toHaveURL("/trips?to=2016-02-20&zip=11430");
 });

@@ -14,12 +14,12 @@ import {
   GenieProgress,
   GenieReply,
   Metadata,
-  Note,
-  NoteInput,
-  NotePin,
-  NoteSearch,
-  Notes,
   Overview,
+  SavedView,
+  SavedViewInput,
+  SavedViewPin,
+  SavedViewSearch,
+  SavedViewsPage,
   Status,
   TripComment,
   TripCommentInput,
@@ -38,8 +38,11 @@ export const InvalidRequestBody = errorBody(
   Schema.Literal("invalid_request"),
   400,
 );
-const NotFoundBody = errorBody(Schema.Literal("note_not_found"), 404);
-const NoteConflictBody = errorBody(Schema.Literal("note_conflict"), 409);
+const NotFoundBody = errorBody(Schema.Literal("saved_view_not_found"), 404);
+const SavedViewConflictBody = errorBody(
+  Schema.Literal("saved_view_conflict"),
+  409,
+);
 const GenieFailedBody = errorBody(
   Schema.Literal("genie_message_unavailable"),
   409,
@@ -64,7 +67,7 @@ const TimeoutBody = errorBody(
 const errors = [
   InvalidRequestBody,
   NotFoundBody,
-  NoteConflictBody,
+  SavedViewConflictBody,
   GenieFailedBody,
   UnavailableBody,
   UpstreamBody,
@@ -126,9 +129,9 @@ export const AppApi = HttpApi.make("taxi").add(
           success: GenieReply,
         },
       ),
-      HttpApiEndpoint.get("notes", "/api/notes", {
-        query: NoteSearch,
-        success: Notes,
+      HttpApiEndpoint.get("savedViews", "/api/saved-views", {
+        query: SavedViewSearch,
+        success: SavedViewsPage,
       }),
       HttpApiEndpoint.get("tripComments", "/api/trip-comments", {
         query: TripCommentSearch,
@@ -138,17 +141,17 @@ export const AppApi = HttpApi.make("taxi").add(
         payload: TripCommentInput,
         success: TripComment,
       }),
-      HttpApiEndpoint.put("saveNote", "/api/notes", {
-        payload: NoteInput,
-        success: Note,
+      HttpApiEndpoint.put("saveSavedView", "/api/saved-views", {
+        payload: SavedViewInput,
+        success: SavedView,
       }),
-      HttpApiEndpoint.patch("pinNote", "/api/notes/:id/pin", {
-        params: { id: NoteInput.fields.id },
-        payload: NotePin,
-        success: Note,
+      HttpApiEndpoint.patch("pinSavedView", "/api/saved-views/:id/pin", {
+        params: { id: SavedViewInput.fields.id },
+        payload: SavedViewPin,
+        success: SavedView,
       }),
-      HttpApiEndpoint.delete("removeNote", "/api/notes/:id", {
-        params: { id: NoteInput.fields.id },
+      HttpApiEndpoint.delete("removeSavedView", "/api/saved-views/:id", {
+        params: { id: SavedViewInput.fields.id },
         query: {
           version: Schema.NumberFromString.check(
             Schema.isInt(),

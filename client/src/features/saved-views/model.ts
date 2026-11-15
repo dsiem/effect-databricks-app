@@ -2,20 +2,20 @@ import { Dialog, Popover } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as D from "../../../../shared/domain";
 import { empty, request } from "../../lib/request-state";
-export const NoteEditor = Schema.Struct({
-  draft: D.NoteInput,
+export const SavedViewEditor = Schema.Struct({
+  draft: D.SavedViewInput,
   saving: Schema.Boolean,
   error: Schema.String,
 });
 export const Model = Schema.Struct({
-  dialogs: Schema.Struct({ note: Dialog.Model, delete: Dialog.Model }),
-  notes: request(D.Notes),
-  notePages: Schema.Number,
+  dialogs: Schema.Struct({ savedView: Dialog.Model, delete: Dialog.Model }),
+  savedViews: request(D.SavedViewsPage),
+  savedViewPages: Schema.Number,
   picker: Popover.Model,
-  editor: Schema.NullOr(NoteEditor),
-  deleting: Schema.NullOr(D.Note),
-  noteBusy: Schema.Boolean,
-  noteError: Schema.String,
+  editor: Schema.NullOr(SavedViewEditor),
+  deleting: Schema.NullOr(D.SavedView),
+  savedViewBusy: Schema.Boolean,
+  savedViewError: Schema.String,
   selection: Schema.NullOr(
     Schema.Struct({
       id: Schema.String,
@@ -30,11 +30,14 @@ export type Model = typeof Model.Type;
 
 export const init = (): Model => ({
   dialogs: {
-    note: Dialog.init({ id: "note", focusSelector: "#note-title" }),
-    delete: Dialog.init({ id: "delete-note", focusSelector: "button" }),
+    savedView: Dialog.init({
+      id: "saved-view",
+      focusSelector: "#saved-view-title",
+    }),
+    delete: Dialog.init({ id: "delete-saved-view", focusSelector: "button" }),
   },
-  notes: empty,
-  notePages: 1,
+  savedViews: empty,
+  savedViewPages: 1,
   picker: Popover.init({
     id: "saved-views-picker",
     contentFocus: true,
@@ -42,8 +45,8 @@ export const init = (): Model => ({
   }),
   editor: null,
   deleting: null,
-  noteBusy: false,
-  noteError: "",
+  savedViewBusy: false,
+  savedViewError: "",
   selection: null,
   notice: "",
 });

@@ -7,7 +7,8 @@ export function appliedView(model: Model, filters: Filters) {
   const selection = model.selection;
   if (selection && queryFor(selection.filters) === query) return selection;
   return (
-    model.notes.data?.rows.find((note) => queryFor(note.filters) === query) ??
-    null
+    model.savedViews.data?.rows.find(
+      (savedView) => queryFor(savedView.filters) === query,
+    ) ?? null
   );
 }

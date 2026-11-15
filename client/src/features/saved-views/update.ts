@@ -24,15 +24,18 @@ function foldPicker(
   };
 }
 
-const loadNotes = (
+const loadSavedViews = (
   model: Model,
   more = false,
 ): FeatureUpdate<Model, Message, Out> => ({
-  model: { ...model, notes: { ...model.notes, loading: true, error: "" } },
+  model: {
+    ...model,
+    savedViews: { ...model.savedViews, loading: true, error: "" },
+  },
   commands: [
-    SavedViewsCommands.LoadNotes({
-      cursor: more ? (model.notes.data?.nextCursor ?? null) : null,
-      pages: more ? 1 : model.notePages,
+    SavedViewsCommands.LoadSavedViews({
+      cursor: more ? (model.savedViews.data?.nextCursor ?? null) : null,
+      pages: more ? 1 : model.savedViewPages,
       more,
     }),
   ],
@@ -45,25 +48,26 @@ function updateSavedViewsState(
   switch (message._tag) {
     case "Idle":
       return { model };
-    case "CloseNote":
+    case "CloseSavedView":
       return model.editor?.saving
         ? { model }
         : { model: { ...model, editor: null } };
     case "CloseDelete":
-      return model.noteBusy
+      return model.savedViewBusy
         ? { model }
         : { model: { ...model, deleting: null } };
-    case "NoteDialog":
+    case "SavedViewDialog":
     case "DeleteDialog": {
-      const id = message._tag === "NoteDialog" ? "note" : "delete";
-      const busy = id === "note" ? model.editor?.saving : model.noteBusy;
+      const id = message._tag === "SavedViewDialog" ? "savedView" : "delete";
+      const busy =
+        id === "savedView" ? model.editor?.saving : model.savedViewBusy;
       if (busy && message.message._tag === "RequestedClose") return { model };
       const changed = Dialog.update(model.dialogs[id], message.message);
       const commands: Command.Command<Message>[] = (changed.commands ?? []).map(
         (command) =>
           Command.mapMessage(command, (message) =>
-            id === "note"
-              ? M.NoteDialog({ message })
+            id === "savedView"
+              ? M.SavedViewDialog({ message })
               : M.DeleteDialog({ message }),
           ),
       );
@@ -84,7 +88,7 @@ function updateSavedViewsState(
           ...model,
           dialogs: { ...model.dialogs, [id]: changed.model },
           ...(changed.outMessage?._tag === "Closed"
-            ? id === "note"
+            ? id === "savedView"
               ? { editor: null }
               : { deleting: null }
             : {}),
@@ -96,15 +100,15 @@ function updateSavedViewsState(
       const changed = Popover.update(model.picker, message.message);
       const folded = foldPicker(model, changed);
       if (changed.outMessage?._tag !== "Opened") return folded;
-      const loaded = loadNotes(folded.model);
+      const loaded = loadSavedViews(folded.model);
       return {
         ...loaded,
         commands: [...(folded.commands ?? []), ...(loaded.commands ?? [])],
       };
     }
-    case "NewNote":
-      return { model, commands: [SavedViewsCommands.NewNote({})] };
-    case "CreatedNote":
+    case "NewSavedView":
+      return { model, commands: [SavedViewsCommands.NewSavedView({})] };
+    case "CreatedSavedView":
       return {
         model: {
           ...model,
@@ -121,8 +125,8 @@ function updateSavedViewsState(
           },
         },
       };
-    case "EditNote": {
-      const { id, title, body, filters, version } = message.note;
+    case "EditSavedView": {
+      const { id, title, body, filters, version } = message.savedView;
       return {
         model: {
           ...model,
@@ -134,7 +138,7 @@ function updateSavedViewsState(
         },
       };
     }
-    case "NoteChanged":
+    case "SavedViewChanged":
       return {
         model: {
           ...model,
@@ -149,7 +153,7 @@ function updateSavedViewsState(
             : null,
         },
       };
-    case "SaveNote":
+    case "SaveSavedView":
       return !model.editor ||
         model.editor.saving ||
         !model.editor.draft.title.trim()
@@ -160,33 +164,37 @@ function updateSavedViewsState(
               editor: { ...model.editor, saving: true, error: "" },
             },
             commands: [
-              SavedViewsCommands.SaveNote({ draft: model.editor.draft }),
+              SavedViewsCommands.SaveSavedView({ draft: model.editor.draft }),
             ],
           };
-    case "SavedNote": {
+    case "SavedViewSaved": {
       const next = {
         ...model,
-        editor: message.note
+        editor: message.savedView
           ? null
           : model.editor
             ? { ...model.editor, saving: false, error: message.error }
             : null,
         selection:
-          message.note &&
-          queryFor(message.note.filters) === queryFor(context.filters)
+          message.savedView &&
+          queryFor(message.savedView.filters) === queryFor(context.filters)
             ? {
-                id: message.note.id,
-                title: message.note.title,
-                filters: message.note.filters,
+                id: message.savedView.id,
+                title: message.savedView.title,
+                filters: message.savedView.filters,
               }
             : model.selection,
-        notice: message.note ? `Saved “${message.note.title}”` : model.notice,
+        notice: message.savedView
+          ? `Saved “${message.savedView.title}”`
+          : model.notice,
       };
-      return loadNotes(next);
+      return loadSavedViews(next);
     }
-    case "LoadNotes":
-      return model.notes.loading ? { model } : loadNotes(model, message.more);
-    case "LoadedNotes":
+    case "LoadSavedViews":
+      return model.savedViews.loading
+        ? { model }
+        : loadSavedViews(model, message.more);
+    case "LoadedSavedViews":
       return {
         commands:
           message.more &&
@@ -202,46 +210,55 @@ function updateSavedViewsState(
             : [],
         model: {
           ...model,
-          notePages: message.data
+          savedViewPages: message.data
             ? message.more
-              ? model.notePages + 1
+              ? model.savedViewPages + 1
               : message.pages
-            : model.notePages,
-          notes: {
+            : model.savedViewPages,
+          savedViews: {
             loading: false,
             error: message.error,
             data: message.data
               ? {
                   ...message.data,
                   rows: message.more
-                    ? [...(model.notes.data?.rows ?? []), ...message.data.rows]
+                    ? [
+                        ...(model.savedViews.data?.rows ?? []),
+                        ...message.data.rows,
+                      ]
                     : message.data.rows,
                 }
-              : model.notes.data,
+              : model.savedViews.data,
           },
         },
       };
-    case "PinNote":
-      return model.noteBusy
+    case "PinSavedView":
+      return model.savedViewBusy
         ? { model }
         : {
-            model: { ...model, noteBusy: true, noteError: "" },
-            commands: [SavedViewsCommands.PinNote({ note: message.note })],
+            model: { ...model, savedViewBusy: true, savedViewError: "" },
+            commands: [
+              SavedViewsCommands.PinSavedView({ savedView: message.savedView }),
+            ],
           };
-    case "DeleteNote":
-      return { model: { ...model, deleting: message.note, noteError: "" } };
+    case "DeleteSavedView":
+      return {
+        model: { ...model, deleting: message.savedView, savedViewError: "" },
+      };
     case "ConfirmDelete":
-      return !model.deleting || model.noteBusy
+      return !model.deleting || model.savedViewBusy
         ? { model }
         : {
-            model: { ...model, noteBusy: true },
-            commands: [SavedViewsCommands.DeleteNote({ note: model.deleting })],
+            model: { ...model, savedViewBusy: true },
+            commands: [
+              SavedViewsCommands.DeleteSavedView({ savedView: model.deleting }),
+            ],
           };
-    case "MutatedNote":
-      return loadNotes({
+    case "MutatedSavedView":
+      return loadSavedViews({
         ...model,
-        noteBusy: false,
-        noteError: message.error,
+        savedViewBusy: false,
+        savedViewError: message.error,
         notice: message.removed && !message.error ? "" : model.notice,
         deleting: message.removed && !message.error ? null : model.deleting,
         selection:
@@ -257,15 +274,18 @@ function updateSavedViewsState(
           {
             ...model,
             selection: {
-              id: message.note.id,
-              title: message.note.title,
-              filters: message.note.filters,
+              id: message.savedView.id,
+              title: message.savedView.title,
+              filters: message.savedView.filters,
             },
             notice: "",
           },
           Popover.close(model.picker),
         ),
-        outMessage: { _tag: "RestoreFilters", filters: message.note.filters },
+        outMessage: {
+          _tag: "RestoreFilters",
+          filters: message.savedView.filters,
+        },
       };
     case "ClearView":
       return {
@@ -290,8 +310,8 @@ export function updateSavedViews(
   context: Context,
 ): FeatureUpdate<Model, Message, Out> {
   const result = updateSavedViewsState(model, message, context);
-  const note = syncDialog(
-    result.model.dialogs.note,
+  const savedView = syncDialog(
+    result.model.dialogs.savedView,
     result.model.editor !== null,
   );
   const deletion = syncDialog(
@@ -302,12 +322,14 @@ export function updateSavedViews(
     ...result,
     model: {
       ...result.model,
-      dialogs: { note: note.model, delete: deletion.model },
+      dialogs: { savedView: savedView.model, delete: deletion.model },
     },
     commands: [
       ...(result.commands ?? []),
-      ...(note.commands ?? []).map((command) =>
-        Command.mapMessage(command, (message) => M.NoteDialog({ message })),
+      ...(savedView.commands ?? []).map((command) =>
+        Command.mapMessage(command, (message) =>
+          M.SavedViewDialog({ message }),
+        ),
       ),
       ...(deletion.commands ?? []).map((command) =>
         Command.mapMessage(command, (message) => M.DeleteDialog({ message })),

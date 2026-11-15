@@ -14,16 +14,20 @@ export const RestoreConversation = Command.define("RestoreConversation", {
     try {
       const stored = sessionStorage.getItem("metrocab.genie.v1");
       if (stored)
-        turns = Schema.decodeUnknownSync(History)(JSON.parse(stored)).map(
-          (turn) =>
-            turn.state === "submitting"
-              ? {
-                  ...turnBase(turn),
-                  state: "submission-unknown" as const,
-                  error:
-                    "The submission response was lost. The question may have been accepted. Check Genie before submitting it again.",
-                }
-              : turn,
+        turns = Schema.decodeUnknownSync(History)(
+          // Normalize only persisted page identifiers, preserving historical answers.
+          JSON.parse(stored, (key, value) =>
+            key === "page" && value === "notebook" ? "saved-views" : value,
+          ),
+        ).map((turn) =>
+          turn.state === "submitting"
+            ? {
+                ...turnBase(turn),
+                state: "submission-unknown" as const,
+                error:
+                  "The submission response was lost. The question may have been accepted. Check Genie before submitting it again.",
+              }
+            : turn,
         );
     } catch {
       persistenceError =

@@ -9,7 +9,7 @@ import {
 } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
 import { ApiError, AppApi } from "../shared/api.js";
-import type { Note, NoteInput } from "../shared/domain.js";
+import type { SavedView, SavedViewInput } from "../shared/domain.js";
 import { Analytics } from "../src/analytics.js";
 import { Genie } from "../src/genie.js";
 import { Lakebase } from "../src/lakebase.js";
@@ -20,7 +20,7 @@ import { TripComments } from "../src/trip-comments.js";
 import { Workspace } from "../src/workspace.js";
 
 const operation = { conversationId: "conversation-1", messageId: "message-1" };
-const note: NoteInput = {
+const savedView: SavedViewInput = {
   id: "472a6613-2337-4af1-a416-e9b6b61064dd",
   title: "Finding",
   body: "Fare analysis",
@@ -44,7 +44,7 @@ const overview = {
 
 const fixture = () => {
   const calls: Array<readonly [string, unknown]> = [];
-  let notes: Note[] = [];
+  let savedViews: SavedView[] = [];
   const record = <A>(name: string, input: unknown, output: A) =>
     Effect.sync(() => {
       calls.push([name, input]);
@@ -103,8 +103,8 @@ const fixture = () => {
           Layer.succeed(SavedViews, {
             list: (search) =>
               Effect.sync(() => {
-                if (search.cursor) calls.push(["notes", search]);
-                return { rows: notes, nextCursor: null };
+                if (search.cursor) calls.push(["savedViews", search]);
+                return { rows: savedViews, nextCursor: null };
               }),
             save: (input) =>
               Effect.sync(() => {
@@ -116,7 +116,7 @@ const fixture = () => {
                   created_at: "2026-11-13",
                   updated_at: "2026-11-13",
                 };
-                notes = [saved];
+                savedViews = [saved];
                 return saved;
               }),
             pin: (id, input) =>
@@ -124,7 +124,7 @@ const fixture = () => {
                 "pin",
                 { id, ...input },
                 {
-                  ...note,
+                  ...savedView,
                   version: input.version + 1,
                   pinned: input.pinned,
                   created_at: "2026-11-13",
@@ -134,7 +134,7 @@ const fixture = () => {
             remove: (id) =>
               Effect.sync(() => {
                 calls.push(["remove", id]);
-                notes = notes.filter((entry) => entry.id !== id);
+                savedViews = savedViews.filter((entry) => entry.id !== id);
               }),
           }),
           Settings.layer.pipe(
@@ -209,34 +209,34 @@ test("generated client round-trips every endpoint through the real HTTP contract
         text: "Ten trips",
         queries: [],
       });
-      const saved = yield* client.saveNote({ payload: note });
+      const saved = yield* client.saveSavedView({ payload: savedView });
       assert.deepEqual(saved, {
-        ...note,
+        ...savedView,
         version: 1,
         pinned: false,
         created_at: "2026-11-13",
         updated_at: "2026-11-13",
       });
-      assert.deepEqual(yield* client.notes({ query: {} }), {
+      assert.deepEqual(yield* client.savedViews({ query: {} }), {
         rows: [saved],
         nextCursor: null,
       });
-      const pinned = yield* client.pinNote({
-        params: { id: note.id },
+      const pinned = yield* client.pinSavedView({
+        params: { id: savedView.id },
         payload: { version: saved.version, pinned: true },
       });
       assert.equal(pinned.pinned, true);
       assert.equal(pinned.version, 2);
       assert.deepEqual(
-        yield* client.removeNote({
-          params: { id: note.id },
+        yield* client.removeSavedView({
+          params: { id: savedView.id },
           query: { version: pinned.version },
         }),
         {
           deleted: true,
         },
       );
-      assert.deepEqual(yield* client.notes({ query: {} }), {
+      assert.deepEqual(yield* client.savedViews({ query: {} }), {
         rows: [],
         nextCursor: null,
       });
@@ -248,9 +248,9 @@ test("generated client round-trips every endpoint through the real HTTP contract
     ["submit", { content: "Count trips", conversationId: "previous-1" }],
     ["poll", operation],
     ["result", operation],
-    ["save", note],
-    ["pin", { id: note.id, version: 1, pinned: true }],
-    ["remove", note.id],
+    ["save", savedView],
+    ["pin", { id: savedView.id, version: 1, pinned: true }],
+    ["remove", savedView.id],
   ]);
 });
 
@@ -262,12 +262,12 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
     ["/api/overview?from=2016-02-01&to=2016-01-01", undefined],
     ["/api/trips?from=2016-02-01&to=2016-01-01", undefined],
     [
-      "/api/notes",
+      "/api/saved-views",
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...note,
+          ...savedView,
           filters: { from: "2016-02-01", to: "2016-01-01" },
         }),
       },
@@ -290,26 +290,34 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
     ["/api/overview?from=2016-02-31", undefined],
     ["/api/trips?page=0", undefined],
     ["/api/trips?sort=unsafe", undefined],
-    ["/api/notes?cursor=not-json", undefined],
+    ["/api/saved-views?cursor=not-json", undefined],
     ...[
       {},
-      { id: note.id, pinned: "true", updatedAt: "2026-11-13T00:00:00.000000Z" },
+      {
+        id: savedView.id,
+        pinned: "true",
+        updatedAt: "2026-11-13T00:00:00.000000Z",
+      },
       { id: "bad-id", pinned: false, updatedAt: "2026-11-13T00:00:00.000000Z" },
-      { id: note.id, pinned: false, updatedAt: "2026-02-30T00:00:00.000000Z" },
-      { id: note.id, pinned: false, updatedAt: "2026-11-13T00:00:00Z" },
+      {
+        id: savedView.id,
+        pinned: false,
+        updatedAt: "2026-02-30T00:00:00.000000Z",
+      },
+      { id: savedView.id, pinned: false, updatedAt: "2026-11-13T00:00:00Z" },
     ].map(
       (cursor) =>
         [
-          `/api/notes?${new URLSearchParams({ cursor: JSON.stringify(cursor) })}`,
+          `/api/saved-views?${new URLSearchParams({ cursor: JSON.stringify(cursor) })}`,
           undefined,
         ] as const,
     ),
     ["/api/genie/bad%20id/messages/message", undefined],
-    ["/api/notes/bad-id", { method: "DELETE" }],
-    [`/api/notes/${note.id}`, { method: "DELETE" }],
-    [`/api/notes/${note.id}?version=0`, { method: "DELETE" }],
+    ["/api/saved-views/bad-id", { method: "DELETE" }],
+    [`/api/saved-views/${savedView.id}`, { method: "DELETE" }],
+    [`/api/saved-views/${savedView.id}?version=0`, { method: "DELETE" }],
     [
-      `/api/notes/${note.id}/pin`,
+      `/api/saved-views/${savedView.id}/pin`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -333,11 +341,11 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
       },
     ],
     [
-      "/api/notes",
+      "/api/saved-views",
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...note, version: 0 }),
+        body: JSON.stringify({ ...savedView, version: 0 }),
       },
     ],
   ] as const) {
@@ -360,18 +368,18 @@ test("generated client round-trips a microsecond saved-view cursor through the H
   const { app, client, calls } = fixture();
   t.after(app.dispose);
   const cursor = {
-    id: note.id,
+    id: savedView.id,
     pinned: true,
     updatedAt: "2026-11-13T10:00:00.000123Z",
   };
   assert.deepEqual(
-    await Effect.runPromise(client.notes({ query: { cursor } })),
+    await Effect.runPromise(client.savedViews({ query: { cursor } })),
     {
       rows: [],
       nextCursor: null,
     },
   );
-  assert.deepEqual(calls, [["notes", { cursor }]]);
+  assert.deepEqual(calls, [["savedViews", { cursor }]]);
 });
 
 test("generated client rejects reversed dates before sending a request", async (t) => {
@@ -418,7 +426,10 @@ test("generated client preserves validation codes and messages at the UI boundar
 for (const { status, error } of [
   {
     status: 409,
-    error: { code: "note_conflict", message: "Reload the latest note" },
+    error: {
+      code: "saved_view_conflict",
+      message: "Reload the latest saved view",
+    },
   },
   {
     status: 502,
@@ -531,13 +542,13 @@ test("trip comment contract round-trips snapshots and attributes the request vie
     fare: 18.5,
     duration: 14,
   };
-  const cursor = { id: note.id, createdAt: "2026-11-14T10:00:00.123456Z" };
+  const cursor = { id: savedView.id, createdAt: "2026-11-14T10:00:00.123456Z" };
   assert.deepEqual(
     await Effect.runPromise(client.tripComments({ query: { trip, cursor } })),
     { rows: [], nextCursor: null },
   );
   assert.deepEqual(calls.at(-1), ["tripComments", { trip, cursor }]);
-  const input = { id: note.id, trip, body: "Check the fare" };
+  const input = { id: savedView.id, trip, body: "Check the fare" };
   const response = await app.handler(
     new Request("http://localhost/api/trip-comments", {
       method: "POST",

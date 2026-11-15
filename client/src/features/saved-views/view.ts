@@ -15,7 +15,7 @@ import { Message as M } from "./view-messages";
 const close = (h: H, label = "Close") =>
   button(h, {
     label: icon(h, "x"),
-    onClick: M.CloseNote(),
+    onClick: M.CloseSavedView(),
     attributes: [h.AriaLabel(label)],
     className: " dialog-close",
     variant: "ghost",
@@ -25,10 +25,13 @@ type PickerModel = Model & {
   readonly canSave: boolean;
 };
 function savedViewList(h: H, model: PickerModel): Child[] {
-  const data = model.notes.data;
-  if (model.notes.loading && !data) return [loading(h, "Loading saved views…")];
-  if (model.notes.error && !data)
-    return [error(h, model.notes.error, M.LoadNotes({ more: false }))];
+  const data = model.savedViews.data;
+  if (model.savedViews.loading && !data)
+    return [loading(h, "Loading saved views…")];
+  if (model.savedViews.error && !data)
+    return [
+      error(h, model.savedViews.error, M.LoadSavedViews({ more: false })),
+    ];
   const rows = data?.rows ?? [];
   const selected = appliedView(model, filtersFromQuery(model.query) ?? {});
   return [
@@ -46,65 +49,69 @@ function savedViewList(h: H, model: PickerModel): Child[] {
           ),
         ]
       : []),
-    ...rows.map((note) =>
+    ...rows.map((savedView) =>
       h.div(
-        [h.Key(note.id)],
+        [h.Key(savedView.id)],
         [
           viewOption(h, {
-            title: note.title,
-            accessibleLabel: `Open saved view for ${note.title}`,
-            summary: filterSummary(h, note.filters),
-            description: note.body,
-            selected: selected?.id === note.id,
-            pinned: note.pinned,
-            onSelect: M.RestoreView({ note }),
+            title: savedView.title,
+            accessibleLabel: `Open saved view for ${savedView.title}`,
+            summary: filterSummary(h, savedView.filters),
+            description: savedView.body,
+            selected: selected?.id === savedView.id,
+            pinned: savedView.pinned,
+            onSelect: M.RestoreView({ savedView }),
             actions: [
               button(h, {
-                label: icon(h, note.pinned ? "pin" : "pin-off"),
-                onClick: M.PinNote({ note }),
-                busy: model.noteBusy,
+                label: icon(h, savedView.pinned ? "pin" : "pin-off"),
+                onClick: M.PinSavedView({ savedView }),
+                busy: model.savedViewBusy,
                 size: "icon",
                 variant: "ghost",
                 attributes: [
-                  h.AriaLabel(`${note.pinned ? "Unpin" : "Pin"} ${note.title}`),
+                  h.AriaLabel(
+                    `${savedView.pinned ? "Unpin" : "Pin"} ${savedView.title}`,
+                  ),
                 ],
               }),
               button(h, {
                 label: icon(h, "pencil"),
-                onClick: M.EditNote({ note }),
+                onClick: M.EditSavedView({ savedView }),
                 size: "icon",
                 variant: "ghost",
-                attributes: [h.AriaLabel(`Edit ${note.title}`)],
+                attributes: [h.AriaLabel(`Edit ${savedView.title}`)],
               }),
               button(h, {
                 label: icon(h, "trash-2"),
-                onClick: M.DeleteNote({ note }),
+                onClick: M.DeleteSavedView({ savedView }),
                 size: "icon",
                 variant: "ghost",
-                attributes: [h.AriaLabel(`Delete ${note.title}`)],
+                attributes: [h.AriaLabel(`Delete ${savedView.title}`)],
               }),
             ],
           }),
         ],
       ),
     ),
-    ...(model.notes.error ? [alert(h, model.notes.error)] : []),
-    ...(data?.nextCursor || model.notes.error
+    ...(model.savedViews.error ? [alert(h, model.savedViews.error)] : []),
+    ...(data?.nextCursor || model.savedViews.error
       ? [
           button(h, {
-            label: model.notes.loading
+            label: model.savedViews.loading
               ? "Loading views…"
-              : model.notes.error
+              : model.savedViews.error
                 ? "Retry loading views"
                 : "Load more views",
-            onClick: M.LoadNotes({ more: !!data?.nextCursor }),
-            busy: model.notes.loading,
+            onClick: M.LoadSavedViews({ more: !!data?.nextCursor }),
+            busy: model.savedViews.loading,
             attributes: [h.Key("load-saved-views")],
             className: "w-full mt-2",
           }),
         ]
       : []),
-    ...(model.noteError && !model.deleting ? [alert(h, model.noteError)] : []),
+    ...(model.savedViewError && !model.deleting
+      ? [alert(h, model.savedViewError)]
+      : []),
   ];
 }
 
@@ -152,12 +159,12 @@ function savedViews(h: H, model: PickerModel) {
             selected: !queryFor(filters) && !selected,
             onSelect: M.ClearView(),
           }),
-          ...(model.notes.data
+          ...(model.savedViews.data
             ? [
                 h.p(
                   [h.AriaLive("polite"), h.Class("view-picker-count")],
                   [
-                    `${model.notes.data.rows.length} saved ${model.notes.data.rows.length === 1 ? "view" : "views"} shown`,
+                    `${model.savedViews.data.rows.length} saved ${model.savedViews.data.rows.length === 1 ? "view" : "views"} shown`,
                   ],
                 ),
               ]
@@ -178,7 +185,7 @@ function savedViews(h: H, model: PickerModel) {
           ),
           button(h, {
             label: "Save this view",
-            onClick: M.NewNote(),
+            onClick: M.NewSavedView(),
             disabled: !model.canSave,
             size: "small",
           }),
@@ -193,15 +200,15 @@ function editor(h: H, model: Model) {
   const { draft, saving } = editor;
   const name = draft.version !== null ? "Edit saved view" : "Save this view";
   return dialog(h, {
-    model: model.dialogs.note,
-    onMessage: (message) => M.NoteDialog({ message }),
+    model: model.dialogs.savedView,
+    onMessage: (message) => M.SavedViewDialog({ message }),
     className: "dialog-panel overflow-y-auto",
     children: [
       close(h),
       h.div(
         [h.Class("dialog-header")],
         [
-          h.h2([h.Id(Dialog.titleId(model.dialogs.note))], [name]),
+          h.h2([h.Id(Dialog.titleId(model.dialogs.savedView))], [name]),
           h.p(
             [h.Class("muted text-sm mt-2")],
             ["Give this view a name so you and your team can return to it."],
@@ -209,13 +216,13 @@ function editor(h: H, model: Model) {
         ],
       ),
       h.form(
-        [h.OnSubmit(M.SaveNote()), h.Class("p-6 space-y-5")],
+        [h.OnSubmit(M.SaveSavedView()), h.Class("p-6 space-y-5")],
         [
           field(h, {
-            id: "note-title",
+            id: "saved-view-title",
             label: "View name",
             value: draft.title,
-            onInput: (value) => M.NoteChanged({ field: "title", value }),
+            onInput: (value) => M.SavedViewChanged({ field: "title", value }),
             placeholder: "e.g. Midtown fare review",
             attributes: [h.Required(true), h.Maxlength(160)],
           }),
@@ -223,14 +230,15 @@ function editor(h: H, model: Model) {
             [],
             [
               h.label(
-                [h.For("note-body"), h.Class("field-label")],
+                [h.For("saved-view-body"), h.Class("field-label")],
                 ["Finding (optional)"],
               ),
               Textarea.view(
                 {
-                  id: "note-body",
+                  id: "saved-view-body",
                   value: draft.body,
-                  onInput: (value) => M.NoteChanged({ field: "body", value }),
+                  onInput: (value) =>
+                    M.SavedViewChanged({ field: "body", value }),
                   placeholder:
                     "What is worth returning to? Add context or a next step…",
                   toView: (attributes) =>
@@ -265,7 +273,7 @@ function editor(h: H, model: Model) {
             [
               button(h, {
                 label: "Cancel",
-                onClick: M.CloseNote(),
+                onClick: M.CloseSavedView(),
                 disabled: saving,
               }),
               button(h, {
@@ -302,19 +310,19 @@ function deleteDialog(h: H, model: Model) {
           ),
         ],
       ),
-      ...(model.noteError ? [alert(h, model.noteError)] : []),
+      ...(model.savedViewError ? [alert(h, model.savedViewError)] : []),
       h.div(
         [h.Class("dialog-footer")],
         [
           button(h, {
             label: "Cancel",
             onClick: M.CloseDelete(),
-            disabled: model.noteBusy,
+            disabled: model.savedViewBusy,
           }),
           button(h, {
-            label: model.noteBusy ? "Deleting…" : "Delete view",
+            label: model.savedViewBusy ? "Deleting…" : "Delete view",
             onClick: M.ConfirmDelete(),
-            disabled: model.noteBusy,
+            disabled: model.savedViewBusy,
             variant: "destructive",
           }),
         ],

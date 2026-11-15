@@ -83,7 +83,7 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
   ).toBe(true);
 });
 
-test("Lakebase notes survive reload and support editing, saved filters and deletion", async ({
+test("Lakebase saved views survive reload and support editing, saved filters and deletion", async ({
   page,
 }) => {
   await page.goto("/trips?zip=10001");
@@ -96,7 +96,7 @@ test("Lakebase notes survive reload and support editing, saved filters and delet
   await page
     .getByRole("dialog")
     .getByRole("textbox", { name: "Finding (optional)", exact: true })
-    .fill("A temporary note to verify real Lakebase persistence.");
+    .fill("A temporary saved view to verify real Lakebase persistence.");
   await page
     .getByRole("dialog", { name: "Save this view", exact: true })
     .getByRole("button", { name: "Save view", exact: true })

@@ -100,7 +100,7 @@ const questions = {
     "Compare the busiest pickup ZIP codes.",
     "Which pickup areas have the highest average fare?",
   ],
-  notebook: [
+  "saved-views": [
     "Summarize trip activity for the current filters.",
     "Compare weekday and weekend fares.",
   ],

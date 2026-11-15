@@ -91,28 +91,28 @@ export const Trips = Schema.Struct({
   page: Schema.Number,
   pageSize: Schema.Number,
 });
-export const NoteVersion = Schema.Int.check(Schema.isGreaterThan(0));
-export const NoteInput = Schema.Struct({
+export const SavedViewVersion = Schema.Int.check(Schema.isGreaterThan(0));
+export const SavedViewInput = Schema.Struct({
   id: Id,
   title: boundedText(160),
   body: Schema.String.check(Schema.isMaxLength(10000)),
   filters: Filters,
-  version: Schema.NullOr(NoteVersion),
+  version: Schema.NullOr(SavedViewVersion),
 });
-export const NotePin = Schema.Struct({
-  version: NoteVersion,
+export const SavedViewPin = Schema.Struct({
+  version: SavedViewVersion,
   pinned: Schema.Boolean,
 });
-export type NotePin = typeof NotePin.Type;
-export const Note = Schema.Struct({
-  ...NoteInput.fields,
-  version: NoteVersion,
+export type SavedViewPin = typeof SavedViewPin.Type;
+export const SavedView = Schema.Struct({
+  ...SavedViewInput.fields,
+  version: SavedViewVersion,
   pinned: Schema.Boolean,
   created_at: Schema.String,
   updated_at: Schema.String,
 });
-export type Note = typeof Note.Type;
-export type NoteInput = typeof NoteInput.Type;
+export type SavedView = typeof SavedView.Type;
+export type SavedViewInput = typeof SavedViewInput.Type;
 export const CursorTimestamp = Schema.String.check(
   Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/),
   Schema.makeFilter(
@@ -121,25 +121,25 @@ export const CursorTimestamp = Schema.String.check(
       new Date(value).toISOString() === `${value.slice(0, 23)}Z`,
   ),
 );
-export const NoteCursor = Schema.Struct({
+export const SavedViewCursor = Schema.Struct({
   id: Id,
   pinned: Schema.Boolean,
   // Preserve PostgreSQL's microseconds when resuming the database ordering.
   updatedAt: CursorTimestamp,
 });
-export type NoteCursor = typeof NoteCursor.Type;
-export const NoteSearch = Schema.Struct({
-  cursor: Schema.optionalKey(Schema.fromJsonString(NoteCursor)),
+export type SavedViewCursor = typeof SavedViewCursor.Type;
+export const SavedViewSearch = Schema.Struct({
+  cursor: Schema.optionalKey(Schema.fromJsonString(SavedViewCursor)),
 });
-export type NoteSearch = typeof NoteSearch.Type;
-export const Notes = Schema.Struct({
-  rows: Schema.Array(Note),
-  nextCursor: Schema.NullOr(NoteCursor),
+export type SavedViewSearch = typeof SavedViewSearch.Type;
+export const SavedViewsPage = Schema.Struct({
+  rows: Schema.Array(SavedView),
+  nextCursor: Schema.NullOr(SavedViewCursor),
 });
-export type Notes = typeof Notes.Type;
+export type SavedViewsPage = typeof SavedViewsPage.Type;
 const GenieId = Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9-]{1,100}$/));
 export const GenieContext = Schema.Struct({
-  page: Schema.Literals(["overview", "trips", "map", "notebook", "genie"]),
+  page: Schema.Literals(["overview", "trips", "map", "saved-views", "genie"]),
   title: boundedText(160),
   // A bounded snapshot of the displayed aggregates or visible records.
   data: Schema.optionalKey(boundedText(24000)),

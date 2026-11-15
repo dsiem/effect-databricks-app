@@ -123,7 +123,7 @@ test.beforeEach(async ({ page }) => {
       "/api/metadata": { from: "2016-01-01", to: "2016-02-29", trips: total },
       "/api/overview": overview,
       "/api/trips": { rows: trips, total, page: 1, pageSize: 25 },
-      "/api/notes": {
+      "/api/saved-views": {
         rows: [
           {
             id: "57b7651d-c553-4fcf-815d-104cc57fd745",

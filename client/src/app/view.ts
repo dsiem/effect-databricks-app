@@ -205,7 +205,7 @@ function filters(h: H, model: Model) {
         [h.Class("inline-flex items-center gap-2")],
         [icon(h, "plus"), "Save view"],
       ),
-      onClick: M.NewNote(),
+      onClick: M.NewSavedView(),
       disabled: !applied || hasChanges,
       attributes: [
         h.Attribute(

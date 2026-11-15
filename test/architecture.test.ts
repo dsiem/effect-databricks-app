@@ -7,6 +7,24 @@ import { test } from "node:test";
 
 for (const [name, file, source, allowed] of [
   [
+    "shared contracts use saved-view vocabulary",
+    "shared/domain.ts",
+    "export type SavedView = { id: string };",
+    true,
+  ],
+  [
+    "legacy saved-view type names cannot return",
+    "shared/domain.ts",
+    "export type Note = { id: string };",
+    false,
+  ],
+  [
+    "legacy saved-view endpoint names cannot return",
+    "shared/api.ts",
+    'export const path = "/api/notes";',
+    false,
+  ],
+  [
     "browser shares API contracts",
     "client/src/api.ts",
     'import { Api } from "../../shared/api";',

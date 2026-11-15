@@ -65,7 +65,7 @@ try {
   assert.equal(initialStatus.status, 200);
   assert.equal(JSON.parse(initialStatus.body).lakebase, true);
   assert.equal(JSON.parse(initialStatus.body).capabilities.lakebase, "unknown");
-  assert.equal((await request("/api/notes")).status, 503);
+  assert.equal((await request("/api/saved-views")).status, 503);
   const unavailableStatus = await request("/api/status");
   assert.equal(
     JSON.parse(unavailableStatus.body).capabilities.lakebase,

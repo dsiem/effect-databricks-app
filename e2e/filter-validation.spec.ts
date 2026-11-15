@@ -13,9 +13,12 @@ for (const path of ["/", "/trips", "/map", "/genie"]) {
       await page.route("**/api/**", (route) => {
         const url = new URL(route.request().url());
         if (
-          ["/api/overview", "/api/trips", "/api/notes", "/api/genie"].includes(
-            url.pathname,
-          )
+          [
+            "/api/overview",
+            "/api/trips",
+            "/api/saved-views",
+            "/api/genie",
+          ].includes(url.pathname)
         )
           dataRequests.push(url.pathname);
         return route.continue();

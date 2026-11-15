@@ -147,14 +147,14 @@ test("late trip responses cannot overwrite a newer filter selection", async ({
 test("saved view chooser creates, edits, reloads, and deletes views with their filters", async ({
   page,
 }) => {
-  const stored: import("../shared/domain").Note[] = [];
-  await page.route("**/api/notes**", (route) => {
+  const stored: import("../shared/domain").SavedView[] = [];
+  await page.route("**/api/saved-views**", (route) => {
     const request = route.request();
     if (request.method() === "PUT") {
       const input =
-        request.postDataJSON() as import("../shared/domain").NoteInput;
+        request.postDataJSON() as import("../shared/domain").SavedViewInput;
       expect(input.filters).toEqual({ zip: "10001" });
-      const previous = stored.find((note) => note.id === input.id);
+      const previous = stored.find((savedView) => savedView.id === input.id);
       expect(input.version).toBe(previous?.version ?? null);
       const saved = {
         ...input,
@@ -175,11 +175,11 @@ test("saved view chooser creates, edits, reloads, and deletes views with their f
   });
   await page.goto("/trips?zip=10001");
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
-  const newNote = page.getByRole("button", {
+  const newSavedView = page.getByRole("button", {
     name: "Save this view",
     exact: true,
   });
-  await newNote.click();
+  await newSavedView.click();
   await page
     .getByRole("textbox", { name: "View name", exact: true })
     .fill("Fare review");

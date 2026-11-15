@@ -4,33 +4,36 @@ import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
 
 export const messages = {
-  CloseNote: {},
+  CloseSavedView: {},
   CloseDelete: {},
-  NoteDialog: { message: Dialog.Message },
+  SavedViewDialog: { message: Dialog.Message },
   DeleteDialog: { message: Dialog.Message },
   SavedViewsPicker: { message: Popover.Message },
   ClearView: {},
-  NewNote: {},
-  CreatedNote: { id: Schema.String },
-  EditNote: { note: D.Note },
-  NoteChanged: {
+  NewSavedView: {},
+  CreatedSavedView: { id: Schema.String },
+  EditSavedView: { savedView: D.SavedView },
+  SavedViewChanged: {
     field: Schema.Literals(["title", "body"]),
     value: Schema.String,
   },
-  SaveNote: {},
-  SavedNote: { note: Schema.NullOr(D.Note), error: Schema.String },
-  LoadNotes: { more: Schema.Boolean },
-  LoadedNotes: {
-    data: Schema.NullOr(D.Notes),
+  SaveSavedView: {},
+  SavedViewSaved: {
+    savedView: Schema.NullOr(D.SavedView),
+    error: Schema.String,
+  },
+  LoadSavedViews: { more: Schema.Boolean },
+  LoadedSavedViews: {
+    data: Schema.NullOr(D.SavedViewsPage),
     error: Schema.String,
     more: Schema.Boolean,
     pages: Schema.Number,
   },
-  PinNote: { note: D.Note },
-  DeleteNote: { note: D.Note },
+  PinSavedView: { savedView: D.SavedView },
+  DeleteSavedView: { savedView: D.SavedView },
   ConfirmDelete: {},
-  MutatedNote: { removed: Schema.Boolean, error: Schema.String },
-  RestoreView: { note: D.Note },
+  MutatedSavedView: { removed: Schema.Boolean, error: Schema.String },
+  RestoreView: { savedView: D.SavedView },
 };
 
 export const Message = defineMessageUnion({ Idle: {}, ...messages });

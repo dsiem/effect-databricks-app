@@ -7,27 +7,27 @@ next, followed by P2 hardening and P3 improvements.
 Keep the current service topology and SQL adapter package boundary. Include
 behavioral tests for each implementation task's completion criteria.
 
-1. [x] **P1 — Prevent conflicting notebook writes**
+1. [x] **P1 — Prevent conflicting saved-view writes**
 
    Add version-checked updates and explicit conflict responses. Make pinning a
    field-specific operation. Stale edits must not overwrite newer content or
-   recreate deleted notes.
+   recreate deleted saved views.
 
-   Notebook creates and updates now use explicit versions; stale edits, pins,
-   and deletes return conflicts, and updates to deleted notes return not found.
+   Saved-view creates and updates now use explicit versions; stale edits, pins,
+   and deletes return conflicts. Updates to deleted saved views return not found.
    Pinning changes only its own field. Repeatable PostgreSQL migrations add the
-   version to existing notes. Offline PostgreSQL and browser tests cover
-   concurrent editors, deleted notes, pin isolation, and preserved drafts.
+   version to existing saved views. Offline PostgreSQL and browser tests cover
+   concurrent editors, deleted saved views, pin isolation, and preserved drafts.
 
 2. [x] **P1 — Make filter semantics consistent**
 
-   Enforce date ordering in the shared domain schema, including saved notes.
+   Enforce date ordering in the shared domain schema, including saved views.
    Invalid URL filters must produce visible validation errors rather than an
    unfiltered query. Accept structured filters in Genie requests and assemble
    prompt context server-side.
 
-   Shared date ordering now validates analytics queries, notebook inputs and
-   saved notes, and structured Genie filters. Invalid URL filters visibly block
+   Shared date ordering now validates analytics queries, saved-view inputs,
+   and structured Genie filters. Invalid URL filters visibly block
    page queries until corrected or cleared. Genie assembles inclusive date/ZIP
    context on the server for every question, including unfiltered follow-ups.
    Domain, HTTP, service, and browser tests cover these invariants.
@@ -46,7 +46,7 @@ behavioral tests for each implementation task's completion criteria.
 4. [x] **P1 — Preserve error and interruption semantics**
 
    Introduce discriminated service errors and translate them to HTTP responses at
-   the boundary. Replace blanket notebook `catchCause` handling. Isolate the
+   the boundary. Replace blanket saved-view `catchCause` handling. Isolate the
    PostgreSQL credential callback's infallibility constraint, preserve diagnostic
    causes, and keep interruption intact.
 
@@ -64,7 +64,7 @@ behavioral tests for each implementation task's completion criteria.
    Status exposes observed capability availability independently of configuration;
    invalid settings still fail startup. Offline tests exercise the real warehouse
    adapter during a discovery outage, and smoke checks verify shell and health
-   routes after notebook failure.
+   routes after saved-view failures.
 
 6. [x] **P2 — Add shared warehouse admission control**
 
@@ -78,35 +78,35 @@ behavioral tests for each implementation task's completion criteria.
    failures, defects, interruption, and cleanup. Offline behavioral tests cover
    distinct requests, queued cancellation, deadlines, and independent Genie reads.
 
-7. [x] **P2 — Make notebook listing complete and bounded**
+7. [x] **P2 — Make saved-view listing complete and bounded**
 
-   Replace the silent 200-note cutoff with pagination and explicit continuation
-   metadata. Every saved note must remain reachable through the UI.
+   Replace the silent 200-view cutoff with pagination and explicit continuation
+   metadata. Every saved view must remain reachable through the UI.
 
-   The shared API returns 24-note pages with validated continuation cursors.
+   The shared API returns 24-view pages with validated continuation cursors.
    Listing orders by pin status, full-precision update time, and UUID, backed by
    an index in the explicit migration. The UI loads further pages and retains
-   visible notes on download errors. Database tests cover more than 200 notes,
-   timestamp ties, microseconds, and deleted cursor rows; browser tests cover
-   reaching note 201, refreshing pins, and retrying later pages.
+   visible saved views on download errors. Database tests cover more than 200
+   saved views, timestamp ties, microseconds, and deleted cursor rows; browser tests cover
+   reaching saved view 201, refreshing pins, and retrying later pages.
 
 8. [x] **P2 — Expand application verification and deployment gates**
 
-   Add offline tests for conflicting notebook writes, filter invariants, Genie
+   Add offline tests for conflicting saved-view writes, filter invariants, Genie
    recovery, dependency outages, and admission control. Run the existing deployed
    API verification after startup; the app reporting `RUNNING` alone must not
    finish deployment verification.
 
    CI and deployment prechecks now require the offline browser suite. Deployment
    waits for `RUNNING` and then runs the hosted API verifier for SQL, paginated
-   notebook persistence, and a grounded Genie answer. Offline tests execute that
+   saved-view persistence, and a grounded Genie answer. Offline tests execute that
    verifier against HTTP fixtures and prove dependency failures fail the check
-   despite `RUNNING`, with temporary-note cleanup after read failures.
+   despite `RUNNING`, with temporary-view cleanup after read failures.
 
 9. [ ] **P2 — Model reproducible analysis context**
 
    Define a small shared model linking the dataset, filters, question or query,
-   and result provenance. Let users preserve a Genie finding in the notebook and
+   and result provenance. Let users preserve a Genie finding in a saved view and
    reopen its analysis context.
 
 10. [x] **P3 — Unify the HTTP contract**

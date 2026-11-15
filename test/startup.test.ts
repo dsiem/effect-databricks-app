@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { Cause, ConfigProvider, Effect, Exit, Layer, Redacted } from "effect";
 import { Analytics } from "../src/analytics.js";
 import { makeCapability } from "../src/capability.js";
-import { NoteNotFound, unavailable } from "../src/errors.js";
+import { SavedViewNotFound, unavailable } from "../src/errors.js";
 import { Genie } from "../src/genie.js";
 import { Lakebase } from "../src/lakebase.js";
 import { SavedViews } from "../src/saved-views.js";
@@ -100,7 +100,10 @@ test("availability follows dependency outcomes and leaves interruption and defec
       yield* Effect.exit(
         capability.track(
           Effect.fail(
-            new NoteNotFound({ id: "missing", message: "Already removed" }),
+            new SavedViewNotFound({
+              id: "missing",
+              message: "Already removed",
+            }),
           ),
         ),
       );

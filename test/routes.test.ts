@@ -5,9 +5,9 @@ import { HttpRouter, HttpServer } from "effect/http";
 import { Analytics } from "../src/analytics.js";
 import {
   GenieFailed,
-  NoteConflict,
-  NoteNotFound,
   OperationTimeout,
+  SavedViewConflict,
+  SavedViewNotFound,
   type ServiceError,
   UpstreamError,
   unavailable,
@@ -83,9 +83,12 @@ const cases: ReadonlyArray<{
   upstreamStatus?: number;
 }> = [
   {
-    error: new NoteConflict({ id: "id", message: "Reload the latest note" }),
+    error: new SavedViewConflict({
+      id: "id",
+      message: "Reload the latest saved view",
+    }),
     status: 409,
-    code: "note_conflict",
+    code: "saved_view_conflict",
   },
   {
     error: unavailable(
@@ -116,9 +119,9 @@ const cases: ReadonlyArray<{
     code: "genie_timeout",
   },
   {
-    error: new NoteNotFound({ id: "id", message: "Already removed" }),
+    error: new SavedViewNotFound({ id: "id", message: "Already removed" }),
     status: 404,
-    code: "note_not_found",
+    code: "saved_view_not_found",
   },
   {
     error: new OperationTimeout({
@@ -139,7 +142,7 @@ for (const { error, status, code, upstreamStatus } of cases) {
     const app = appFor(Effect.fail(error));
     try {
       const response = await app.handler(
-        new Request("http://localhost/api/notes"),
+        new Request("http://localhost/api/saved-views"),
       );
       assert.equal(response.status, status);
       assert.equal(response.headers.get("cache-control"), "no-store");
@@ -200,7 +203,7 @@ test("unexpected defects are HTTP 500 instead of dependency failures", async () 
   const app = appFor(Effect.die(new Error("private programming error")));
   try {
     const response = await app.handler(
-      new Request("http://localhost/api/notes"),
+      new Request("http://localhost/api/saved-views"),
     );
     assert.equal(response.status, 500);
     assert.doesNotMatch(

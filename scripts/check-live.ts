@@ -51,15 +51,15 @@ await Effect.runPromise(
     const settings = yield* Settings;
     if (settings.pgHost || settings.lakebaseEndpoint) {
       const savedViews = yield* SavedViews;
-      const allNotes = Effect.gen(function* () {
-        const notes = [];
+      const allSavedViews = Effect.gen(function* () {
+        const rows = [];
         let page = yield* savedViews.list({});
-        notes.push(...page.rows);
+        rows.push(...page.rows);
         while (page.nextCursor) {
           page = yield* savedViews.list({ cursor: page.nextCursor });
-          notes.push(...page.rows);
+          rows.push(...page.rows);
         }
-        return notes;
+        return rows;
       });
       const id = randomUUID();
       yield* Effect.acquireUseRelease(
@@ -72,7 +72,9 @@ await Effect.runPromise(
         }),
         (created) =>
           Effect.gen(function* () {
-            assert.ok((yield* allNotes).some((note) => note.id === id));
+            assert.ok(
+              (yield* allSavedViews).some((savedView) => savedView.id === id),
+            );
             const updated = yield* savedViews.save({
               id,
               title: "Updated verification",
@@ -88,9 +90,9 @@ await Effect.runPromise(
             assert.equal(updated.filters.zip, zip);
           }),
         () =>
-          allNotes.pipe(
-            Effect.flatMap((notes) => {
-              const current = notes.find((note) => note.id === id);
+          allSavedViews.pipe(
+            Effect.flatMap((rows) => {
+              const current = rows.find((savedView) => savedView.id === id);
               return current
                 ? savedViews.remove(id, current.version)
                 : Effect.void;
@@ -98,7 +100,9 @@ await Effect.runPromise(
             Effect.orDie,
           ),
       );
-      assert.ok(!(yield* allNotes).some((note) => note.id === id));
+      assert.ok(
+        !(yield* allSavedViews).some((savedView) => savedView.id === id),
+      );
       console.log(
         "Lakebase create, read, update, delete and filter persistence passed",
       );

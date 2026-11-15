@@ -5,36 +5,42 @@ import { request } from "../../lib/api-client";
 import { result } from "../../lib/command-result";
 import { randomUuid } from "../../lib/uuid";
 import { Message as M } from "./messages";
-export const NewNote = Command.define("CreateNoteDraft", {
+export const NewSavedView = Command.define("CreateSavedViewDraft", {
   args: {},
-  messages: [M.CreatedNote],
-  execute: () => Effect.sync(() => M.CreatedNote({ id: randomUuid() })),
+  messages: [M.CreatedSavedView],
+  execute: () => Effect.sync(() => M.CreatedSavedView({ id: randomUuid() })),
 });
-export const SaveNote = Command.define("SaveNote", {
-  args: { draft: D.NoteInput },
-  messages: [M.SavedNote],
+export const SaveSavedView = Command.define("SaveSavedView", {
+  args: { draft: D.SavedViewInput },
+  messages: [M.SavedViewSaved],
   execute: ({ draft }) =>
     result(
       request((client) =>
-        client.saveNote({ payload: { ...draft, title: draft.title.trim() } }),
+        client.saveSavedView({
+          payload: { ...draft, title: draft.title.trim() },
+        }),
       ),
-    ).pipe(Effect.map(({ data, error }) => M.SavedNote({ note: data, error }))),
+    ).pipe(
+      Effect.map(({ data, error }) =>
+        M.SavedViewSaved({ savedView: data, error }),
+      ),
+    ),
 });
-export const LoadNotes = Command.define("LoadNotes", {
+export const LoadSavedViews = Command.define("LoadSavedViews", {
   args: {
-    cursor: Schema.NullOr(D.NoteCursor),
+    cursor: Schema.NullOr(D.SavedViewCursor),
     pages: Schema.Number,
     more: Schema.Boolean,
   },
-  messages: [M.LoadedNotes],
+  messages: [M.LoadedSavedViews],
   execute: ({ cursor, pages, more }) =>
     result(
       Effect.gen(function* () {
         let next = cursor;
-        const rows: D.Note[] = [];
+        const rows: D.SavedView[] = [];
         for (let page = 0; page < pages; page++) {
           const response = yield* request((client) =>
-            client.notes({
+            client.savedViews({
               query: next ? { cursor: next } : {},
             }),
           );
@@ -44,31 +50,37 @@ export const LoadNotes = Command.define("LoadNotes", {
         }
         return { rows, nextCursor: next };
       }),
-    ).pipe(Effect.map((value) => M.LoadedNotes({ ...value, more, pages }))),
+    ).pipe(
+      Effect.map((value) => M.LoadedSavedViews({ ...value, more, pages })),
+    ),
 });
-export const PinNote = Command.define("PinNote", {
-  args: { note: D.Note },
-  messages: [M.MutatedNote],
-  execute: ({ note }) =>
+export const PinSavedView = Command.define("PinSavedView", {
+  args: { savedView: D.SavedView },
+  messages: [M.MutatedSavedView],
+  execute: ({ savedView }) =>
     result(
       request((client) =>
-        client.pinNote({
-          params: { id: note.id },
-          payload: { pinned: !note.pinned, version: note.version },
+        client.pinSavedView({
+          params: { id: savedView.id },
+          payload: { pinned: !savedView.pinned, version: savedView.version },
         }),
       ),
-    ).pipe(Effect.map(({ error }) => M.MutatedNote({ error, removed: false }))),
+    ).pipe(
+      Effect.map(({ error }) => M.MutatedSavedView({ error, removed: false })),
+    ),
 });
-export const DeleteNote = Command.define("DeleteNote", {
-  args: { note: D.Note },
-  messages: [M.MutatedNote],
-  execute: ({ note }) =>
+export const DeleteSavedView = Command.define("DeleteSavedView", {
+  args: { savedView: D.SavedView },
+  messages: [M.MutatedSavedView],
+  execute: ({ savedView }) =>
     result(
       request((client) =>
-        client.removeNote({
-          params: { id: note.id },
-          query: { version: note.version },
+        client.removeSavedView({
+          params: { id: savedView.id },
+          query: { version: savedView.version },
         }),
       ),
-    ).pipe(Effect.map(({ error }) => M.MutatedNote({ error, removed: true }))),
+    ).pipe(
+      Effect.map(({ error }) => M.MutatedSavedView({ error, removed: true })),
+    ),
 });

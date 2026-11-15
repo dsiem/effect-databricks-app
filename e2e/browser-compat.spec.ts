@@ -55,7 +55,7 @@ test("saving views, posting comments, and asking Genie work without crypto.rando
       return route.fulfill({
         json: { rows: [trip], total: 1, page: 1, pageSize: 25 },
       });
-    if (path === "/api/notes") {
+    if (path === "/api/saved-views") {
       if (request.method() === "GET")
         return route.fulfill({ json: { rows: [], nextCursor: null } });
       const input = request.postDataJSON();

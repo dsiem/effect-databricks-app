@@ -6,8 +6,8 @@ import {
   Day,
   Filters,
   GenieInput,
-  Note,
-  NoteInput,
+  SavedView,
+  SavedViewInput,
   TripSearch,
 } from "../shared/domain.js";
 
@@ -33,23 +33,29 @@ test("rejects unsafe filters and pagination before SQL execution", () => {
     { zip: "10001", page: 2, sort: "fare" },
   );
 });
-test("bounds notebook writes and conversational input", () => {
-  const note = {
+test("bounds saved-view writes and conversational input", () => {
+  const savedView = {
     id: "f9ca0a62-e2bc-4bc6-b27a-8c37cdd7d784",
     title: "A finding",
-    body: "Notes",
+    body: "Finding",
     filters: { zip: "10001" },
     version: null,
   };
-  assert.deepEqual(Schema.decodeUnknownSync(NoteInput)(note), note);
+  assert.deepEqual(
+    Schema.decodeUnknownSync(SavedViewInput)(savedView),
+    savedView,
+  );
   assert.throws(() =>
-    Schema.decodeUnknownSync(NoteInput)({
-      ...note,
+    Schema.decodeUnknownSync(SavedViewInput)({
+      ...savedView,
       id: "------------------------------------",
     }),
   );
   assert.throws(() =>
-    Schema.decodeUnknownSync(NoteInput)({ ...note, body: "x".repeat(10001) }),
+    Schema.decodeUnknownSync(SavedViewInput)({
+      ...savedView,
+      body: "x".repeat(10001),
+    }),
   );
   assert.throws(() =>
     Schema.decodeUnknownSync(GenieInput)({
@@ -93,8 +99,8 @@ test("bundled map boundaries have unique ZIP memberships, avoiding double-counte
   }
 });
 
-test("date order is shared by analytics, trips, saved notes, and Genie requests", () => {
-  const note = {
+test("date order is shared by analytics, trips, saved views, and Genie requests", () => {
+  const savedView = {
     id: "f9ca0a62-e2bc-4bc6-b27a-8c37cdd7d784",
     title: "Finding",
     body: "",
@@ -110,7 +116,8 @@ test("date order is shared by analytics, trips, saved notes, and Genie requests"
     assert.deepEqual(Schema.decodeUnknownSync(Filters)(filters), filters);
     assert.deepEqual(Schema.decodeUnknownSync(TripSearch)(filters), filters);
     assert.deepEqual(
-      Schema.decodeUnknownSync(NoteInput)({ ...note, filters }).filters,
+      Schema.decodeUnknownSync(SavedViewInput)({ ...savedView, filters })
+        .filters,
       filters,
     );
     assert.deepEqual(
@@ -123,11 +130,14 @@ test("date order is shared by analytics, trips, saved notes, and Genie requests"
   assert.throws(() => Schema.decodeUnknownSync(Filters)(reversed));
   assert.throws(() => Schema.decodeUnknownSync(TripSearch)(reversed));
   assert.throws(() =>
-    Schema.decodeUnknownSync(NoteInput)({ ...note, filters: reversed }),
+    Schema.decodeUnknownSync(SavedViewInput)({
+      ...savedView,
+      filters: reversed,
+    }),
   );
   assert.throws(() =>
-    Schema.decodeUnknownSync(Note)({
-      ...note,
+    Schema.decodeUnknownSync(SavedView)({
+      ...savedView,
       version: 1,
       pinned: false,
       filters: reversed,

@@ -27,10 +27,10 @@ const toApiError = (error: ServiceError): typeof ApiError.Type => {
   switch (error._tag) {
     case "InvalidRequest":
       return { error: { code: "invalid_request", message } };
-    case "NoteConflict":
-      return { error: { code: "note_conflict", message } };
-    case "NoteNotFound":
-      return { error: { code: "note_not_found", message } };
+    case "SavedViewConflict":
+      return { error: { code: "saved_view_conflict", message } };
+    case "SavedViewNotFound":
+      return { error: { code: "saved_view_not_found", message } };
     case "ServiceUnavailable":
       return { error: { code: `${error.service}_unavailable`, message } };
     case "UpstreamError":
@@ -123,7 +123,7 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
       .handle("submitGenie", ({ payload }) => respond(genie.submit(payload)))
       .handle("pollGenie", ({ params }) => respond(genie.poll(params)))
       .handle("genieResult", ({ params }) => respond(genie.result(params)))
-      .handle("notes", ({ query }) => respond(savedViews.list(query)))
+      .handle("savedViews", ({ query }) => respond(savedViews.list(query)))
       .handle("tripComments", ({ query }) => respond(comments.list(query)))
       .handle("addTripComment", ({ payload }) =>
         respond(
@@ -134,11 +134,13 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
           }),
         ),
       )
-      .handle("saveNote", ({ payload }) => respond(savedViews.save(payload)))
-      .handle("pinNote", ({ params, payload }) =>
+      .handle("saveSavedView", ({ payload }) =>
+        respond(savedViews.save(payload)),
+      )
+      .handle("pinSavedView", ({ params, payload }) =>
         respond(savedViews.pin(params.id, payload)),
       )
-      .handle("removeNote", ({ params, query }) =>
+      .handle("removeSavedView", ({ params, query }) =>
         respond(
           savedViews
             .remove(params.id, query.version)
@@ -180,13 +182,7 @@ const StaticRoutes = HttpRouter.use((router) =>
       "/theme-init.js",
       serveFile(resolve(webRoot, "theme-init.js")),
     );
-    for (const path of [
-      "/",
-      "/trips",
-      "/map",
-      "/genie",
-      "/notebook",
-    ] as const) {
+    for (const path of ["/", "/trips", "/map", "/genie"] as const) {
       yield* router.add("GET", path, serveFile(resolve(webRoot, "index.html")));
     }
   }),

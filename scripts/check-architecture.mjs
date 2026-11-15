@@ -54,6 +54,20 @@ for (const [file, source] of sources) {
     }
     continue;
   }
+  if (/^(src|shared|client\/src)\//.test(file)) {
+    // Keep the feature vocabulary consistent; old names belong only to persisted-data upgrades.
+    const current =
+      file === "src/migrations.ts"
+        ? source.replace(/metrocab\.notes(?:_listing_idx)?/g, "legacy_table")
+        : file === "client/src/features/genie/commands.ts"
+          ? source.replace('value === "notebook"', 'value === "legacy_page"')
+          : source;
+    assert.doesNotMatch(
+      current,
+      /\b(?:[A-Za-z]*Notes?|notes?(?:[A-Z]\w*|_[a-z]\w*)?|notebook)\b/,
+      `${file}: use SavedView/savedViews and saved-view routes; legacy names belong only to data migrations`,
+    );
+  }
   // Includes type imports, re-exports and literal dynamic/side-effect imports.
   const specifiers = source.matchAll(
     /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)["']([^"']+)["']/g,

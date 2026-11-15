@@ -7,8 +7,8 @@ export default defineConfig(base, {
     "filter-workflow.spec.ts",
     "date-range.spec.ts",
     "explore-context.spec.ts",
-    "notebook-conflicts.spec.ts",
-    "notebook-pagination.spec.ts",
+    "saved-views-conflicts.spec.ts",
+    "saved-views-pagination.spec.ts",
   ],
   projects: [
     { name: "chromium", use: { browserName: "chromium" } },

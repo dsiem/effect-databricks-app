@@ -19,7 +19,7 @@ flowchart LR
   SavedViews --> Database
   Comments --> Database
   Database --> Pool[Effect SQL PostgreSQL pool]
-  Pool --> Storage[Lakebase notes + trip_comments]
+  Pool --> Storage[Lakebase saved views + trip_comments]
 ```
 
 `src/main.ts` assembles the live service layers once. Routes capture the services
@@ -166,7 +166,7 @@ clears the saved history.
 ## Service errors
 
 Services return a discriminated `ServiceError` union. The HTTP boundary alone
-maps validation, missing notes, dependency failures, timeouts, upstream response
+maps validation, missing saved views, dependency failures, timeouts, upstream response
 errors, and unavailable Genie messages to status codes and safe error bodies.
 Original causes stay on server-side errors and are logged at the boundary.
 Unexpected defects remain defects and are handled as internal server errors;
@@ -191,17 +191,34 @@ shared SQL client without exposing initialization or retry policy to the feature
 `src/saved-views.ts` owns saved-view queries and conflicts;
 `src/trip-comments.ts` owns comment queries and idempotent submissions. Each
 service depends only on `Lakebase`, so either can be used without the other.
-The existing `/api/notes` contract and `metrocab.notes` table retain their names.
+The feature uses `SavedView` schemas, `/api/saved-views` endpoints, and the
+`metrocab.saved_views` table. A saved view contains filters and an optional finding;
+the finding is its `body` field, not a separate entity.
 
 `src/migrations.ts` exports `migrateAppSchema` for the application's tables,
 indexes, and grants. `scripts/migrate.ts` owns CLI environment handling and invokes
 it with a scoped client from `makeLakebaseClient`. Application startup never
 imports or executes migrations.
 
+When upgrading an existing installation, stop the old app, run
+`npm run db:migrate`, and start the updated app. Setup runs the migration before
+starting the new build. Migration renames the legacy `metrocab.notes` table and
+listing index in place, preserving rows, IDs, versions, pins, timestamps, and
+grants. Re-running it is safe. If both old and new tables exist, it fails for
+explicit reconciliation instead of choosing or discarding a dataset.
+The old `/api/notes` endpoints and `note_*` error codes are replaced by
+`/api/saved-views` and `saved_view_*`; deploy the client and server together.
+Existing browser conversation history normalizes the old `notebook` context to
+`saved-views` during recovery.
+
 The bundle declares a project, its existing production branch, and primary
 endpoint. App resource permissions create the app's OAuth database identity. The
-setup script runs the explicit migration as the deployer and grants the app
-`USAGE` on `metrocab`, CRUD on `metrocab.notes`, and SELECT/INSERT/UPDATE on
+bundle's `notebook_project`, `notebook_branch`, and `notebook_endpoint` keys are
+historical deployment-state identities retained to keep existing resources;
+display names use saved views. Databricks SQL notebook jobs are a separate
+platform concept and retain their platform terminology.
+The setup script runs the explicit migration as the deployer and grants the app
+`USAGE` on `metrocab`, CRUD on `metrocab.saved_views`, and SELECT/INSERT/UPDATE on
 `metrocab.trip_comments` (UPDATE supports idempotent submission, not editing).
 
 `@effect/sql-pg` supplies the scoped pool. The password Effect generates a fresh
@@ -217,11 +234,11 @@ updates require the current version; each write is a single SQL statement,
 including the saved filters. The UI supports list/create/edit/pin/delete and
 reopening saved dashboard views.
 
-`GET /api/notes` returns `{ rows, nextCursor }` with at most 24 notes per page.
+`GET /api/saved-views` returns `{ rows, nextCursor }` with at most 24 saved views per page.
 The optional `cursor` query parameter is the JSON-encoded continuation object;
 the shared HTTP contract handles encoding and validation. Pages order by pinned
 status, update time, and UUID, all descending. Cursors retain PostgreSQL's full
-timestamp precision and remain usable if the boundary note is deleted. The
+timestamp precision and remain usable if the boundary saved view is deleted. The
 explicit migration adds the matching listing index. The Saved views chooser's
 **Load more views** action appends pages, retains visible views if a later request
 fails, and offers a retry. Saves, pins, and deletes refresh the loaded pages.
@@ -269,7 +286,7 @@ pending edits must be applied before saving is available. The current view's
 chooser opens the existing shared library beside the filters. Choosing a row
 applies that view's filters to the current Explore page and replaces any draft,
 including when the applied URL already matches. Paginated browsing, pinning,
-editing, and deletion stay in the chooser. Existing notes and optimistic edit
+editing, and deletion stay in the chooser. Existing saved views and optimistic edit
 versions are preserved. The generic panel and chooser accept caller-provided
 controls and summaries; the taxi feature owns its date/ZIP definitions.
 
@@ -285,7 +302,7 @@ and contextual Genie analysis, using the same typed Effect API boundaries.
 `npm run workspace:setup -- TARGET` reconciles infrastructure, initializes the
 schema and app grants, and starts the app. `npm run data:check` checks actual live
 services, reconciles all trip aggregations, verifies filtered/sorted rows, performs
-temporary-note CRUD, and checks a grounded Genie answer plus a follow-up.
+temporary-view CRUD, and checks a grounded Genie answer plus a follow-up.
 `npm run test:e2e` verifies actual browser interactions and persistence across reloads.
 `node scripts/check-deployed.mjs dev` exercises the deployed HTTP APIs with an
 authenticated caller while data access uses the app service principal.
@@ -294,7 +311,7 @@ after the build and service checks. This offline suite covers saved-view paginat
 and conflicts, filter validation, Genie recovery, and responsive interactions.
 The deployment workflow waits for `RUNNING`, then requires the deployed API check
 to succeed; a healthy process with broken data access fails the deployment job.
-The verifier follows saved-view continuation cursors and removes its temporary note
+The verifier follows saved-view continuation cursors and removes its temporary saved view
 even if reading it back fails.
 
 The platform supplies a workspace hostname in this workspace, so the settings

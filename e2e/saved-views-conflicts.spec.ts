@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
-import type { Note } from "../shared/domain";
+import type { SavedView } from "../shared/domain";
 
-const original: Note = {
+const original: SavedView = {
   id: "472a6613-2337-4af1-a416-e9b6b61064dd",
   title: "Shared finding",
   body: "Original body",
@@ -13,12 +13,12 @@ const original: Note = {
 };
 
 for (const removed of [false, true]) {
-  test(`a ${removed ? "deleted" : "changed"} note rejects a stale draft and keeps it in the editor`, async ({
+  test(`a ${removed ? "deleted" : "changed"} saved view rejects a stale draft and keeps it in the editor`, async ({
     page,
   }) => {
-    let current: Note | null = original;
+    let current: SavedView | null = original;
     let submitted: unknown;
-    await page.route("**/api/notes", (route) => {
+    await page.route("**/api/saved-views", (route) => {
       if (route.request().method() === "GET")
         return route.fulfill({
           json: { rows: current ? [current] : [], nextCursor: null },
@@ -28,10 +28,10 @@ for (const removed of [false, true]) {
         status: removed ? 404 : 409,
         json: {
           error: {
-            code: removed ? "note_not_found" : "note_conflict",
+            code: removed ? "saved_view_not_found" : "saved_view_conflict",
             message: removed
-              ? "This note has been removed."
-              : "This note changed since you opened it. Close and reopen it to load the latest version before trying again.",
+              ? "This saved view has been removed."
+              : "This saved view changed since you opened it. Close and reopen it to load the latest version before trying again.",
           },
         },
       });
@@ -82,15 +82,15 @@ for (const removed of [false, true]) {
   });
 }
 
-test("pinning sends only the pin and version, preserving newer note content", async ({
+test("pinning sends only the pin and version, preserving newer saved view content", async ({
   page,
 }) => {
   let current = original;
   let payload: unknown;
-  await page.route("**/api/notes", (route) =>
+  await page.route("**/api/saved-views", (route) =>
     route.fulfill({ json: { rows: [current], nextCursor: null } }),
   );
-  await page.route(`**/api/notes/${original.id}/pin`, (route) => {
+  await page.route(`**/api/saved-views/${original.id}/pin`, (route) => {
     expect(route.request().method()).toBe("PATCH");
     payload = route.request().postDataJSON();
     current = { ...current, pinned: true, version: 2 };

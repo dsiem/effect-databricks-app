@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
 import { parse } from "yaml";
-import type { Note } from "../shared/domain.js";
+import type { SavedView } from "../shared/domain.js";
 
 const run = promisify(execFile);
 
@@ -16,7 +16,7 @@ for (const failure of [null, "warehouse", "create", "list", "genie"] as const) {
   test(`hosted verification ${failure ? `fails on ${failure} errors despite RUNNING` : "checks SQL, paginated persistence, and Genie"}`, async (t) => {
     const directory = await mkdtemp(join(tmpdir(), "deployed-check-"));
     t.after(() => rm(directory, { recursive: true, force: true }));
-    let saved: Note | undefined;
+    let saved: SavedView | undefined;
     let created = 0;
     let deleted = 0;
     let followedCursor = false;
@@ -40,7 +40,7 @@ for (const failure of [null, "warehouse", "create", "list", "genie"] as const) {
           : reply({ trips: 10 });
       if (url.pathname === "/api/overview")
         return reply({ summary: { trips: 10 } });
-      if (url.pathname === "/api/notes" && request.method === "PUT") {
+      if (url.pathname === "/api/saved-views" && request.method === "PUT") {
         if (failure === "create")
           return reply({ error: { message: "Create failed" } }, 503);
         const chunks = [];
@@ -48,11 +48,11 @@ for (const failure of [null, "warehouse", "create", "list", "genie"] as const) {
         saved = {
           ...JSON.parse(Buffer.concat(chunks).toString()),
           version: 1,
-        } as Note;
+        } as SavedView;
         created++;
         return reply(saved);
       }
-      if (url.pathname === "/api/notes" && request.method === "GET") {
+      if (url.pathname === "/api/saved-views" && request.method === "GET") {
         if (failure === "list")
           return reply({ error: { message: "Listing unavailable" } }, 503);
         if (url.searchParams.has("cursor")) {
@@ -63,14 +63,14 @@ for (const failure of [null, "warehouse", "create", "list", "genie"] as const) {
           followedCursor = true;
           return reply({ rows: saved ? [saved] : [], nextCursor: null });
         }
-        // A newly created unpinned note can sit behind existing pinned notes.
+        // A newly created unpinned saved view can sit behind existing pinned saved views.
         return reply({ rows: [{ id: cursor.id }], nextCursor: cursor });
       }
       if (
-        url.pathname.startsWith("/api/notes/") &&
+        url.pathname.startsWith("/api/saved-views/") &&
         request.method === "DELETE"
       ) {
-        assert.equal(url.pathname, `/api/notes/${saved?.id}`);
+        assert.equal(url.pathname, `/api/saved-views/${saved?.id}`);
         assert.equal(url.searchParams.get("version"), String(saved?.version));
         deleted++;
         saved = undefined;
@@ -133,7 +133,7 @@ console.log(JSON.stringify(responses[process.argv.slice(2, 4).join(" ")]));
     assert.equal(
       deleted,
       created,
-      "verification must clean up its temporary note on success and failure",
+      "verification must clean up its temporary saved view on success and failure",
     );
     assert.equal(followedCursor, !failure || failure === "genie");
   });

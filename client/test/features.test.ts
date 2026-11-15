@@ -138,45 +138,45 @@ test("saved views own editor dismissal and prevent closing an in-flight save", (
   const context = { filters: {} };
   const created = updateSavedViews(
     SavedViews.init(),
-    SavedMessage.CreatedNote({ id: "draft" }),
+    SavedMessage.CreatedSavedView({ id: "draft" }),
     context,
   );
-  assert.equal(created.model.dialogs.note.isOpen, true);
+  assert.equal(created.model.dialogs.savedView.isOpen, true);
   const named = updateSavedViews(
     created.model,
-    SavedMessage.NoteChanged({ field: "title", value: "My view" }),
+    SavedMessage.SavedViewChanged({ field: "title", value: "My view" }),
     context,
   );
   const saving = updateSavedViews(
     named.model,
-    SavedMessage.SaveNote(),
+    SavedMessage.SaveSavedView(),
     context,
   );
   for (const message of [
-    SavedMessage.CloseNote(),
-    SavedMessage.NoteDialog({ message: Dialog.Message.RequestedClose() }),
+    SavedMessage.CloseSavedView(),
+    SavedMessage.SavedViewDialog({ message: Dialog.Message.RequestedClose() }),
   ]) {
     const blocked = updateSavedViews(saving.model, message, context);
     assert.equal(blocked.model.editor?.saving, true);
-    assert.equal(blocked.model.dialogs.note.isOpen, true);
+    assert.equal(blocked.model.dialogs.savedView.isOpen, true);
   }
   const failed = updateSavedViews(
     saving.model,
-    SavedMessage.SavedNote({ note: null, error: "Try again" }),
+    SavedMessage.SavedViewSaved({ savedView: null, error: "Try again" }),
     context,
   );
   const closed = updateSavedViews(
     failed.model,
-    SavedMessage.CloseNote(),
+    SavedMessage.CloseSavedView(),
     context,
   );
   assert.equal(closed.model.editor, null);
-  assert.equal(closed.model.dialogs.note.isOpen, false);
+  assert.equal(closed.model.dialogs.savedView.isOpen, false);
 });
 
 test("saved views keep deletion open during a write and close it after success", () => {
   const context = { filters: {} };
-  const note = {
+  const savedView = {
     id: "8aa0cc1a-6033-4fd0-9a61-908958570382",
     title: "View",
     body: "",
@@ -188,7 +188,7 @@ test("saved views keep deletion open during a write and close it after success",
   };
   const opened = updateSavedViews(
     SavedViews.init(),
-    SavedMessage.DeleteNote({ note }),
+    SavedMessage.DeleteSavedView({ savedView }),
     context,
   );
   assert.equal(opened.model.dialogs.delete.isOpen, true);
@@ -202,12 +202,12 @@ test("saved views keep deletion open during a write and close it after success",
     SavedMessage.DeleteDialog({ message: Dialog.Message.RequestedClose() }),
   ]) {
     const blocked = updateSavedViews(busy.model, message, context);
-    assert.equal(blocked.model.deleting?.id, note.id);
+    assert.equal(blocked.model.deleting?.id, savedView.id);
     assert.equal(blocked.model.dialogs.delete.isOpen, true);
   }
   const deleted = updateSavedViews(
     busy.model,
-    SavedMessage.MutatedNote({ removed: true, error: "" }),
+    SavedMessage.MutatedSavedView({ removed: true, error: "" }),
     context,
   );
   assert.equal(deleted.model.deleting, null);
@@ -319,14 +319,14 @@ test("saved views capture supplied filters and emit restoration context", () => 
   const context = { filters: { zip: "10001" }, query: "zip=10001" };
   const created = updateSavedViews(
     SavedViews.init(),
-    SavedMessage.CreatedNote({ id: "draft" }),
+    SavedMessage.CreatedSavedView({ id: "draft" }),
     context,
   );
   assert.deepEqual(created.model.editor?.draft.filters, context.filters);
   const restored = updateSavedViews(
     created.model,
     SavedMessage.RestoreView({
-      note: {
+      savedView: {
         id: "8aa0cc1a-6033-4fd0-9a61-908958570382",
         title: "Uptown",
         body: "",
@@ -424,7 +424,7 @@ test("restoring the current saved view replaces its draft even if navigation is 
       },
     },
     AppMessage.RestoreView({
-      note: {
+      savedView: {
         id: "8aa0cc1a-6033-4fd0-9a61-908958570382",
         title: "Uptown",
         body: "",

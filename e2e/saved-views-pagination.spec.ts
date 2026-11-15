@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import type { Note, NoteCursor } from "../shared/domain";
+import type { SavedView, SavedViewCursor } from "../shared/domain";
 
-const makeNotes = (count: number): Note[] =>
+const makeSavedViews = (count: number): SavedView[] =>
   Array.from({ length: count }, (_, index) => ({
     id: randomUUID(),
     title: `Finding ${index + 1}`,
@@ -18,27 +18,27 @@ const makeNotes = (count: number): Note[] =>
     ).toISOString(),
   }));
 
-const cursorFor = (note: Note): NoteCursor => ({
-  id: note.id,
-  pinned: note.pinned,
-  updatedAt: note.updated_at.replace("Z", "000Z"),
+const cursorFor = (savedView: SavedView): SavedViewCursor => ({
+  id: savedView.id,
+  pinned: savedView.pinned,
+  updatedAt: savedView.updated_at.replace("Z", "000Z"),
 });
 
-test("all notes remain reachable beyond 200 and pinning a later note refreshes the loaded pages", async ({
+test("all saved views remain reachable beyond 200 and pinning a later saved view refreshes the loaded pages", async ({
   page,
 }) => {
-  let saved = makeNotes(201);
-  await page.route("**/api/notes**", (route) => {
+  let saved = makeSavedViews(201);
+  await page.route("**/api/saved-views**", (route) => {
     const url = new URL(route.request().url());
     if (route.request().method() === "PATCH") {
       const id = url.pathname.split("/").at(-2);
-      const note = saved.find((entry) => entry.id === id);
-      expect(note).toBeDefined();
-      if (!note) throw new Error("Missing fixture note");
+      const savedView = saved.find((entry) => entry.id === id);
+      expect(savedView).toBeDefined();
+      if (!savedView) throw new Error("Missing fixture saved view");
       const updated = {
-        ...note,
+        ...savedView,
         ...route.request().postDataJSON(),
-        version: note.version + 1,
+        version: savedView.version + 1,
       };
       saved = [updated, ...saved.filter((entry) => entry.id !== id)];
       return route.fulfill({ json: updated });
@@ -46,7 +46,8 @@ test("all notes remain reachable beyond 200 and pinning a later note refreshes t
     const cursor = url.searchParams.get("cursor");
     const start = cursor
       ? saved.findIndex(
-          (note) => note.id === (JSON.parse(cursor) as NoteCursor).id,
+          (savedView) =>
+            savedView.id === (JSON.parse(cursor) as SavedViewCursor).id,
         ) + 1
       : 0;
     const rows = saved.slice(start, start + 24);
@@ -72,7 +73,7 @@ test("all notes remain reachable beyond 200 and pinning a later note refreshes t
   });
   await more.scrollIntoViewIfNeeded();
   await page.screenshot({
-    path: "test-results/notebook-pagination-load-more-mobile.png",
+    path: "test-results/saved-views-pagination-load-more-mobile.png",
     animations: "disabled",
   });
   for (let shown = 24; shown < 201; ) {
@@ -113,19 +114,19 @@ test("all notes remain reachable beyond 200 and pinning a later note refreshes t
     ),
   ).toBe(true);
   await page.screenshot({
-    path: "test-results/notebook-pagination-mobile.png",
+    path: "test-results/saved-views-pagination-mobile.png",
     animations: "disabled",
   });
 });
 
-test("a failed next page keeps existing notes visible and can be retried", async ({
+test("a failed next page keeps existing saved views visible and can be retried", async ({
   page,
 }) => {
-  const saved = makeNotes(25);
+  const saved = makeSavedViews(25);
   const boundary = saved[23];
-  if (!boundary) throw new Error("Missing fixture note");
+  if (!boundary) throw new Error("Missing fixture saved view");
   let failing = true;
-  await page.route("**/api/notes**", (route) => {
+  await page.route("**/api/saved-views**", (route) => {
     const next = new URL(route.request().url()).searchParams.has("cursor");
     if (next && failing)
       return route.fulfill({
@@ -133,7 +134,7 @@ test("a failed next page keeps existing notes visible and can be retried", async
         json: {
           error: {
             code: "lakebase_unavailable",
-            message: "Notes are temporarily unavailable.",
+            message: "Saved views are temporarily unavailable.",
           },
         },
       });
@@ -153,7 +154,7 @@ test("a failed next page keeps existing notes visible and can be retried", async
   await page.getByRole("button", { name: "Load more views" }).click();
   const views = page.getByRole("dialog", { name: "Saved views", exact: true });
   await expect(views.getByRole("alert")).toHaveText(
-    "Notes are temporarily unavailable.",
+    "Saved views are temporarily unavailable.",
   );
   await expect(headings).toHaveCount(24);
   failing = false;
