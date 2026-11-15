@@ -1,0 +1,206 @@
+@layer components {
+  .genie-panel,
+  .genie-full {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: 0.875rem;
+    background: var(--surface);
+    color: var(--foreground);
+    box-shadow: 0 20px 60px rgb(16 24 40 / 0.15);
+  }
+  .modal-host > :where(.genie-panel) {
+    position: fixed;
+  }
+  .genie-panel {
+    position: fixed;
+    z-index: 50;
+    inset: auto 1.5rem 1.5rem auto;
+    width: 27rem;
+    max-width: calc(100vw - 2rem);
+    height: min(43rem, calc(100dvh - 6rem));
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  .genie-panel.expanded {
+    width: min(56rem, calc(100vw - 18rem));
+    height: calc(100dvh - 3rem);
+  }
+  .genie-full {
+    max-width: 58rem;
+    height: calc(100dvh - 7.5rem);
+    min-height: 34rem;
+    margin: 0 auto;
+    box-shadow: var(--shadow);
+  }
+  .genie-header {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .genie-header .btn {
+    width: 2rem;
+    min-height: 2rem;
+    padding: 0;
+  }
+  .genie-context {
+    flex-shrink: 0;
+    padding: 0.875rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-hover);
+  }
+  .genie-messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.5rem 1.25rem;
+  }
+  .genie-welcome {
+    max-width: 36rem;
+    margin: 1.5rem auto;
+  }
+  .genie-welcome h3 {
+    font-size: 1.375rem;
+    letter-spacing: -0.03em;
+  }
+  .suggestion {
+    width: 100%;
+    justify-content: space-between;
+    padding: 0.875rem 1rem;
+    border-color: var(--border);
+    border-radius: 0.625rem;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    white-space: normal;
+    text-align: left;
+    line-height: 1.5;
+  }
+  .suggestion .icon {
+    width: 0.875rem;
+    color: var(--placeholder);
+  }
+  .question-bubble {
+    max-width: 92%;
+    margin: 0 0 1.25rem auto;
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--color-brand-100);
+    border-radius: 0.75rem 0.75rem 0.1875rem 0.75rem;
+    background: var(--color-brand-50);
+    overflow-wrap: anywhere;
+    font-size: 0.8125rem;
+  }
+  .query-result {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 0.625rem;
+    overflow-wrap: anywhere;
+  }
+  .genie-composer {
+    flex-shrink: 0;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+  .genie-composer form {
+    padding: 0.75rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.625rem;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .genie-composer form:focus-within {
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px var(--color-brand-50);
+  }
+  .genie-composer textarea {
+    display: block;
+    width: 100%;
+    min-height: 3rem;
+    max-height: 9rem;
+    resize: vertical;
+    border: 0;
+    outline: none;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+  }
+  .genie-composer textarea:disabled {
+    color: var(--muted);
+  }
+  .genie-composer .btn {
+    min-height: 1.875rem;
+    width: 1.875rem;
+    padding: 0;
+  }
+  .markdown {
+    overflow-wrap: anywhere;
+    font-size: 0.8125rem;
+    line-height: 1.8;
+  }
+  .markdown p,
+  .markdown pre,
+  .markdown ul,
+  .markdown ol,
+  .markdown blockquote {
+    margin-bottom: 0.75rem;
+  }
+  .markdown ul,
+  .markdown ol {
+    list-style: revert;
+    padding-left: 1.5rem;
+  }
+  .markdown h3 {
+    margin: 1rem 0 0.5rem;
+  }
+  .markdown a {
+    color: var(--color-brand-700);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .markdown pre {
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--canvas);
+    overflow-x: auto;
+  }
+  .markdown code {
+    font-size: 0.75rem;
+  }
+  .markdown blockquote {
+    padding-left: 1rem;
+    border-left: 2px solid var(--color-brand-100);
+    color: var(--muted);
+  }
+  @media (max-width: 767px) {
+    .genie-panel,
+    .genie-panel.expanded {
+      inset: auto 0 0;
+      width: 100%;
+      max-width: 100vw;
+      height: min(48rem, 100dvh);
+      border-radius: 0.875rem 0.875rem 0 0;
+    }
+    .genie-full {
+      height: calc(100dvh - 6rem);
+      min-height: 0;
+    }
+    .genie-messages {
+      padding: 1.25rem 1rem;
+    }
+    .genie-welcome {
+      margin-top: 0.5rem;
+    }
+  }
+  @media (pointer: coarse) {
+    .genie-composer textarea {
+      font-size: 1rem;
+    }
+  }
+}

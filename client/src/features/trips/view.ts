@@ -48,7 +48,7 @@ function trips(h: H, model: Model): Child[] {
     heading,
     card(h, [
       h.div(
-        [h.Class("chart-header border-b")],
+        [h.Class("panel-header border-b")],
         [
           h.div(
             [h.Class("flex items-center gap-3")],

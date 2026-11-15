@@ -19,13 +19,41 @@ async function collect(directory) {
     const path = `${directory}/${entry.name}`;
     if (entry.isDirectory() && !["dist", "node_modules"].includes(entry.name))
       await collect(path);
-    else if (entry.name.endsWith(".ts"))
+    else if (/\.(ts|css)$/.test(entry.name))
       sources.set(path, await readFile(resolve(root, path), "utf8"));
   }
 }
 for (const directory of ["src", "shared", "client/src", "packages"])
   await collect(directory);
 for (const [file, source] of sources) {
+  if (file.endsWith(".css")) {
+    // Styles follow the same ownership as the views. Only the application
+    // entry point composes shell and feature styles; UI can be copied alone.
+    const imports = source.matchAll(
+      /@(?:import|reference)\s+(?:["']([^"']+)["']|url\(\s*["']?([^"')\s]+)["']?\s*\))/g,
+    );
+    for (const [, quoted, url] of imports) {
+      const specifier = quoted ?? url;
+      const target = specifier.startsWith(".")
+        ? relative(root, resolve(root, dirname(file), specifier))
+        : specifier.startsWith("@/")
+          ? `client/src/${specifier.slice(2)}`
+          : null;
+      const owner = file.startsWith("client/src/features/")
+        ? file.split("/").slice(0, 4).join("/")
+        : dirname(file);
+      assert.ok(
+        file === "client/src/styles.css" ||
+          (file.startsWith("client/src/ui/")
+            ? target?.startsWith("client/src/ui/")
+            : target === null ||
+              target.startsWith(`${owner}/`) ||
+              target.startsWith("client/src/ui/")),
+        `${file}: ${specifier}: styles must stay within their owner or depend on reusable UI; compose features in client/src/styles.css`,
+      );
+    }
+    continue;
+  }
   // Includes type imports, re-exports and literal dynamic/side-effect imports.
   const specifiers = source.matchAll(
     /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)["']([^"']+)["']/g,
@@ -107,5 +135,5 @@ for (const [file, source] of sources) {
   }
 }
 console.log(
-  `Architecture boundaries passed for ${sources.size} TypeScript modules.`,
+  `Architecture boundaries passed for ${sources.size} TypeScript and CSS files.`,
 );

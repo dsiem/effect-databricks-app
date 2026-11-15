@@ -195,7 +195,7 @@ function editor(h: H, model: Model) {
   return dialog(h, {
     model: model.dialogs.note,
     onMessage: (message) => M.NoteDialog({ message }),
-    className: "workspace-dialog note-dialog",
+    className: "dialog-panel overflow-y-auto",
     children: [
       close(h),
       h.div(
@@ -245,7 +245,7 @@ function editor(h: H, model: Model) {
             ],
           ),
           h.div(
-            [h.Class("context")],
+            [h.Class("inset-panel")],
             [
               h.p([h.Class("text-sm font-medium mb-2")], ["Applied filters"]),
               filterSummary(h, draft.filters),
@@ -285,7 +285,7 @@ function deleteDialog(h: H, model: Model) {
   return dialog(h, {
     model: model.dialogs.delete,
     onMessage: (message) => M.DeleteDialog({ message }),
-    className: "workspace-dialog note-dialog",
+    className: "dialog-panel overflow-y-auto",
     children: [
       h.div(
         [h.Class("dialog-header")],

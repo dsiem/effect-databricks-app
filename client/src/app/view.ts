@@ -84,7 +84,7 @@ function sidebar(h: H, model: Model) {
           h.a(
             [h.Href(href("/", model.query)), h.Class("sidebar-brand")],
             [
-              h.span([h.Class("brand-icon")], [icon(h, "car-taxi-front")]),
+              h.span([h.Class("icon-tile")], [icon(h, "car-taxi-front")]),
               h.div(
                 [h.Class("sidebar-label")],
                 [
@@ -414,7 +414,7 @@ export function view(model: Model, h: H): Document {
               dialog(h, {
                 model: model.navigationDialog,
                 onMessage: (message) => M.NavigationDialog({ message }),
-                className: "workspace-dialog sidebar-dialog",
+                className: "dialog-panel sheet sidebar-dialog",
                 accessibleTitle: "Sidebar",
                 children: [sidebar(h, model)],
               }),

@@ -1,0 +1,46 @@
+@layer components {
+  .pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.875rem 1.25rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.6875rem;
+    color: var(--muted);
+  }
+  .sort-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .sort-select {
+    width: auto;
+    font-size: 0.75rem;
+  }
+  .pagination .btn {
+    min-height: 2rem;
+    padding: 0.375rem 0.5rem;
+  }
+  .empty-comments {
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    color: var(--muted);
+    border: 1px dashed var(--border-strong);
+    border-radius: 0.625rem;
+  }
+  .comment-composer {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    border-top: 1px solid var(--border);
+    background: var(--surface-soft);
+  }
+  @media (max-width: 399px) {
+    .sort-control {
+      width: 100%;
+      justify-content: space-between;
+    }
+  }
+}

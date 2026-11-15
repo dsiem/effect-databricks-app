@@ -7,8 +7,8 @@ identity. No synthetic dashboard data or mock Genie answers.
 
 The UI pairs Foldkit's accessible behavior with a small, reusable visual layer:
 neutral surfaces, an indigo accent, consistent controls, and responsive data panels.
-Theme tokens and component styles live in `client/src/styles.css`; generic view
-helpers live in `client/src/ui/`. The sidebar
+`client/src/styles.css` composes the visual layer: reusable helpers and styles in
+`client/src/ui/`, shell styles in `app/`, and feature styles beside their views. The sidebar
 collapses to icons on desktop, remembers that preference, and becomes a drawer
 on mobile. Toggle it with the header button or **⌘B / Ctrl+B**.
 The Appearance menu above the sidebar profile follows Foldkit's Dark / Light / System selector. It
@@ -225,6 +225,12 @@ changing records; positional keys suit immutable Genie result snapshots.
 
 ### Reusing the visual components
 
+The [visual layer guide](client/src/ui/README.md) lists the component styles,
+their dependencies, and how to use them in another application. Import
+`ui/styles.css` after Tailwind for the complete reusable layer. It contains no
+shell, feature, or map vendor styles. `src/styles.css` is the application-only
+composition point; its imports make the ownership and cascade order explicit.
+
 [Foldkit UI is headless](https://foldkit.dev/ui/overview): its attribute bundles
 provide behavior and accessibility, while the application supplies markup and
 styles in `toView`. The [official showcase](https://foldkit.dev/example-apps/ui-showcase)
@@ -274,8 +280,12 @@ The chooser uses Foldkit's
 modal Popover lifecycle for outside dismissal, Escape, background inertness,
 scroll locking, and focus return; native dialogs handle editing and deletion.
 
-Change the brand palette in `@theme` and the surface, text, border, radius, and
-chart tokens in `:root` and `:root.dark`. Component classes define appearance; feature utilities
+Change the brand palette in `ui/theme.css`'s `@theme` and the surface, text,
+border, radius, and chart tokens in its `:root` and `:root.dark` rules.
+Component styles sit beside their TypeScript helpers, including responsive,
+touch, and reduced-motion rules. Shell and feature styles live in their own
+`styles.css` files; the map feature owns its vendor stylesheet and overrides.
+Component classes define appearance; feature utilities
 compose layouts. Tabs style `aria-selected` and navigation styles `aria-current`
 directly, so visual state follows Foldkit's actual state. Chart `width` controls
 the SVG coordinate space (400 for the compact hourly panel, 700 by default),
@@ -295,9 +305,10 @@ viewport overflow, pending edits, save/apply behavior, view selection, reset, an
 keyboard dismissal. This complements engine-independent component checks.
 
 `npm run architecture:check` enforces import boundaries, including type imports,
-re-exports and literal dynamic imports. Features cannot import sibling features;
-shared helpers cannot hide a dependency on feature implementations. It runs as
-part of `npm run check`.
+re-exports, literal dynamic imports, and CSS imports/references. Features cannot
+import sibling features; shared helpers cannot hide a dependency on feature
+implementations. Reusable styles cannot import the shell, features, or vendor
+integrations. It runs as part of `npm run check`.
 
 ## Why Effect is central
 

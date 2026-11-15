@@ -46,7 +46,7 @@ function pickupMap(h: H, model: Model): Child[] {
           h,
           [
             h.div(
-              [h.Class("chart-header border-b")],
+              [h.Class("panel-header border-b")],
               [
                 h.div(
                   [],
@@ -113,7 +113,7 @@ function pickupMap(h: H, model: Model): Child[] {
               ],
             ),
             h.div(
-              [h.Class("chart-footer border-t")],
+              [h.Class("panel-footer border-t")],
               [
                 "Modified ZIP areas · geographic aggregation",
                 h.span(

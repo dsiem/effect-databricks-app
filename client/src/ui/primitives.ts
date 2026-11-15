@@ -86,7 +86,7 @@ export const panelHeader = <Message>(
   },
 ) =>
   h.div(
-    [h.Class("chart-header")],
+    [h.Class("panel-header")],
     [
       h.div(
         [],

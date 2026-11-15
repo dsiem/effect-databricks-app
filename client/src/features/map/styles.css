@@ -1,0 +1,121 @@
+@import "maplibre-gl/dist/maplibre-gl.css" layer(components);
+@layer components {
+  .map-grid {
+    display: grid;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+    align-items: start;
+  }
+  .map-panel {
+    height: 31rem;
+  }
+  .map-panel.maplibregl-map {
+    width: 100%;
+    z-index: 0;
+    background: var(--subtle);
+    font-family: inherit;
+  }
+  .map-panel .maplibregl-ctrl-group {
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .map-panel .maplibregl-ctrl-group button {
+    background: var(--surface);
+    color: var(--foreground);
+    border-color: var(--border);
+  }
+  :root.dark .map-panel .maplibregl-ctrl-icon {
+    filter: invert(1);
+  }
+  .map-panel .maplibregl-ctrl-attrib,
+  .map-panel .maplibregl-ctrl-scale {
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
+    color: var(--muted);
+    font-size: 0.625rem;
+  }
+  .map-panel .maplibregl-ctrl-scale {
+    border-color: var(--muted);
+  }
+  .map-panel :where(.maplibregl-ctrl-attrib) a {
+    color: var(--color-brand-700);
+  }
+  .map-panel .map-tooltip .maplibregl-popup-content {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--surface);
+    color: var(--foreground);
+    box-shadow: var(--shadow);
+  }
+  .map-panel .map-tooltip .maplibregl-popup-tip {
+    display: none;
+  }
+  .map-updating {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--surface) 85%, transparent);
+  }
+  .ranking-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.625rem 0.5rem;
+    border-radius: 0.5rem;
+    text-align: left;
+  }
+  .ranking-row:hover {
+    background: var(--subtle);
+  }
+  .ranking-row[aria-pressed="true"] {
+    background: var(--color-brand-50);
+    color: var(--color-brand-700);
+  }
+  .rank {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    color: var(--muted);
+    font-size: 0.6875rem;
+  }
+  .rank-content {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+  .rank-bar,
+  .rank-bar > span {
+    display: block;
+    height: 0.25rem;
+    border-radius: 1rem;
+    background: var(--subtle);
+  }
+  .rank-bar {
+    margin-top: 0.5rem;
+  }
+  .rank-bar > span {
+    background: var(--color-brand-500);
+  }
+
+  @media (min-width: 1280px) {
+    .map-grid {
+      grid-template-columns: minmax(0, 1fr) 19rem;
+    }
+  }
+  @media (max-width: 767px) {
+    .map-panel {
+      height: 25rem;
+    }
+  }
+}

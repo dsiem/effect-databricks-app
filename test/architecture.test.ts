@@ -114,6 +114,72 @@ for (const [name, file, source, allowed] of [
     'const server = import("../../src/main");',
     false,
   ],
+  [
+    "the style entry point composes feature styles",
+    "client/src/styles.css",
+    '@import "./features/map/styles.css";',
+    true,
+  ],
+  [
+    "reusable styles may compose their own components",
+    "client/src/ui/styles.css",
+    '@import "./dialog.css";',
+    true,
+  ],
+  [
+    "reusable styles cannot include the application shell",
+    "client/src/ui/styles.css",
+    '@import "../app/styles.css";',
+    false,
+  ],
+  [
+    "CSS url imports cannot hide a feature dependency in UI",
+    "client/src/ui/chart.css",
+    '@import url("../features/overview/styles.css");',
+    false,
+  ],
+  [
+    "reusable styles do not pull in vendor integrations",
+    "client/src/ui/styles.css",
+    '@import "maplibre-gl/dist/maplibre-gl.css";',
+    false,
+  ],
+  [
+    "unquoted CSS url imports obey ownership",
+    "client/src/ui/dialog.css",
+    "@import url(../app/styles.css);",
+    false,
+  ],
+  [
+    "CSS aliases cannot bypass sibling feature boundaries",
+    "client/src/features/map/styles.css",
+    '@import "@/features/overview/styles.css";',
+    false,
+  ],
+  [
+    "a feature may style a vendor integration",
+    "client/src/features/map/styles.css",
+    '@import "maplibre-gl/dist/maplibre-gl.css" layer(components);',
+    true,
+  ],
+  [
+    "feature styles may use reusable components",
+    "client/src/features/trips/styles.css",
+    '@reference "../../ui/styles.css";',
+    true,
+  ],
+  [
+    "feature styles cannot depend on sibling styles",
+    "client/src/features/map/styles.css",
+    '@import "../overview/styles.css";',
+    false,
+  ],
+  [
+    "the shell stylesheet cannot hide feature composition",
+    "client/src/app/styles.css",
+    '@import "../features/genie/styles.css";',
+    false,
+  ],
 ] as const) {
   test(name, () => {
     const root = mkdtempSync(join(tmpdir(), "blueprint-boundary-"));

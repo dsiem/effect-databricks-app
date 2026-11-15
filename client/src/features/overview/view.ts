@@ -154,7 +154,7 @@ function overview(h: H, model: Model): Child[] {
                   },
                 }),
                 h.div(
-                  [h.Class("chart-footer")],
+                  [h.Class("panel-footer")],
                   [
                     h.span([], ["NYC yellow taxis"]),
                     h.span([], [`${daily.length} days with recorded trips`]),
@@ -189,7 +189,7 @@ function overview(h: H, model: Model): Child[] {
                   })),
                 }),
                 h.p(
-                  [h.Class("chart-footer")],
+                  [h.Class("panel-footer")],
                   ["Hours as recorded in the source"],
                 ),
               ]),
@@ -266,7 +266,7 @@ function overview(h: H, model: Model): Child[] {
               card(
                 h,
                 [
-                  h.span([h.Class("brand-icon")], [icon(h, "sparkles")]),
+                  h.span([h.Class("icon-tile")], [icon(h, "sparkles")]),
                   h.h2([], ["Take the next analytical step"]),
                   h.p(
                     [],

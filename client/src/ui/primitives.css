@@ -1,0 +1,299 @@
+@layer components {
+  .error-text {
+    color: var(--danger);
+  }
+  .icon {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    vertical-align: middle;
+  }
+  .muted {
+    color: var(--muted);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    gap: 0.5rem;
+    min-height: 2.25rem;
+    padding: 0.4375rem 0.8125rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--surface);
+    color: var(--foreground);
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgb(16 24 40 / 0.03);
+    transition:
+      background 140ms,
+      border-color 140ms,
+      box-shadow 140ms;
+  }
+  .btn:hover:not(:disabled) {
+    background: var(--subtle);
+    border-color: var(--border-hover);
+  }
+  .btn[aria-busy="true"] {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .btn-primary {
+    background: var(--color-brand-600);
+    color: var(--on-accent);
+    border-color: var(--color-brand-600);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-brand-700);
+    border-color: var(--color-brand-700);
+  }
+  .btn-ghost {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    color: var(--muted);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    border-color: transparent;
+    color: var(--foreground);
+  }
+  .btn-destructive {
+    color: var(--danger);
+    border-color: var(--danger-border);
+    background: var(--danger-surface);
+  }
+  .btn-destructive:hover:not(:disabled) {
+    border-color: var(--danger-hover-border);
+    background: var(--danger-hover-surface);
+  }
+  .btn-icon {
+    width: 2.25rem;
+    padding: 0;
+  }
+  .btn-small {
+    min-height: 1.875rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+  }
+  .card {
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    padding: 0.1875rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    background: var(--subtle);
+    color: var(--secondary);
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    font-weight: 500;
+  }
+  .inset-panel {
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.625rem;
+    background: var(--canvas);
+  }
+  .icon-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    flex-shrink: 0;
+    border: 1px solid var(--color-brand-100);
+    border-radius: 0.625rem;
+    background: var(--color-brand-50);
+    color: var(--color-brand-600);
+  }
+  .icon-tile .icon {
+    width: 1.125rem;
+    height: 1.125rem;
+  }
+  .page-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .page-title p {
+    max-width: 48rem;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+  }
+  .metric {
+    padding: 1.125rem 1.25rem;
+  }
+  .metric-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    color: var(--placeholder);
+  }
+  .metric-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted);
+    letter-spacing: 0;
+  }
+  .metric-value {
+    margin-top: 0.625rem;
+    font-size: clamp(1.5rem, 2.2vw, 1.875rem);
+    line-height: 1.2;
+    font-weight: 650;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+  .metric-detail {
+    margin-top: 0.5rem;
+    font-size: 0.6875rem;
+    color: var(--muted);
+  }
+  .panel-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1.125rem 1.25rem;
+  }
+  .panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .panel-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.875rem 1.25rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.6875rem;
+    color: var(--muted);
+  }
+  .table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .table-scroll table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .table-scroll th {
+    padding: 0.75rem 1.25rem;
+    border-block: 1px solid var(--border);
+    background: var(--surface-soft);
+    color: var(--muted);
+    font-size: 0.6875rem;
+    font-weight: 500;
+  }
+  .table-scroll td {
+    height: 3.25rem;
+    padding: 0.5rem 1.25rem;
+    border-bottom: 1px solid var(--row-border);
+  }
+  .table-scroll tr:last-child td {
+    border-bottom: 0;
+  }
+  .table-scroll tbody tr:hover {
+    background: var(--surface-hover);
+  }
+  .table-scroll .btn-ghost {
+    min-height: 1.875rem;
+    padding: 0.25rem 0.375rem;
+    color: var(--color-brand-600);
+    font-size: inherit;
+  }
+  .table-scroll :where(td:first-child) .btn {
+    margin-left: -0.375rem;
+  }
+  .loading,
+  .empty-state {
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    color: var(--muted);
+  }
+  .loading {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    align-items: center;
+    min-height: 12rem;
+  }
+  .loading::before {
+    content: "";
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid var(--color-brand-100);
+    border-top-color: var(--color-brand-600);
+    border-radius: 50%;
+    animation: spin 800ms linear infinite;
+  }
+  @media (max-width: 767px) {
+    .page-title {
+      margin-bottom: 1.25rem;
+    }
+    .panel-header {
+      padding: 1rem;
+    }
+    .metric {
+      padding: 1rem;
+    }
+    .metric-value {
+      font-size: 1.5rem;
+    }
+    .metric-detail {
+      line-height: 1.5;
+    }
+  }
+  @media (max-width: 399px) {
+    .metric {
+      padding: 0.875rem;
+    }
+    .metric-value {
+      font-size: 1.375rem;
+    }
+    .metric-label {
+      font-size: 0.6875rem;
+    }
+    .metric-detail {
+      font-size: 0.625rem;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn {
+      transition: none;
+    }
+    .loading::before {
+      animation: none;
+    }
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

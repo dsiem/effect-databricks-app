@@ -119,7 +119,7 @@ function inspector(h: H, model: Model) {
   return dialog(h, {
     model: model.inspectorDialog,
     onMessage: (message) => M.InspectorDialog({ message }),
-    className: "workspace-dialog sheet trip-inspector",
+    className: "dialog-panel sheet trip-inspector",
     children: [
       close(h),
       h.div(
@@ -139,7 +139,7 @@ function inspector(h: H, model: Model) {
         [h.Class("sheet-body")],
         [
           h.section(
-            [h.AriaLabel("Selected trip"), h.Class("context mb-6")],
+            [h.AriaLabel("Selected trip"), h.Class("inset-panel mb-6")],
             [
               h.p(
                 [h.Class("text-lg font-semibold mb-4")],

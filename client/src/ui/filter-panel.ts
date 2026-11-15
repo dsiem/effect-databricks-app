@@ -83,7 +83,12 @@ export function filterPanel<Message>(
             ),
           ]
         : options.notice
-          ? [h.p([h.Role("status"), h.Class("saved-status")], [options.notice])]
+          ? [
+              h.p(
+                [h.Role("status"), h.Class("filter-notice")],
+                [options.notice],
+              ),
+            ]
           : []),
     ],
   );

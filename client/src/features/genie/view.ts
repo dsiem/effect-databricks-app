@@ -188,7 +188,7 @@ function genie(h: H, model: Model, floating = false) {
         h.div(
           [h.Class("flex items-center gap-3")],
           [
-            h.span([h.Class("brand-icon")], [icon(h, "sparkles")]),
+            h.span([h.Class("icon-tile")], [icon(h, "sparkles")]),
             h.div(
               [],
               [

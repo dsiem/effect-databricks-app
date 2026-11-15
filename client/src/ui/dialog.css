@@ -1,0 +1,77 @@
+@layer components {
+  .dialog-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: 0.875rem;
+    background: var(--surface);
+    color: var(--foreground);
+    box-shadow: 0 20px 60px rgb(16 24 40 / 0.15);
+    position: relative;
+    width: 32rem;
+    max-width: calc(100vw - 2rem);
+    max-height: 90dvh;
+    margin: auto;
+  }
+  .dialog-header {
+    padding: 1.5rem 3.5rem 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .dialog-header h2 {
+    font-size: 1.125rem;
+  }
+  .dialog-footer {
+    display: flex;
+    justify-content: end;
+    gap: 0.5rem;
+    padding: 1.25rem 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .dialog-close {
+    position: absolute;
+    right: 0.875rem;
+    top: 1.125rem;
+    width: 2rem;
+    padding: 0;
+  }
+  .sheet {
+    inset: 0 0 0 auto;
+    height: 100dvh;
+    max-height: 100dvh;
+    max-width: 100vw;
+    margin: 0;
+    border-radius: 0;
+    border-width: 0 0 0 1px;
+    width: 29rem;
+  }
+  .sheet-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.5rem;
+  }
+  .modal-host {
+    margin: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .modal-host[open] {
+    display: grid;
+    place-items: center;
+  }
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgb(16 24 40 / 0.3);
+    backdrop-filter: blur(3px);
+    pointer-events: auto;
+  }
+  .modal-host > :where(:last-child) {
+    position: relative;
+    pointer-events: auto;
+  }
+  .modal-host > :where(.sheet) {
+    position: fixed;
+  }
+}
