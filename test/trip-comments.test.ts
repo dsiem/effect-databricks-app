@@ -57,6 +57,14 @@ test("comments persist per trip ID, preserve snapshots and authors, and safely r
         rows: [],
         nextCursor: null,
       });
+      const otherTripId = randomUUID();
+      assert.deepEqual(
+        yield* comments.counts({ tripIds: [trip.trip_id, otherTripId] }),
+        {
+          [trip.trip_id]: 0,
+          [otherTripId]: 0,
+        },
+      );
       const saved = yield* comments.add(input, author);
       yield* migrateAppSchema(sql);
       assert.deepEqual(yield* comments.add(input, author), saved);
@@ -93,6 +101,13 @@ test("comments persist per trip ID, preserve snapshots and authors, and safely r
       assert.equal(anonymous.author, null);
       assert.deepEqual(yield* comments.add(anonymous, null), anonymous);
       assert.equal((yield* comments.list({ trip })).rows.length, 2);
+      assert.deepEqual(
+        yield* comments.counts({ tripIds: [trip.trip_id, otherTripId] }),
+        {
+          [trip.trip_id]: 2,
+          [otherTripId]: 0,
+        },
+      );
       assert.equal(
         (yield* comments.list({ trip })).rows.find((row) => row.id === saved.id)
           ?.body,
@@ -112,6 +127,9 @@ test("older comments remain reachable with microsecond timestamp ties", async ()
           author,
         );
       yield* sql`UPDATE metrocab.trip_comments SET created_at='2026-11-14T10:00:00Z'::timestamptz + (body::int % 3) * INTERVAL '1 microsecond'`;
+      assert.deepEqual(yield* comments.counts({ tripIds: [trip.trip_id] }), {
+        [trip.trip_id]: 53,
+      });
       const expected = yield* sql<{
         id: string;
       }>`SELECT id::text AS id FROM metrocab.trip_comments ORDER BY created_at DESC, id DESC`;

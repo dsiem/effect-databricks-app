@@ -3,6 +3,8 @@ import * as SqlSchema from "effect/sql/SqlSchema";
 import {
   type CurrentUser,
   TripComment,
+  type TripCommentCountSearch,
+  TripCommentCounts,
   TripCommentCursor,
   type TripCommentInput,
   type TripCommentSearch,
@@ -13,6 +15,25 @@ import { Lakebase, type LakebaseSql, lakebaseUnavailable } from "./lakebase.js";
 import { restoreCredentialFailure } from "./pg-credentials.js";
 
 export const makeTripComments = (sql: LakebaseSql) => {
+  const counts = ({ tripIds }: TripCommentCountSearch) =>
+    SqlSchema.findAll({
+      Request: Schema.Void,
+      Result: Schema.Struct({
+        trip_key: Schema.String,
+        count: TripCommentCounts.value,
+      }),
+      execute: () => sql`SELECT trip_key, count(*)::int AS count
+        FROM metrocab.trip_comments
+        WHERE ${sql.in("trip_key", tripIds)} GROUP BY trip_key`,
+    })(undefined).pipe(
+      Effect.mapError(lakebaseUnavailable),
+      restoreCredentialFailure,
+      Effect.map((rows) => ({
+        ...Object.fromEntries(tripIds.map((id) => [id, 0])),
+        ...Object.fromEntries(rows.map((row) => [row.trip_key, row.count])),
+      })),
+      Effect.withSpan("tripComments.counts"),
+    );
   const columns = sql`id::text AS id, trip, body, author,
     to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at`;
   const list = (search: TripCommentSearch) =>
@@ -77,7 +98,7 @@ export const makeTripComments = (sql: LakebaseSql) => {
       ),
       Effect.withSpan("tripComments.add"),
     );
-  return { list, add };
+  return { list, add, counts };
 };
 
 export class TripComments extends Context.Service<
@@ -87,6 +108,8 @@ export class TripComments extends Context.Service<
   static readonly layer = Layer.effect(
     TripComments,
     Effect.map(Lakebase, (database) => ({
+      counts: (search: TripCommentCountSearch) =>
+        database.use((sql) => makeTripComments(sql).counts(search)),
       list: (search: TripCommentSearch) =>
         database.use((sql) => makeTripComments(sql).list(search)),
       add: (input: TripCommentInput, author: CurrentUser | null) =>

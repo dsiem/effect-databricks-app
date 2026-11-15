@@ -128,6 +128,9 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
       .handle("genieResult", ({ params }) => respond(genie.result(params)))
       .handle("savedViews", ({ query }) => respond(savedViews.list(query)))
       .handle("tripComments", ({ query }) => respond(comments.list(query)))
+      .handle("tripCommentCounts", ({ query }) =>
+        respond(comments.counts(query)),
+      )
       .handle("addTripComment", ({ payload }) =>
         respond(
           Effect.gen(function* () {

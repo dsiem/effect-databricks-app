@@ -13,6 +13,25 @@ const trip: Trip = {
   duration: 14,
 };
 const otherTrip = { ...trip, trip_id: randomUUID() };
+const enrichedTrip: Trip = {
+  ...trip,
+  details: {
+    source_file: "yellow_tripdata_2016-01.csv.gz",
+    vendor_id: 2,
+    passenger_count: 1,
+    rate_code_id: 1,
+    store_and_fwd_flag: "N",
+    payment_type: 2,
+    pickup_location: { latitude: 40.75, longitude: -73.99 },
+    dropoff_location: { latitude: 40.76, longitude: -73.98 },
+    tip_amount: 0,
+    tolls_amount: 2.5,
+    extra: 0.5,
+    mta_tax: 0.5,
+    improvement_surcharge: 0.3,
+    total_amount: 22.3,
+  },
+};
 const author = { name: "Avery Morgan", email: "avery@example.test" };
 const makeComment = (body: string): TripComment => ({
   id: randomUUID(),
@@ -32,6 +51,208 @@ test.beforeEach(async ({ page }) => {
       json: { rows: [trip, otherTrip], total: 2, page: 1, pageSize: 25 },
     }),
   );
+  await page.route("**/api/trip-comment-counts**", (route) =>
+    route.fulfill({ json: { [trip.trip_id]: 0, [otherTrip.trip_id]: 0 } }),
+  );
+});
+
+for (const width of [1440, 360]) {
+  test(`compact inspector keeps the summary and comments together at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 740 });
+    await page.route("**/api/trips**", (route) =>
+      route.fulfill({
+        json: { rows: [enrichedTrip], total: 1, page: 1, pageSize: 25 },
+      }),
+    );
+    await page.route("**/api/trip-comments**", (route) =>
+      route.fulfill({
+        json: {
+          rows: [makeComment("Compare this fare with nearby trips.")],
+          nextCursor: null,
+        },
+      }),
+    );
+    await page.goto("/trips");
+    await page
+      .getByRole("button", { name: /^Details and comments for trip/ })
+      .click();
+    const panel = page.getByRole("dialog", {
+      name: "Trip details",
+      exact: true,
+    });
+    const summary = panel.getByRole("region", { name: "Selected trip" });
+    await expect(summary).toContainText("$22.30");
+    await expect(summary.getByText("Cash", { exact: true })).toBeVisible();
+    await expect(
+      summary.getByText(trip.pickup_at, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      summary.getByText(trip.dropoff_at, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("heading", { name: "Comments", exact: true }),
+    ).toBeInViewport({ ratio: 1 });
+    await expect(
+      panel.getByText("Compare this fare with nearby trips.", { exact: true }),
+    ).toBeInViewport({ ratio: 1 });
+    const field = panel.getByRole("textbox", {
+      name: "Add a comment",
+      exact: true,
+    });
+    await expect(field).toBeInViewport({ ratio: 1 });
+    const compactHeight = (await field.boundingBox())?.height ?? 0;
+    expect(compactHeight).toBeLessThanOrEqual(40);
+    await page.screenshot({
+      path: `test-results/compact-trip-inspector-${width}.png`,
+      fullPage: false,
+      animations: "disabled",
+    });
+    const fare = panel.locator("summary").filter({ hasText: "Fare breakdown" });
+    const source = panel
+      .locator("summary")
+      .filter({ hasText: "Source details" });
+    await expect(panel.getByText("$2.50", { exact: true })).not.toBeVisible();
+    await fare.focus();
+    await page.keyboard.press("Enter");
+    await expect(panel.getByText("$2.50", { exact: true })).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(panel.getByText("$2.50", { exact: true })).not.toBeVisible();
+    await expect(
+      panel.getByText("yellow_tripdata_2016-01.csv.gz", { exact: true }),
+    ).not.toBeVisible();
+    await source.click();
+    await expect(
+      panel.getByText("40.75000, -73.99000", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      panel.getByText("yellow_tripdata_2016-01.csv.gz", { exact: true }),
+    ).toBeVisible();
+    await field.focus();
+    expect((await field.boundingBox())?.height).toBeGreaterThan(compactHeight);
+    await field.fill("Keep this investigation draft");
+    await source.click();
+    await expect(field).toHaveValue("Keep this investigation draft");
+    expect((await field.boundingBox())?.height).toBeGreaterThan(compactHeight);
+    await field.fill("");
+    await panel
+      .getByRole("heading", { name: "Trip details", exact: true })
+      .focus();
+    await expect(field).toHaveCSS("height", `${compactHeight}px`);
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("button", { name: /^0 comments for trip/ })
+      .first()
+      .click();
+    await expect(
+      panel.getByRole("heading", { name: "Comments", exact: true }),
+    ).toBeFocused();
+    await expect(
+      panel.getByRole("heading", { name: "Comments", exact: true }),
+    ).toBeInViewport({ ratio: 1 });
+  });
+}
+
+for (const width of [1440, 360]) {
+  test(`compact row controls open details and comments directly at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 960 });
+    const countRequests: string[][] = [];
+    await page.route("**/api/trip-comment-counts**", (route) => {
+      countRequests.push(
+        JSON.parse(
+          new URL(route.request().url()).searchParams.get("tripIds") ?? "null",
+        ),
+      );
+      return route.fulfill({
+        json: { [trip.trip_id]: 53, [otherTrip.trip_id]: 0 },
+      });
+    });
+    await page.route("**/api/trip-comments**", (route) =>
+      route.fulfill({ json: { rows: [], nextCursor: null } }),
+    );
+    await page.goto("/trips");
+    const table = page.getByRole("table", {
+      name: "Matching trips",
+      exact: true,
+    });
+    const conversation = table.getByRole("button", {
+      name: /^53 comments for trip/,
+    });
+    await expect(conversation).toBeVisible();
+    await expect(
+      table.getByRole("button", { name: /^0 comments for trip/ }),
+    ).toBeVisible();
+    await expect(
+      table.getByRole("columnheader", { name: "Discussion" }),
+    ).toHaveCount(0);
+    await expect(
+      table.getByRole("button", { name: trip.pickup_at, exact: true }),
+    ).toHaveCount(0);
+    expect(countRequests).toEqual([[trip.trip_id, otherTrip.trip_id]]);
+    await conversation.focus();
+    await page.keyboard.press("Enter");
+    const panel = page.getByRole("dialog", {
+      name: "Trip details",
+      exact: true,
+    });
+    await expect(
+      panel.getByRole("heading", { name: "Comments", exact: true }),
+    ).toBeFocused();
+    await expect(
+      panel.getByRole("heading", { name: "Comments", exact: true }),
+    ).toBeInViewport();
+    await page.keyboard.press("Escape");
+    await expect(conversation).toBeFocused();
+    const details = table
+      .getByRole("button", { name: /^Details and comments for trip/ })
+      .first();
+    await details.click();
+    await expect(
+      panel.getByRole("heading", { name: "Trip details", exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(details).toBeFocused();
+    const actions = table.locator("tbody tr").first().locator("td").last();
+    const box = await actions.boundingBox();
+    expect(box).not.toBeNull();
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+    expect(box?.height ?? 0).toBeLessThanOrEqual(44);
+    await page.screenshot({
+      path: `test-results/compact-trip-rows-${width}.png`,
+      fullPage: true,
+    });
+  });
+}
+
+test("unavailable counts remain unknown while details and comments still open", async ({
+  page,
+}) => {
+  await page.route("**/api/trip-comment-counts**", (route) =>
+    route.fulfill({
+      status: 503,
+      json: {
+        error: {
+          code: "lakebase_unavailable",
+          message: "Comments are temporarily unavailable.",
+        },
+      },
+    }),
+  );
+  await page.route("**/api/trip-comments**", (route) =>
+    route.fulfill({ json: { rows: [], nextCursor: null } }),
+  );
+  await page.goto("/trips");
+  const unknown = page
+    .getByRole("button", { name: /^Comment count unavailable for trip/ })
+    .first();
+  await expect(unknown).toHaveText("–");
+  await unknown.click();
+  await expect(
+    page.getByRole("dialog", { name: "Trip details" }),
+  ).toContainText("Start the conversation");
 });
 
 for (const width of [1440, 360]) {
@@ -40,6 +261,11 @@ for (const width of [1440, 360]) {
   }) => {
     await page.setViewportSize({ width, height: 960 });
     const stored: TripComment[] = [];
+    await page.route("**/api/trip-comment-counts**", (route) =>
+      route.fulfill({
+        json: { [trip.trip_id]: stored.length, [otherTrip.trip_id]: 0 },
+      }),
+    );
     await page.route("**/api/trip-comments**", (route) => {
       if (route.request().method() === "POST") {
         const input = route.request().postDataJSON() as TripCommentInput;
@@ -102,7 +328,13 @@ for (const width of [1440, 360]) {
     });
     await page.keyboard.press("Escape");
     await expect(inspect.first()).toBeFocused();
+    await expect(
+      page.getByRole("button", { name: /^1 comment for trip/ }),
+    ).toBeVisible();
     await page.reload();
+    await expect(
+      page.getByRole("button", { name: /^1 comment for trip/ }),
+    ).toBeVisible();
     await inspect.first().click();
     await expect(
       panel.getByText("Check this fare against nearby trips.", { exact: true }),

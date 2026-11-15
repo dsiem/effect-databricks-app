@@ -17,6 +17,12 @@ export const messages = {
   SortTrips: { sort: Sort },
   ExportTrips: {},
   InspectTrip: { trip: D.Trip },
+  InspectComments: { trip: D.Trip },
+  LoadedCommentCounts: {
+    version: Schema.Number,
+    data: Schema.NullOr(D.TripCommentCounts),
+    error: Schema.String,
+  },
   LoadComments: { more: Schema.Boolean },
   LoadedComments: {
     tripId: Schema.String,

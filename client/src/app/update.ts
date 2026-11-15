@@ -269,6 +269,8 @@ function updateApplication(
     case "ExportTrips":
     case "LoadedTrips":
     case "InspectTrip":
+    case "InspectComments":
+    case "LoadedCommentCounts":
     case "LoadComments":
     case "LoadedComments":
     case "CommentChanged":

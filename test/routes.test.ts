@@ -53,6 +53,7 @@ const appFor = (
             use: () => Effect.die("Unexpected database request"),
           }),
           Layer.succeed(TripComments, {
+            counts: () => effect,
             list: () => effect,
             add: () => effect,
           }),

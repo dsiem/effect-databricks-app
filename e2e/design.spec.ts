@@ -125,6 +125,12 @@ test.beforeEach(async ({ page }) => {
       "/api/overview": overview,
       "/api/gps-activity": gpsFixture(),
       "/api/trips": { rows: trips, total, page: 1, pageSize: 25 },
+      "/api/trip-comment-counts": Object.fromEntries(
+        trips.map((trip, index) => [
+          trip.trip_id,
+          [3, 0, 12, 0, 1, 0, 0, 4][index],
+        ]),
+      ),
       "/api/saved-views": {
         rows: [
           {
@@ -243,7 +249,8 @@ for (const colorScheme of ["light", "dark"] as const) {
       await fitsViewport(page);
       await capture(page, info, "trips");
       await table
-        .getByRole("button", { name: trips[0]?.pickup_at, exact: true })
+        .getByRole("button", { name: /^Details and comments for trip/ })
+        .first()
         .click();
       const inspector = page.getByRole("dialog", {
         name: "Trip details",

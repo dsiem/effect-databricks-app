@@ -132,6 +132,41 @@ test("navigation retains the trip feature's dialog cleanup commands", () => {
   );
 });
 
+test("comment counts from an older trip page cannot replace the current rows' counts", () => {
+  const context = { requestKey: "current" };
+  const loaded = (model: Trips.Model) =>
+    updateTrips(
+      model,
+      TripMessage.LoadedTrips({
+        key: "current",
+        error: "",
+        data: { rows: [trip], total: 1, page: 1, pageSize: 25 },
+      }),
+      context,
+    ).model;
+  const firstPage = loaded(Trips.init());
+  const nextPage = loaded(firstPage);
+  const current = updateTrips(
+    nextPage,
+    TripMessage.LoadedCommentCounts({
+      version: nextPage.commentCountsVersion,
+      data: { [trip.trip_id]: 3 },
+      error: "",
+    }),
+    context,
+  ).model;
+  const late = updateTrips(
+    current,
+    TripMessage.LoadedCommentCounts({
+      version: firstPage.commentCountsVersion,
+      data: { [trip.trip_id]: 0 },
+      error: "",
+    }),
+    context,
+  ).model;
+  assert.equal(late.commentCounts.data?.[trip.trip_id], 3);
+});
+
 test("saved views own editor dismissal and prevent closing an in-flight save", () => {
   const context = { filters: {} };
   const created = updateSavedViews(

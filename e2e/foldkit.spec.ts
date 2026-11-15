@@ -385,14 +385,15 @@ test("trip inspector shows recorded endpoints, payment and the full charge", asy
     .getByRole("button", { name: /^Details and comments for trip/ })
     .click();
   const panel = page.getByRole("dialog", { name: "Trip details", exact: true });
+  await expect(panel.getByText("Cash", { exact: true })).toBeVisible();
+  await expect(panel.getByText("$15.80", { exact: true })).toBeVisible();
+  await panel.locator("summary").filter({ hasText: "Source details" }).click();
   await expect(
     panel.getByText("40.75000, -73.99000", { exact: true }),
   ).toBeVisible();
   await expect(
     panel.getByText("40.76000, -73.98000", { exact: true }),
   ).toBeVisible();
-  await expect(panel.getByText("Cash", { exact: true })).toBeVisible();
-  await expect(panel.getByText("$15.80", { exact: true })).toBeVisible();
   await expect(
     panel.getByText("yellow_tripdata_2016-01.csv.gz", { exact: true }),
   ).toBeVisible();

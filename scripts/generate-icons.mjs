@@ -36,6 +36,7 @@ const names = [
   "moon",
   "monitor",
   "check",
+  "message-square",
 ];
 async function download(path) {
   const response = await fetch(`${source}/${path}`);

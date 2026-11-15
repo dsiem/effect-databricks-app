@@ -1,4 +1,5 @@
 import { Dialog } from "@foldkit/ui";
+import { Option } from "effect";
 import { Command } from "foldkit";
 import { syncDialog } from "../../lib/dialog";
 import type { FeatureUpdate } from "../../lib/feature-update";
@@ -6,6 +7,21 @@ import { empty } from "../../lib/request-state";
 import * as TripsCommands from "./commands";
 import { Message as M, type Message } from "./messages";
 import type { Model } from "./model";
+
+function countComments(model: Model): FeatureUpdate<Model, Message, Out> {
+  const tripIds = model.trips.data?.rows.map((trip) => trip.trip_id) ?? [];
+  const version = model.commentCountsVersion + 1;
+  return {
+    model: {
+      ...model,
+      commentCountsVersion: version,
+      commentCounts: { ...model.commentCounts, loading: !!tripIds.length },
+    },
+    commands: tripIds.length
+      ? [TripsCommands.LoadCommentCounts({ tripIds, version })]
+      : [],
+  };
+}
 
 const comments = (
   model: Model,
@@ -61,9 +77,23 @@ function updateTripsState(
         ? { model }
         : {
             outMessage: { _tag: "SelectionInvalidated" },
+            ...countComments({
+              ...model,
+              commentCounts: empty,
+              trips: {
+                data: message.data,
+                error: message.error,
+                loading: false,
+              },
+            }),
+          };
+    case "LoadedCommentCounts":
+      return message.version !== model.commentCountsVersion
+        ? { model }
+        : {
             model: {
               ...model,
-              trips: {
+              commentCounts: {
                 data: message.data,
                 error: message.error,
                 loading: false,
@@ -93,8 +123,17 @@ function updateTripsState(
           : [],
       };
     case "InspectTrip":
+    case "InspectComments":
       return comments({
         ...model,
+        inspectorDialog: {
+          ...model.inspectorDialog,
+          maybeFocusSelector: Option.some(
+            message._tag === "InspectComments"
+              ? "#trip-comments-heading"
+              : "#trip-details-dialog-title",
+          ),
+        },
         selectedTrip: message.trip,
         comments: empty,
         postError: "",
@@ -196,9 +235,14 @@ function updateTripsState(
         posted: message.error ? "" : key,
         postError: model.selectedTrip?.trip_id === key ? message.error : "",
       };
-      return message.error || model.selectedTrip?.trip_id !== key
-        ? { model: next }
-        : comments(next);
+      if (message.error) return { model: next };
+      const counted = countComments(next);
+      if (model.selectedTrip?.trip_id !== key) return counted;
+      const refreshed = comments(counted.model);
+      return {
+        ...refreshed,
+        commands: [...(counted.commands ?? []), ...(refreshed.commands ?? [])],
+      };
     }
   }
 }

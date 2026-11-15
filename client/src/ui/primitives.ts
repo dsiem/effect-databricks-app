@@ -144,7 +144,7 @@ export const table = <Message>(
   h: H<Message>,
   options: {
     readonly caption: string;
-    readonly headers: ReadonlyArray<string>;
+    readonly headers: ReadonlyArray<Child>;
     readonly rows: ReadonlyArray<{
       readonly key: string;
       readonly cells: ReadonlyArray<Child>;

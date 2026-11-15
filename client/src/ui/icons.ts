@@ -410,6 +410,17 @@ const shapes = {
   check: <Message>(h: H<Message>) => [
     h.path([h.Attribute("d", "M20 6 9 17l-5-5")], []),
   ],
+  "message-square": <Message>(h: H<Message>) => [
+    h.path(
+      [
+        h.Attribute(
+          "d",
+          "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+        ),
+      ],
+      [],
+    ),
+  ],
 };
 
 export type IconName = keyof typeof shapes;

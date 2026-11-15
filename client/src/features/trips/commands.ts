@@ -40,6 +40,17 @@ export const LoadComments = Command.define("LoadComments", {
       ),
     ),
 });
+export const LoadCommentCounts = Command.define("LoadCommentCounts", {
+  args: {
+    tripIds: Schema.Array(D.Trip.fields.trip_id),
+    version: Schema.Number,
+  },
+  messages: [M.LoadedCommentCounts],
+  execute: ({ tripIds, version }) =>
+    result(
+      request((client) => client.tripCommentCounts({ query: { tripIds } })),
+    ).pipe(Effect.map((value) => M.LoadedCommentCounts({ version, ...value }))),
+});
 export const CommentDraft = Command.define("CreateCommentDraft", {
   args: { tripId: Schema.String, body: Schema.String },
   messages: [M.CreatedCommentDraft],

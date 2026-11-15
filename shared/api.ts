@@ -24,6 +24,8 @@ import {
   SavedViewsPage,
   Status,
   TripComment,
+  TripCommentCountSearch,
+  TripCommentCounts,
   TripCommentInput,
   TripCommentSearch,
   TripComments,
@@ -142,6 +144,10 @@ export const AppApi = HttpApi.make("taxi").add(
       HttpApiEndpoint.get("tripComments", "/api/trip-comments", {
         query: TripCommentSearch,
         success: TripComments,
+      }),
+      HttpApiEndpoint.get("tripCommentCounts", "/api/trip-comment-counts", {
+        query: TripCommentCountSearch,
+        success: TripCommentCounts,
       }),
       HttpApiEndpoint.post("addTripComment", "/api/trip-comments", {
         payload: TripCommentInput,

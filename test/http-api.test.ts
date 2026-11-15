@@ -102,6 +102,7 @@ const fixture = () => {
             use: () => Effect.die("Unexpected database request"),
           }),
           Layer.succeed(TripComments, {
+            counts: (search) => record("tripCommentCounts", search, {}),
             list: (search) =>
               record("tripComments", search, { rows: [], nextCursor: null }),
             add: (input, author) =>
@@ -211,6 +212,12 @@ test("generated client round-trips every endpoint through the real HTTP contract
         },
       );
       assert.deepEqual(
+        yield* client.tripCommentCounts({
+          query: { tripIds: ["trip-1", "trip-2"] },
+        }),
+        {},
+      );
+      assert.deepEqual(
         yield* client.submitGenie({
           payload: { content: "Count trips", conversationId: "previous-1" },
         }),
@@ -263,6 +270,7 @@ test("generated client round-trips every endpoint through the real HTTP contract
     ["overview", filters],
     ["gps", { ...filters, endpoint: "dropoff" }],
     ["trips", { ...filters, page: 2, sort: "fare" }],
+    ["tripCommentCounts", { tripIds: ["trip-1", "trip-2"] }],
     ["submit", { content: "Count trips", conversationId: "previous-1" }],
     ["poll", operation],
     ["result", operation],
@@ -310,6 +318,14 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
     ["/api/overview?from=2016-02-31", undefined],
     ["/api/trips?page=0", undefined],
     ["/api/trips?sort=unsafe", undefined],
+    ["/api/trip-comment-counts?tripIds=not-json", undefined],
+    ...[[], [""], Array(26).fill("trip-1")].map(
+      (tripIds) =>
+        [
+          `/api/trip-comment-counts?tripIds=${encodeURIComponent(JSON.stringify(tripIds))}`,
+          undefined,
+        ] as const,
+    ),
     ["/api/saved-views?cursor=not-json", undefined],
     ...[
       {},

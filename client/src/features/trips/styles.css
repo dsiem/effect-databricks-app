@@ -1,4 +1,54 @@
 @layer components {
+  .trip-records .table-scroll td {
+    height: 2.5rem;
+    padding: 0.25rem 1rem;
+  }
+  .trip-records .table-scroll th {
+    padding: 0.625rem 1rem;
+  }
+  .trip-records .table-scroll :is(th, td):last-child {
+    position: sticky;
+    right: 0;
+    width: 1%;
+    padding-inline: 0.5rem;
+    background: var(--surface);
+    box-shadow: -1px 0 var(--row-border);
+  }
+  .trip-records .table-scroll th:last-child {
+    background: var(--surface-soft);
+  }
+  .trip-records .table-scroll tr:hover td:last-child {
+    background: var(--surface-hover);
+  }
+  .trip-row-actions,
+  .trip-comment-count {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+  }
+  .trip-records .table-scroll .trip-comments-button,
+  .trip-records .table-scroll .trip-details-button {
+    min-height: 1.875rem;
+    color: var(--muted);
+  }
+  .trip-records .table-scroll .trip-comments-button {
+    min-width: 3rem;
+  }
+  .trip-records .table-scroll .has-comments {
+    color: var(--color-brand-600);
+    background: var(--color-brand-50);
+  }
+  .trip-records .table-scroll .btn-ghost:hover {
+    color: var(--foreground);
+    background: var(--subtle);
+  }
+  @media (pointer: coarse) {
+    .trip-records .table-scroll .btn-ghost {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+  }
   .pagination {
     display: flex;
     flex-wrap: wrap;
@@ -23,8 +73,76 @@
     min-height: 2rem;
     padding: 0.375rem 0.5rem;
   }
+  .trip-inspector .dialog-header {
+    padding: 1rem 3.5rem 1rem 1.25rem;
+  }
+  .trip-inspector .dialog-close {
+    top: 0.75rem;
+  }
+  .trip-inspector .sheet-body {
+    padding: 1rem 1.25rem;
+  }
+  .trip-summary {
+    margin-bottom: 1.25rem;
+  }
+  .trip-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .trip-summary dt {
+    color: var(--muted);
+    font-size: 0.6875rem;
+  }
+  .trip-summary dd {
+    margin-top: 0.125rem;
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+  }
+  .trip-detail-group {
+    border-top: 1px solid var(--border);
+  }
+  .trip-detail-group summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 2.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    list-style: none;
+  }
+  .trip-detail-group summary::-webkit-details-marker {
+    display: none;
+  }
+  .trip-detail-group summary .icon {
+    color: var(--muted);
+  }
+  .trip-detail-group[open] summary .icon {
+    transform: rotate(180deg);
+  }
+  .trip-fare-breakdown,
+  .trip-source-details {
+    display: grid;
+    gap: 0.5rem;
+    padding-bottom: 0.75rem;
+  }
+  .trip-fare-breakdown > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .trip-fare-breakdown dd {
+    margin-top: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .trip-inspector .loading {
+    padding: 1rem;
+  }
   .empty-comments {
-    padding: 2.5rem 1.5rem;
+    padding: 1rem;
     text-align: center;
     color: var(--muted);
     border: 1px dashed var(--border-strong);
@@ -32,10 +150,28 @@
   }
   .comment-composer {
     display: grid;
-    gap: 0.75rem;
-    padding: 1.25rem 1.5rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 0.5rem;
+    padding: 0.875rem 1.25rem;
+    flex-shrink: 0;
     border-top: 1px solid var(--border);
     background: var(--surface-soft);
+  }
+  .comment-composer textarea {
+    height: 2.25rem;
+    min-height: 2.25rem;
+  }
+  .comment-composer:is(:focus-within, .is-expanded) textarea {
+    grid-column: 1 / -1;
+    height: 5rem;
+    min-height: 5rem;
+  }
+  .comment-composer > :is([role="alert"], [role="status"]) {
+    grid-column: 1 / -1;
+  }
+  .comment-composer .btn {
+    grid-column: 2;
   }
   @media (max-width: 399px) {
     .sort-control {

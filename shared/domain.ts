@@ -288,6 +288,19 @@ export const TripCommentSearch = Schema.Struct({
   cursor: Schema.optionalKey(Schema.fromJsonString(TripCommentCursor)),
 });
 export type TripCommentSearch = typeof TripCommentSearch.Type;
+export const TripCommentCountSearch = Schema.Struct({
+  tripIds: Schema.fromJsonString(
+    Schema.Array(Trip.fields.trip_id).check(
+      Schema.isMinLength(1),
+      Schema.isMaxLength(25),
+    ),
+  ),
+});
+export type TripCommentCountSearch = typeof TripCommentCountSearch.Type;
+export const TripCommentCounts = Schema.Record(
+  Schema.String,
+  Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+);
 export const TripComments = Schema.Struct({
   rows: Schema.Array(TripComment),
   nextCursor: Schema.NullOr(TripCommentCursor),

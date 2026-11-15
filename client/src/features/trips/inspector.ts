@@ -48,11 +48,13 @@ function inspector(h: H, model: Model) {
   const draft = model.commentDrafts[trip.trip_id];
   const rows = model.comments.data?.rows ?? [];
   const info = (label: string, value: string) =>
-    h.div(
-      [],
+    h.div([], [h.dt([], [label]), h.dd([], [value])]);
+  const disclosure = (label: string, children: Child[]) =>
+    h.details(
+      [h.Class("trip-detail-group")],
       [
-        h.dt([h.Class("muted text-xs")], [label]),
-        h.dd([h.Class("text-sm mt-1")], [value]),
+        h.summary([], [h.span([], [label]), icon(h, "chevron-down")]),
+        ...children,
       ],
     );
   const comments: Child[] =
@@ -71,20 +73,18 @@ function inspector(h: H, model: Model) {
                         ["Start the conversation"],
                       ),
                       h.p(
-                        [h.Class("muted text-xs leading-5 mt-2")],
-                        [
-                          "Flag an unusual fare, ask a question, or leave a next step for another analyst.",
-                        ],
+                        [h.Class("muted text-xs leading-5 mt-1")],
+                        ["Share a finding or question about this trip."],
                       ),
                     ],
                   ),
                 ]
               : []),
             h.ol(
-              [h.AriaLabel("Trip comments"), h.Class("space-y-4")],
+              [h.AriaLabel("Trip comments"), h.Class("space-y-3")],
               rows.map((comment) =>
                 h.li(
-                  [h.Key(comment.id), h.Class("rounded-lg border p-4")],
+                  [h.Key(comment.id), h.Class("rounded-lg border p-3")],
                   [
                     h.div(
                       [
@@ -106,7 +106,7 @@ function inspector(h: H, model: Model) {
                     h.p(
                       [
                         h.Class(
-                          "whitespace-pre-wrap break-words text-sm leading-6",
+                          "whitespace-pre-wrap break-words text-sm leading-5",
                         ),
                       ],
                       [comment.body],
@@ -146,42 +146,32 @@ function inspector(h: H, model: Model) {
             [h.Id(Dialog.titleId(model.inspectorDialog)), h.Tabindex(-1)],
             ["Trip details"],
           ),
-          h.p(
-            [h.Class("muted text-sm mt-2")],
-            ["Inspect the record and leave context for your team."],
-          ),
         ],
       ),
       h.div(
         [h.Class("sheet-body")],
         [
           h.section(
-            [h.AriaLabel("Selected trip"), h.Class("inset-panel mb-6")],
+            [h.AriaLabel("Selected trip"), h.Class("trip-summary")],
             [
               h.p(
-                [h.Class("text-lg font-semibold mb-4")],
+                [h.Class("text-lg font-semibold mb-3")],
                 [`${trip.pickup_zip} → ${trip.dropoff_zip}`],
               ),
               h.dl(
-                [h.Class("grid gap-4")],
+                [h.Class("trip-summary-grid")],
                 [
                   info("Pickup", trip.pickup_at),
                   info("Drop-off", trip.dropoff_at),
                   info("Fare", money(trip.fare, 2)),
                   info(
-                    "Distance · duration",
-                    `${trip.distance.toFixed(2)} mi · ${trip.duration.toFixed(1)} min`,
+                    "Total · excl. cash tips",
+                    amount(details?.total_amount ?? null),
                   ),
+                  info("Distance", `${trip.distance.toFixed(2)} mi`),
+                  info("Duration", `${trip.duration.toFixed(1)} min`),
                   ...(details
                     ? [
-                        info(
-                          "Pickup GPS · latitude, longitude",
-                          location(details.pickup_location),
-                        ),
-                        info(
-                          "Drop-off GPS · latitude, longitude",
-                          location(details.dropoff_location),
-                        ),
                         info(
                           "Passengers · driver reported",
                           details.passenger_count === null
@@ -192,48 +182,79 @@ function inspector(h: H, model: Model) {
                           "Payment",
                           payment[details.payment_type ?? 0] ?? "Unknown",
                         ),
-                        info(
-                          "Recorded tip · excludes cash tips",
-                          amount(details.tip_amount),
-                        ),
-                        info("Tolls", amount(details.tolls_amount)),
-                        info("Extras", amount(details.extra)),
-                        info("MTA tax", amount(details.mta_tax)),
-                        info(
-                          "Improvement surcharge",
-                          amount(details.improvement_surcharge),
-                        ),
-                        info(
-                          "Total charge · excludes cash tips",
-                          amount(details.total_amount),
-                        ),
-                        info(
-                          "Rate code · provider",
-                          `${details.rate_code_id ?? "Unknown"} · ${details.vendor_id ?? "Unknown"}`,
-                        ),
-                        info("Source file", details.source_file),
                       ]
                     : []),
                 ],
               ),
+              ...(details
+                ? [
+                    disclosure("Fare breakdown", [
+                      h.dl(
+                        [h.Class("trip-fare-breakdown")],
+                        [
+                          info("Base fare", money(trip.fare, 2)),
+                          info("Recorded tip", amount(details.tip_amount)),
+                          info("Tolls", amount(details.tolls_amount)),
+                          info("Extras", amount(details.extra)),
+                          info("MTA tax", amount(details.mta_tax)),
+                          info(
+                            "Improvement surcharge",
+                            amount(details.improvement_surcharge),
+                          ),
+                        ],
+                      ),
+                      h.p(
+                        [h.Class("muted text-xs pb-3")],
+                        ["Recorded tip and total exclude cash tips."],
+                      ),
+                    ]),
+                    disclosure("Source details", [
+                      h.dl(
+                        [h.Class("trip-source-details")],
+                        [
+                          info(
+                            "Pickup GPS · latitude, longitude",
+                            location(details.pickup_location),
+                          ),
+                          info(
+                            "Drop-off GPS · latitude, longitude",
+                            location(details.dropoff_location),
+                          ),
+                          info(
+                            "Rate code · provider",
+                            `${details.rate_code_id ?? "Unknown"} · ${details.vendor_id ?? "Unknown"}`,
+                          ),
+                          info("Source file", details.source_file),
+                        ],
+                      ),
+                    ]),
+                  ]
+                : []),
             ],
           ),
           h.div(
-            [h.Class("flex justify-between items-center mb-4")],
-            [h.h2([], ["Comments"]), badge(h, "Shared with your team")],
+            [h.Class("flex justify-between items-center mb-3")],
+            [
+              h.h2(
+                [h.Id("trip-comments-heading"), h.Tabindex(-1)],
+                ["Comments"],
+              ),
+              badge(h, "Shared with your team"),
+            ],
           ),
           ...comments,
-          h.p(
-            [h.Class("muted text-xs mt-5")],
-            ["Comments stay with this record across filters and sorting."],
-          ),
         ],
       ),
       h.form(
-        [h.Class("comment-composer"), h.OnSubmit(M.PostComment())],
+        [
+          h.Class(
+            `comment-composer${draft?.body.length || model.postError ? " is-expanded" : ""}`,
+          ),
+          h.OnSubmit(M.PostComment()),
+        ],
         [
           h.label(
-            [h.For("trip-comment"), h.Class("field-label")],
+            [h.For("trip-comment"), h.Class("sr-only")],
             ["Add a comment"],
           ),
           Textarea.view(
@@ -241,11 +262,12 @@ function inspector(h: H, model: Model) {
               id: "trip-comment",
               value: draft?.body ?? "",
               onInput: (body) => M.CommentChanged({ body }),
-              placeholder: "Share a finding or question…",
+              placeholder: "Add a comment…",
               toView: (attributes) =>
                 h.textarea([
                   ...attributes.textarea,
-                  h.Class("input min-h-24"),
+                  h.Class("input"),
+                  h.Rows(1),
                   h.Maxlength(4000),
                 ]),
             },
