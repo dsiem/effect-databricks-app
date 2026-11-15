@@ -314,7 +314,7 @@ regressions, and loss of primary-button distinction. They complement visual
 review rather than asserting that a passing functional test proves good design.
 
 Run `npm run test:filters` against the built app for the filter/view workflow in
-Chromium, WebKit, and WebKit's iPad profile. It checks field containment as well as
+Chromium and WebKit. It checks field containment as well as
 viewport overflow, pending edits, save/apply behavior, view selection, reset, and
 keyboard dismissal. This complements engine-independent component checks.
 
@@ -374,7 +374,7 @@ when one exists. See the [interaction design rationale](docs/data-access.md#cont
 npm run check          # lint, types, tests, build, HTTP smoke check, packed SQL adapter
 npm run test:browser   # offline browser checks against the built app; also required in CI
 npm run test:ui        # populated desktop/mobile screenshots and visual layout checks
-npm run test:filters   # filter/view workflow in Chromium, WebKit, and an iPad profile
+npm run test:filters   # filter/view workflow in Chromium and WebKit
 npm run test:architecture # offline Genie recovery, sidebar/dialog/responsive UI, and service checks
 npm run bundle:check   # deployment schema validation without credentials
 npm run data:check     # live SQL reconciliation, Lakebase CRUD, Genie + follow-up

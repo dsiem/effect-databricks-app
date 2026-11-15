@@ -70,4 +70,4 @@ of a feature. Keep a component's media queries with the component. Keep override
 scoped to the owning feature rather than changing a shared class globally.
 `npm run architecture:check` enforces CSS dependency direction alongside the
 TypeScript boundaries. `npm run build && npm run test:ui` checks the composed
-desktop/mobile views; `npm run test:filters` covers touch and WebKit behavior.
+desktop/mobile views; `npm run test:filters` covers Chromium and WebKit behavior.

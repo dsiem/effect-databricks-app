@@ -19,6 +19,6 @@ synthetic locations or ZIP-centroid substitutes are needed.
 
 The deployed resolution-10 maps reconcile all 21,821,803 pickups across 23,578
 cells and 21,857,880 drop-offs across 54,610 cells, without truncation. Browser
-checks cover pointer/keyboard selection, iPad touch, filters and light/dark themes.
+checks cover pointer/keyboard selection, filters and light/dark themes.
 Run `GPS_PREVIEW_TARGET=dev node scripts/check-gps-browser.mjs` for the authenticated
 hosted visual check; its credentials are restricted to the app origin.

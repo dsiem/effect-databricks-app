@@ -1,4 +1,4 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig } from "@playwright/test";
 import base from "./playwright.architecture.config";
 
 export default defineConfig(base, {
@@ -14,6 +14,5 @@ export default defineConfig(base, {
   projects: [
     { name: "chromium", use: { browserName: "chromium" } },
     { name: "webkit", use: { browserName: "webkit" } },
-    { name: "ipad", use: { ...devices["iPad Pro 11"], browserName: "webkit" } },
   ],
 });

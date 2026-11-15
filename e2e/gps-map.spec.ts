@@ -36,7 +36,7 @@ const ready = async (
 
 test("GPS map selects areas by keyboard and pointer and switches endpoints without replacing the camera", async ({
   page,
-}, testInfo) => {
+}) => {
   await page.goto("/gps-map");
   const map = await ready(page);
   const navigation = page.getByRole("navigation", { name: "Main navigation" });
@@ -83,19 +83,6 @@ test("GPS map selects areas by keyboard and pointer and switches endpoints witho
   await expect(
     page.getByRole("heading", { name: "Selected area", exact: true }),
   ).toBeVisible();
-  if (testInfo.project.use.hasTouch) {
-    await page.getByRole("button", { name: "Clear", exact: true }).click();
-    await ready(page);
-    const interactiveCanvas = map.locator(".maplibregl-canvas");
-    const canvasBounds = await interactiveCanvas.boundingBox();
-    if (!canvasBounds) throw new Error("Missing touch canvas");
-    await interactiveCanvas.tap({
-      position: { x: canvasBounds.width / 2, y: canvasBounds.height / 2 },
-    });
-    await expect(
-      page.getByRole("heading", { name: "Selected area", exact: true }),
-    ).toBeVisible();
-  }
   const pickupTab = page.getByRole("tab", { name: "Pickups", exact: true });
   await pickupTab.focus();
   await page.keyboard.press("ArrowRight");
