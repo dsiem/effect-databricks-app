@@ -1,4 +1,4 @@
-import type { GpsActivity, GpsCell, GpsEndpoint } from "../../shared/domain.js";
+import type { GpsCell, GpsEndpoint, TripMap } from "../../shared/domain.js";
 
 const cells: GpsCell[] = [
   {
@@ -49,7 +49,7 @@ const cells: GpsCell[] = [
   },
 ];
 
-export const gpsFixture = (endpoint: GpsEndpoint = "pickup"): GpsActivity => ({
+export const gpsFixture = (endpoint: GpsEndpoint = "pickup"): TripMap => ({
   endpoint,
   matchingTrips: 100,
   locatedTrips: 80,

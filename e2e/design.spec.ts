@@ -123,7 +123,7 @@ test.beforeEach(async ({ page }) => {
       },
       "/api/metadata": { from: "2016-01-01", to: "2016-02-29", trips: total },
       "/api/overview": overview,
-      "/api/gps-activity": gpsFixture(),
+      "/api/trip-map": gpsFixture(),
       "/api/trips": { rows: trips, total, page: 1, pageSize: 25 },
       "/api/trip-comment-counts": Object.fromEntries(
         trips.map((trip, index) => [
@@ -286,7 +286,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         .getByRole("textbox", { name: "View name", exact: true })
         .fill("January fare review");
       await capture(page, info, "save-view", false);
-      await page.goto(`/gps-map${query}`);
+      await page.goto(`/trip-map${query}`);
       const map = page.locator(".map-panel");
       await expect(map).toHaveAttribute("data-gps-ready", "true");
       // The map mount must keep the panel's responsive height.

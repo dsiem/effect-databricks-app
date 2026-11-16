@@ -135,7 +135,7 @@ test("mobile sidebar traps focus, closes on navigation and Escape, and leaves de
   });
 
   await drawer.getByRole("link", { name: "Trip map", exact: true }).click();
-  await expect(page).toHaveURL(/\/gps-map\?zip=10001$/);
+  await expect(page).toHaveURL(/\/trip-map\?zip=10001$/);
   await expect(drawer).not.toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Trip hotspots", exact: true }),

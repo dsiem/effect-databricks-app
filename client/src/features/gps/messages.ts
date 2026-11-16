@@ -6,7 +6,7 @@ export const messages = {
   GpsTabs: { message: Tabs.Message },
   LoadedGps: {
     key: Schema.String,
-    data: Schema.NullOr(D.GpsActivity),
+    data: Schema.NullOr(D.TripMap),
     error: Schema.String,
   },
   GpsReady: { key: Schema.String, error: Schema.String },

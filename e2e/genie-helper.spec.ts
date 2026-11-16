@@ -68,7 +68,7 @@ test.beforeEach(async ({ page }) => {
       json: { from: "2016-01-01", to: "2016-02-29", trips: 21932 },
     }),
   );
-  await page.route("**/api/gps-activity**", (route) =>
+  await page.route("**/api/trip-map**", (route) =>
     route.fulfill({ json: gpsFixture() }),
   );
   await page.route("**/api/overview**", (route) =>
@@ -286,7 +286,7 @@ test("an open helper follows navigation to the map and includes geographic cover
   await page.goto(`/?${query}`);
   const helper = await openHelper(page);
   await page.getByRole("link", { name: "Trip map", exact: true }).click();
-  await expect(page).toHaveURL(`/gps-map?${query}`);
+  await expect(page).toHaveURL(`/trip-map?${query}`);
   await expect(helper.getByRole("region")).toContainText("GPS pickups");
   await expect(helper.getByRole("region")).toContainText(
     "Displayed data and applied filters included",

@@ -48,7 +48,7 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
     page.getByRole("region", { name: "GPS pickups density map" }),
   ).toHaveAttribute("data-gps-ready", "true", { timeout: 120_000 });
   await page.screenshot({
-    path: "test-results/gps-map.png",
+    path: "test-results/trip-map.png",
     fullPage: true,
     animations: "disabled",
   });

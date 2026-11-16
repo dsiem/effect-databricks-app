@@ -54,7 +54,7 @@ assert.ok(
   "Hosted trip records must expose recorded GPS endpoints",
 );
 for (const endpoint of ["pickup", "dropoff"]) {
-  const activity = await request(`/api/gps-activity?endpoint=${endpoint}`);
+  const activity = await request(`/api/trip-map?endpoint=${endpoint}`);
   assert.equal(activity.endpoint, endpoint);
   assert.equal(activity.matchingTrips, metadata.trips);
   assert.ok(

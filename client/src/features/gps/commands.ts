@@ -9,8 +9,6 @@ export const LoadGps = Command.define("LoadGps", {
   messages: [M.LoadedGps],
   execute: ({ key, filters, endpoint }) =>
     result(
-      request((client) =>
-        client.gpsActivity({ query: { ...filters, endpoint } }),
-      ),
+      request((client) => client.tripMap({ query: { ...filters, endpoint } })),
     ).pipe(Effect.map((value) => M.LoadedGps({ key, ...value }))),
 });

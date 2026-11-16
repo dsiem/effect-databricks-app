@@ -381,7 +381,7 @@ function updateApplication(
     case "LoadedGps":
     case "GpsReady":
     case "GpsSelect": {
-      if (model.path !== "/gps-map") return { model };
+      if (model.path !== "/trip-map") return { model };
       const changed = updateGps(model.gpsState, message, {
         query: model.query,
       });

@@ -5,7 +5,7 @@ import { empty, request } from "../../lib/request-state";
 export const Model = Schema.Struct({
   endpoint: D.GpsEndpoint,
   endpointTabs: Tabs.Model,
-  activity: request(D.GpsActivity),
+  activity: request(D.TripMap),
   selected: Schema.NullOr(Schema.String),
   renderedKey: Schema.String,
   mapError: Schema.String,

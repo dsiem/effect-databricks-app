@@ -271,7 +271,7 @@ export function view(model: Model, h: H): Document {
           ),
         ];
         break;
-      case "/gps-map":
+      case "/trip-map":
         content = [
           featureView(
             h,

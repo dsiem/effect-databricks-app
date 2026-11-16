@@ -71,7 +71,7 @@ for (const failure of [
                 },
               ],
             });
-      if (url.pathname === "/api/gps-activity") {
+      if (url.pathname === "/api/trip-map") {
         if (failure === "gps")
           return reply({ error: { message: "GPS unavailable" } }, 503);
         const endpoint =

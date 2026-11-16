@@ -105,7 +105,7 @@ export const GpsCell = Schema.Struct({
   zip: Schema.NullOr(Zip),
 });
 export type GpsCell = typeof GpsCell.Type;
-export const GpsActivity = Schema.Struct({
+export const TripMap = Schema.Struct({
   endpoint: GpsEndpoint,
   matchingTrips: Schema.Number,
   locatedTrips: Schema.Number,
@@ -115,7 +115,7 @@ export const GpsActivity = Schema.Struct({
   cells: Schema.Array(GpsCell),
   queriedAt: Schema.String,
 });
-export type GpsActivity = typeof GpsActivity.Type;
+export type TripMap = typeof TripMap.Type;
 export const TripDetails = Schema.Struct({
   source_file: boundedText(160),
   vendor_id: Schema.NullOr(Schema.Int),

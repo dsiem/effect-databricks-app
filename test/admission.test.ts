@@ -169,7 +169,7 @@ test("distinct overview, trip, and metadata requests share the warehouse stateme
           analytics.overview({ zip: "10001" }),
           analytics.trips({ page: 1 }),
           analytics.trips({ page: 2 }),
-          analytics.gpsActivity({}),
+          analytics.tripMap({}),
           analytics.metadata,
         ],
         { concurrency: "unbounded" },

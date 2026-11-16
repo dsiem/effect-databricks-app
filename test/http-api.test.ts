@@ -62,7 +62,7 @@ const fixture = () => {
             availability: Effect.succeed("unconfigured" as const),
             metadata: Effect.succeed(metadata),
             overview: (input) => record("overview", input, overview),
-            gpsActivity: (input) =>
+            tripMap: (input) =>
               record("gps", input, {
                 endpoint: input.endpoint ?? "pickup",
                 matchingTrips: 10,
@@ -197,7 +197,7 @@ test("generated client round-trips every endpoint through the real HTTP contract
       assert.deepEqual(yield* client.metadata(), metadata);
       assert.deepEqual(yield* client.overview({ query: filters }), overview);
       assert.equal(
-        (yield* client.gpsActivity({
+        (yield* client.tripMap({
           query: { ...filters, endpoint: "dropoff" },
         })).matchingTrips,
         10,
@@ -287,8 +287,8 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
     ["/api/overview?zip=invalid", undefined],
     ["/api/overview?from=2016-02-01&to=2016-01-01", undefined],
     ["/api/trips?from=2016-02-01&to=2016-01-01", undefined],
-    ["/api/gps-activity?from=2016-02-01&to=2016-01-01", undefined],
-    ["/api/gps-activity?endpoint=coordinates", undefined],
+    ["/api/trip-map?from=2016-02-01&to=2016-01-01", undefined],
+    ["/api/trip-map?endpoint=coordinates", undefined],
     [
       "/api/saved-views",
       {

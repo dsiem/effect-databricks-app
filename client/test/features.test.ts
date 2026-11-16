@@ -76,15 +76,15 @@ test("view intents are translated by the shell with their analysis scope intact"
   assert.equal(changed.model.genieState.genieOpen, true);
   assert.deepEqual(changed.model.genieState.genieSelection, context);
   assert.equal(changed.model.genieState.genieDraft, "Explain these fares");
-  const picked = update(app("/gps-map"), AppMessage.PickZip({ zip: "10019" }));
+  const picked = update(app("/trip-map"), AppMessage.PickZip({ zip: "10019" }));
   assert.ok(
     picked.commands?.some(
-      (command) => command.args?.href === "/gps-map?zip=10019",
+      (command) => command.args?.href === "/trip-map?zip=10019",
     ),
   );
   const navigated = update(
     picked.model,
-    AppMessage.Navigated({ path: "/gps-map", query: "zip=10019" }),
+    AppMessage.Navigated({ path: "/trip-map", query: "zip=10019" }),
   );
   assert.equal(navigated.model.filtersState.filterDraft.zip, "10019");
 });

@@ -8,8 +8,8 @@ import { Workspace } from "../src/workspace.js";
 await Effect.runPromise(
   Effect.gen(function* () {
     const analytics = yield* Analytics;
-    const pickup = yield* analytics.gpsActivity({ endpoint: "pickup" });
-    const dropoff = yield* analytics.gpsActivity({ endpoint: "dropoff" });
+    const pickup = yield* analytics.tripMap({ endpoint: "pickup" });
+    const dropoff = yield* analytics.tripMap({ endpoint: "dropoff" });
     const metadata = yield* analytics.metadata;
     for (const data of [pickup, dropoff]) {
       assert.equal(data.matchingTrips, metadata.trips);
@@ -30,7 +30,7 @@ await Effect.runPromise(
         ),
       );
     }
-    const scoped = yield* analytics.gpsActivity({
+    const scoped = yield* analytics.tripMap({
       from: "2016-01-10",
       to: "2016-01-10",
       zip: "10001",
@@ -43,7 +43,7 @@ await Effect.runPromise(
     });
     assert.equal(scoped.matchingTrips, trips.total);
     assert.equal(scoped.locatedTrips, scoped.shownTrips);
-    const empty = yield* analytics.gpsActivity({
+    const empty = yield* analytics.tripMap({
       from: "2026-01-01",
       endpoint: "pickup",
     });

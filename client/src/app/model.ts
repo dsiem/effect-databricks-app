@@ -37,13 +37,13 @@ export const requestKey = (model: Model) =>
 export const navigation = [
   { path: "/", label: "Overview", icon: "layout-dashboard" },
   { path: "/trips", label: "Trip explorer", icon: "table-2" },
-  { path: "/gps-map", label: "Trip map", icon: "map" },
+  { path: "/trip-map", label: "Trip map", icon: "map" },
 ] as const;
 export const pageContext = (model: Model): D.GenieContext => {
   const overview = model.overviewState.overview.data;
   const trips = model.tripsState.trips.data;
   switch (model.path) {
-    case "/gps-map":
+    case "/trip-map":
       return gpsContext(model.gpsState);
     case "/":
       return {

@@ -12,7 +12,7 @@ export function loadPage(
 ): Update.Return<Model, Message, ApiClient> {
   const filters = filtersFromQuery(model.query);
   if (!filters) return { model };
-  if (model.path === "/gps-map") {
+  if (model.path === "/trip-map") {
     const loaded = reloadGps(model.gpsState, model.query);
     return {
       model: {

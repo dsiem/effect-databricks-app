@@ -72,8 +72,8 @@ for (const truncated of [false, true])
         const analytics = yield* Analytics;
         return yield* Effect.all(
           [
-            analytics.gpsActivity({ endpoint: "dropoff" }),
-            analytics.gpsActivity({ endpoint: "dropoff" }),
+            analytics.tripMap({ endpoint: "dropoff" }),
+            analytics.tripMap({ endpoint: "dropoff" }),
           ],
           { concurrency: 2 },
         );

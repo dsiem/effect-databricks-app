@@ -47,7 +47,7 @@ try {
   // Buffer through Playwright's request context: Chromium's inspector cache can
   // evict the full-data response before an asynchronous response listener reads it.
   await page.route(
-    (url) => url.origin === appOrigin && url.pathname === "/api/gps-activity",
+    (url) => url.origin === appOrigin && url.pathname === "/api/trip-map",
     async (route) => {
       const response = await route.fetch({
         headers: { ...route.request().headers(), ...authHeaders },
@@ -82,7 +82,7 @@ try {
     );
     return map;
   };
-  await page.goto(`${origin}/gps-map`);
+  await page.goto(`${origin}/trip-map`);
   const map = await ready("pickups");
   await page.screenshot({ path: `${output}/gps-city.png`, fullPage: true });
   await page.getByRole("button", { name: /^Area 1,/ }).click();

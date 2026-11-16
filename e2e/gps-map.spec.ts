@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
       json: { from: "2016-01-01", to: "2016-02-29", trips: 100 },
     }),
   );
-  await page.route("**/api/gps-activity**", (route) =>
+  await page.route("**/api/trip-map**", (route) =>
     route.fulfill({
       json: gpsFixture(
         new URL(route.request().url()).searchParams.get("endpoint") ===
@@ -37,7 +37,7 @@ const ready = async (
 test("GPS map selects areas by keyboard and pointer and switches endpoints without replacing the camera", async ({
   page,
 }) => {
-  await page.goto("/gps-map");
+  await page.goto("/trip-map");
   const map = await ready(page);
   const navigation = page.getByRole("navigation", { name: "Main navigation" });
   await expect(
@@ -101,10 +101,10 @@ test("date and pickup ZIP filters refresh GPS data and clear area selection", as
 }) => {
   const requests: URL[] = [];
   page.on("request", (request) => {
-    if (request.url().includes("/api/gps-activity"))
+    if (request.url().includes("/api/trip-map"))
       requests.push(new URL(request.url()));
   });
-  await page.goto("/gps-map");
+  await page.goto("/trip-map");
   await ready(page);
   await page
     .getByRole("button", { name: "Area 1, 60 pickups", exact: true })
@@ -116,7 +116,7 @@ test("date and pickup ZIP filters refresh GPS data and clear area selection", as
   await page.getByLabel("Pickup ZIP code", { exact: true }).fill("10001");
   await page.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(page).toHaveURL(
-    "/gps-map?from=2016-01-10&to=2016-01-10&zip=10001",
+    "/trip-map?from=2016-01-10&to=2016-01-10&zip=10001",
   );
   await ready(page);
   expect(requests.at(-1)?.searchParams.get("from")).toBe("2016-01-10");
@@ -134,13 +134,13 @@ test("an older endpoint response cannot overwrite the latest selection", async (
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route("**/api/gps-activity**", async (route) => {
+  await page.route("**/api/trip-map**", async (route) => {
     const dropoff =
       new URL(route.request().url()).searchParams.get("endpoint") === "dropoff";
     if (dropoff) await gate;
     await route.fulfill({ json: gpsFixture(dropoff ? "dropoff" : "pickup") });
   });
-  await page.goto("/gps-map");
+  await page.goto("/trip-map");
   await ready(page);
   await page.getByRole("tab", { name: "Drop-offs", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Updating drop-offs");
@@ -159,7 +159,7 @@ test("GPS service failure offers retry and the empty result keeps the map usable
   page,
 }) => {
   let fail = true;
-  await page.route("**/api/gps-activity**", (route) =>
+  await page.route("**/api/trip-map**", (route) =>
     route.fulfill(
       fail
         ? {
@@ -182,7 +182,7 @@ test("GPS service failure offers retry and the empty result keeps the map usable
           },
     ),
   );
-  await page.goto("/gps-map");
+  await page.goto("/trip-map");
   await expect(
     page.getByText("GPS data is temporarily unavailable", { exact: false }),
   ).toBeVisible();
@@ -199,7 +199,7 @@ test("GPS service failure offers retry and the empty result keeps the map usable
 test("selected GPS area reaches Genie with the correct endpoint and coverage", async ({
   page,
 }) => {
-  await page.goto("/gps-map");
+  await page.goto("/trip-map");
   await ready(page);
   await page
     .getByRole("button", { name: "Area 1, 60 pickups", exact: true })
@@ -222,7 +222,7 @@ for (const width of [390, 1440])
     page,
   }) => {
     await page.setViewportSize({ width, height: 1000 });
-    await page.goto("/gps-map");
+    await page.goto("/trip-map");
     await ready(page);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),

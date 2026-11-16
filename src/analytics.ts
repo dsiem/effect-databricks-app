@@ -7,7 +7,6 @@ import {
   type CapabilityAvailability,
   Daily,
   type Filters,
-  type GpsActivity,
   GpsCell,
   type GpsSearch,
   Hourly,
@@ -16,6 +15,7 @@ import {
   Summary,
   Trip,
   TripDetails,
+  type TripMap,
   type TripSearch,
   type Trips,
   Zone,
@@ -37,9 +37,9 @@ export class Analytics extends Context.Service<
     readonly trips: (
       search: TripSearch,
     ) => Effect.Effect<typeof Trips.Type, ServiceError>;
-    readonly gpsActivity: (
+    readonly tripMap: (
       search: typeof GpsSearch.Type,
-    ) => Effect.Effect<GpsActivity, ServiceError>;
+    ) => Effect.Effect<TripMap, ServiceError>;
   }
 >()("app/Analytics") {
   static readonly layer = Layer.effect(
@@ -304,7 +304,7 @@ export class Analytics extends Context.Service<
             },
             { concurrency: 2 },
           ).pipe(
-            Effect.map(({ totals, cells }): GpsActivity => {
+            Effect.map(({ totals, cells }): TripMap => {
               const shown = cells.slice(0, 100000);
               return {
                 endpoint,
@@ -337,7 +337,7 @@ export class Analytics extends Context.Service<
             }),
           ),
         trips,
-        gpsActivity: (search: typeof GpsSearch.Type) =>
+        tripMap: (search: typeof GpsSearch.Type) =>
           Cache.get(
             gpsCache,
             JSON.stringify({
