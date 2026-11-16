@@ -188,6 +188,10 @@
   .collapsed .sidebar-bottom {
     padding-inline: 1rem;
   }
+  .collapsed .profile {
+    justify-content: center;
+    padding-inline: 0;
+  }
   .nav-tooltip {
     position: fixed;
     z-index: 100;
