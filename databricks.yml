@@ -186,6 +186,7 @@ sync:
     - config/**
     - jobs/nyc-zcta.jsonl
     - README.md
+    - DEPLOYMENT.md
     - biome.json
     - playwright.config.ts
 

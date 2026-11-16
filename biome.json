@@ -9,5 +9,8 @@
   "css": { "parser": { "tailwindDirectives": true } },
   "javascript": {
     "formatter": { "quoteStyle": "double", "semicolons": "always" }
-  }
+  },
+  "overrides": [
+    { "includes": ["**/*.md"], "formatter": { "indentStyle": "tab" } }
+  ]
 }

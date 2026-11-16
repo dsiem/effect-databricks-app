@@ -1,5 +1,5 @@
 # Opt-in example only. After selecting resources, copy the variables and
-# resources.apps.app.resources into databricks.yml. See docs/data-access.md.
+# resources.apps.app.resources into databricks.yml. See DEPLOYMENT.md.
 variables:
   sql_warehouse_id:
     description: Existing SQL warehouse ID.
