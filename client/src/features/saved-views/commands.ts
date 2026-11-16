@@ -1,10 +1,100 @@
 import { Effect, Schema } from "effect";
 import { Command } from "foldkit";
+import * as Dom from "foldkit/dom";
 import * as D from "../../../../shared/domain";
 import { request } from "../../lib/api-client";
 import { result } from "../../lib/command-result";
 import { randomUuid } from "../../lib/uuid";
 import { Message as M } from "./messages";
+import { RecentIds } from "./model";
+import { rememberRecent, searchId } from "./picker";
+
+export const recentStorageKey = "taxi.recent-saved-views";
+function readRecentIds(fallback: readonly string[]) {
+  try {
+    return [
+      ...new Set(
+        Schema.decodeUnknownSync(Schema.fromJsonString(RecentIds))(
+          localStorage.getItem(recentStorageKey) ?? JSON.stringify(fallback),
+        ),
+      ),
+    ];
+  } catch {
+    return fallback;
+  }
+}
+function writeRecentIds(ids: readonly string[]) {
+  try {
+    localStorage.setItem(recentStorageKey, JSON.stringify(ids));
+  } catch {
+    return;
+  }
+}
+export const PersistRecentSavedViews = Command.define(
+  "PersistRecentSavedViews",
+  {
+    args: { ids: RecentIds },
+    messages: [M.Idle],
+    execute: ({ ids }) =>
+      Effect.sync(() => {
+        writeRecentIds(ids);
+        return M.Idle();
+      }),
+  },
+);
+export const RememberRecentSavedView = Command.define(
+  "RememberRecentSavedView",
+  {
+    args: { id: D.SavedView.fields.id, fallback: RecentIds },
+    messages: [M.Idle],
+    execute: ({ id, fallback }) =>
+      Effect.sync(() => {
+        writeRecentIds(rememberRecent(readRecentIds(fallback), id));
+        return M.Idle();
+      }),
+  },
+);
+export const FocusSavedViewSearch = Command.define("FocusSavedViewSearch", {
+  messages: [M.Idle],
+  execute: Dom.focus(`#${searchId}`).pipe(Effect.ignore, Effect.as(M.Idle())),
+});
+export const LoadSavedViewShortcuts = Command.define("LoadSavedViewShortcuts", {
+  args: {
+    version: Schema.Number,
+    fallback: RecentIds,
+    removedId: Schema.NullOr(D.SavedView.fields.id),
+  },
+  messages: [M.LoadedSavedViewShortcuts],
+  execute: ({ version, fallback, removedId }) =>
+    Effect.gen(function* () {
+      const ids = yield* Effect.sync(() => {
+        const ids = readRecentIds(fallback).filter((id) => id !== removedId);
+        if (removedId) writeRecentIds(ids);
+        return ids;
+      });
+      const loaded = yield* result(
+        Effect.all({
+          page: request((client) => client.savedViews({ query: {} })),
+          recents: ids.length
+            ? request((client) => client.savedViews({ query: { ids } })).pipe(
+                Effect.map((page) => page.rows),
+              )
+            : Effect.succeed([]),
+        }),
+      );
+      const data = loaded.data
+        ? { rows: loaded.data.page.rows, recents: loaded.data.recents }
+        : null;
+      return M.LoadedSavedViewShortcuts({
+        version,
+        data,
+        error: loaded.error,
+        recentIds: data
+          ? ids.filter((id) => data.recents.some((row) => row.id === id))
+          : ids,
+      });
+    }),
+});
 export const NewSavedView = Command.define("CreateSavedViewDraft", {
   args: {},
   messages: [M.CreatedSavedView],
@@ -31,17 +121,25 @@ export const LoadSavedViews = Command.define("LoadSavedViews", {
     cursor: Schema.NullOr(D.SavedViewCursor),
     pages: Schema.Number,
     more: Schema.Boolean,
+    query: Schema.String,
+    version: Schema.Number,
+    debounce: Schema.Boolean,
   },
+  interrupt: true,
   messages: [M.LoadedSavedViews],
-  execute: ({ cursor, pages, more }) =>
+  execute: ({ cursor, pages, more, query, version, debounce }) =>
     result(
       Effect.gen(function* () {
+        if (debounce) yield* Effect.sleep("180 millis");
         let next = cursor;
         const rows: D.SavedView[] = [];
         for (let page = 0; page < pages; page++) {
           const response = yield* request((client) =>
             client.savedViews({
-              query: next ? { cursor: next } : {},
+              query: {
+                ...(query ? { q: query } : {}),
+                ...(next ? { cursor: next } : {}),
+              },
             }),
           );
           rows.push(...response.rows);
@@ -51,7 +149,9 @@ export const LoadSavedViews = Command.define("LoadSavedViews", {
         return { rows, nextCursor: next };
       }),
     ).pipe(
-      Effect.map((value) => M.LoadedSavedViews({ ...value, more, pages })),
+      Effect.map((value) =>
+        M.LoadedSavedViews({ ...value, more, pages, version }),
+      ),
     ),
 });
 export const PinSavedView = Command.define("PinSavedView", {

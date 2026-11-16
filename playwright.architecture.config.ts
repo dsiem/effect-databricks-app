@@ -13,6 +13,7 @@ export default defineConfig({
     "genie-helper.spec.ts",
     "saved-views-conflicts.spec.ts",
     "saved-views-pagination.spec.ts",
+    "saved-views-search.spec.ts",
     "trip-comments.spec.ts",
     "filter-validation.spec.ts",
     "ui.spec.ts",

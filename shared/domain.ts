@@ -190,6 +190,10 @@ export const SavedViewCursor = Schema.Struct({
 export type SavedViewCursor = typeof SavedViewCursor.Type;
 export const SavedViewSearch = Schema.Struct({
   cursor: Schema.optionalKey(Schema.fromJsonString(SavedViewCursor)),
+  q: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
+  ids: Schema.optionalKey(
+    Schema.fromJsonString(Schema.Array(Id).check(Schema.isMaxLength(5))),
+  ),
 });
 export type SavedViewSearch = typeof SavedViewSearch.Type;
 export const SavedViewsPage = Schema.Struct({

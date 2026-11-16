@@ -44,6 +44,38 @@
     overscroll-behavior: contain;
     padding: 0.5rem;
   }
+  .view-picker-search {
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .view-picker-search-input {
+    position: relative;
+  }
+  .view-picker-search-input > .icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 0.75rem;
+    width: 1rem;
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .view-picker-search-input .input {
+    padding-left: 2.25rem;
+  }
+  .view-picker-browse {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+  .view-option:has(.view-option-open:focus-visible) {
+    border-color: var(--color-brand-500);
+    background: var(--color-brand-50);
+  }
   .view-picker-count {
     padding: 0.5rem 0.75rem;
     color: var(--muted);

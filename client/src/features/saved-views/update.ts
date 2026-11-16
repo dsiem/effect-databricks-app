@@ -6,7 +6,8 @@ import { syncDialog } from "../../lib/dialog";
 import type { FeatureUpdate } from "../../lib/feature-update";
 import * as SavedViewsCommands from "./commands";
 import { Message as M, type Message } from "./messages";
-import type { Model } from "./model";
+import type { Model, PickerMode } from "./model";
+import { mergeSavedViews, rememberRecent, searchText } from "./picker";
 
 function foldPicker(
   model: Model,
@@ -24,22 +25,81 @@ function foldPicker(
   };
 }
 
-const loadSavedViews = (
+function loadSavedViews(
   model: Model,
   more = false,
-): FeatureUpdate<Model, Message, Out> => ({
-  model: {
+  debounce = false,
+): FeatureUpdate<Model, Message, Out> {
+  const version = model.searchVersion + 1;
+  return {
+    model: {
+      ...model,
+      searchVersion: version,
+      savedViews: {
+        ...model.savedViews,
+        loading: model.pickerMode._tag !== "Quick",
+        error: "",
+      },
+    },
+    commands: [
+      SavedViewsCommands.LoadSavedViews.Interrupt(() =>
+        M.CompletedCancelLoadSavedViews({ version, more, debounce }),
+      ),
+    ],
+  };
+}
+function loadShortcuts(
+  model: Model,
+  removedId: string | null = null,
+): FeatureUpdate<Model, Message, Out> {
+  const version = model.shortcutVersion + 1;
+  return {
+    model: {
+      ...model,
+      shortcutVersion: version,
+      shortcuts: { ...model.shortcuts, loading: true, error: "" },
+    },
+    commands: [
+      SavedViewsCommands.LoadSavedViewShortcuts({
+        version,
+        fallback: model.recentIds,
+        removedId,
+      }),
+    ],
+  };
+}
+function refreshPicker(
+  model: Model,
+  removedId: string | null = null,
+): FeatureUpdate<Model, Message, Out> {
+  if (!model.picker.isOpen) return { model };
+  const shortcuts = loadShortcuts(model, removedId);
+  const results = loadSavedViews(shortcuts.model);
+  return {
+    ...results,
+    commands: [...(shortcuts.commands ?? []), ...(results.commands ?? [])],
+  };
+}
+function changeMode(model: Model, pickerMode: typeof PickerMode.Type) {
+  return loadSavedViews(
+    {
+      ...model,
+      pickerMode,
+      savedViewPages: 1,
+      savedViews: { data: null, loading: false, error: "" },
+    },
+    false,
+    pickerMode._tag === "Search",
+  );
+}
+function invalidatePicker(model: Model) {
+  return loadSavedViews({
     ...model,
-    savedViews: { ...model.savedViews, loading: true, error: "" },
-  },
-  commands: [
-    SavedViewsCommands.LoadSavedViews({
-      cursor: more ? (model.savedViews.data?.nextCursor ?? null) : null,
-      pages: more ? 1 : model.savedViewPages,
-      more,
-    }),
-  ],
-});
+    pickerMode: { _tag: "Quick" },
+    shortcutVersion: model.shortcutVersion + 1,
+    shortcuts: { ...model.shortcuts, loading: false },
+  });
+}
 function updateSavedViewsState(
   model: Model,
   message: Message,
@@ -71,18 +131,12 @@ function updateSavedViewsState(
               : M.DeleteDialog({ message }),
           ),
       );
-      // Deletion removes the opener. Restore focus after the dialog releases it.
       if (
         id === "delete" &&
         message.message._tag === "CompletedCloseDialog" &&
         model.picker.isOpen
       )
-        commands.push(
-          Command.mapMessage(
-            Popover.FocusPanel({ id: model.picker.id }),
-            (message) => M.SavedViewsPicker({ message }),
-          ),
-        );
+        commands.push(SavedViewsCommands.FocusSavedViewSearch());
       return {
         model: {
           ...model,
@@ -99,8 +153,21 @@ function updateSavedViewsState(
     case "SavedViewsPicker": {
       const changed = Popover.update(model.picker, message.message);
       const folded = foldPicker(model, changed);
+      if (changed.outMessage?._tag === "Closed") {
+        const invalidated = invalidatePicker(folded.model);
+        return {
+          ...invalidated,
+          commands: [
+            ...(folded.commands ?? []),
+            ...(invalidated.commands ?? []),
+          ],
+        };
+      }
       if (changed.outMessage?._tag !== "Opened") return folded;
-      const loaded = loadSavedViews(folded.model);
+      const loaded = loadShortcuts({
+        ...folded.model,
+        pickerMode: { _tag: "Quick" },
+      });
       return {
         ...loaded,
         commands: [...(folded.commands ?? []), ...(loaded.commands ?? [])],
@@ -188,25 +255,86 @@ function updateSavedViewsState(
           ? `Saved “${message.savedView.title}”`
           : model.notice,
       };
-      return loadSavedViews(next);
+      return refreshPicker(next);
     }
+    case "SavedViewSearchChanged":
+      return changeMode(
+        model,
+        message.value
+          ? { _tag: "Search", query: message.value.slice(0, 200) }
+          : { _tag: "Quick" },
+      );
+    case "BrowseSavedViews":
+    case "ShowSavedViewShortcuts": {
+      const changed = changeMode(model, {
+        _tag: message._tag === "BrowseSavedViews" ? "Browse" : "Quick",
+      });
+      return {
+        ...changed,
+        commands: [
+          ...(changed.commands ?? []),
+          SavedViewsCommands.FocusSavedViewSearch(),
+        ],
+      };
+    }
+    case "LoadSavedViewShortcuts":
+      return loadShortcuts(model);
+    case "LoadedSavedViewShortcuts": {
+      if (message.version !== model.shortcutVersion || !model.picker.isOpen)
+        return { model };
+      return {
+        model: {
+          ...model,
+          recentIds: message.data ? message.recentIds : model.recentIds,
+          shortcuts: {
+            data: message.data,
+            loading: false,
+            error: message.error,
+          },
+        },
+        commands: message.data
+          ? [
+              SavedViewsCommands.PersistRecentSavedViews({
+                ids: message.recentIds,
+              }),
+            ]
+          : [],
+      };
+    }
+    case "CompletedCancelLoadSavedViews":
+      return message.version !== model.searchVersion ||
+        !model.picker.isOpen ||
+        model.pickerMode._tag === "Quick"
+        ? { model }
+        : {
+            model,
+            commands: [
+              SavedViewsCommands.LoadSavedViews({
+                version: message.version,
+                query: searchText(model).trim(),
+                more: message.more,
+                debounce: message.debounce,
+                cursor: message.more
+                  ? (model.savedViews.data?.nextCursor ?? null)
+                  : null,
+                pages: message.more ? 1 : model.savedViewPages,
+              }),
+            ],
+          };
     case "LoadSavedViews":
       return model.savedViews.loading
         ? { model }
         : loadSavedViews(model, message.more);
     case "LoadedSavedViews":
+      if (message.version !== model.searchVersion || !model.picker.isOpen)
+        return { model };
       return {
         commands:
           message.more &&
           message.data &&
           !message.data.nextCursor &&
           model.picker.isOpen
-            ? [
-                Command.mapMessage(
-                  Popover.FocusPanel({ id: model.picker.id }),
-                  (message) => M.SavedViewsPicker({ message }),
-                ),
-              ]
+            ? [SavedViewsCommands.FocusSavedViewSearch()]
             : [],
         model: {
           ...model,
@@ -222,10 +350,10 @@ function updateSavedViewsState(
               ? {
                   ...message.data,
                   rows: message.more
-                    ? [
-                        ...(model.savedViews.data?.rows ?? []),
-                        ...message.data.rows,
-                      ]
+                    ? mergeSavedViews(
+                        model.savedViews.data?.rows ?? [],
+                        message.data.rows,
+                      )
                     : message.data.rows,
                 }
               : model.savedViews.data,
@@ -254,47 +382,81 @@ function updateSavedViewsState(
               SavedViewsCommands.DeleteSavedView({ savedView: model.deleting }),
             ],
           };
-    case "MutatedSavedView":
-      return loadSavedViews({
-        ...model,
-        savedViewBusy: false,
-        savedViewError: message.error,
-        notice: message.removed && !message.error ? "" : model.notice,
-        deleting: message.removed && !message.error ? null : model.deleting,
-        selection:
-          message.removed &&
-          !message.error &&
-          model.deleting?.id === model.selection?.id
-            ? null
-            : model.selection,
-      });
-    case "RestoreView":
+    case "MutatedSavedView": {
+      const recentIds =
+        message.removed && !message.error
+          ? model.recentIds.filter((id) => id !== model.deleting?.id)
+          : model.recentIds;
+      const refreshed = refreshPicker(
+        {
+          ...model,
+          savedViewBusy: false,
+          recentIds,
+          savedViewError: message.error,
+          notice: message.removed && !message.error ? "" : model.notice,
+          deleting: message.removed && !message.error ? null : model.deleting,
+          selection:
+            message.removed &&
+            !message.error &&
+            model.deleting?.id === model.selection?.id
+              ? null
+              : model.selection,
+        },
+        message.removed && !message.error ? (model.deleting?.id ?? null) : null,
+      );
       return {
-        ...foldPicker(
-          {
-            ...model,
-            selection: {
-              id: message.savedView.id,
-              title: message.savedView.title,
-              filters: message.savedView.filters,
-            },
-            notice: "",
+        ...refreshed,
+        commands: [
+          ...(refreshed.commands ?? []),
+          ...(!model.deleting && model.picker.isOpen
+            ? [SavedViewsCommands.FocusSavedViewSearch()]
+            : []),
+        ],
+      };
+    }
+    case "RestoreView": {
+      const recentIds = rememberRecent(model.recentIds, message.savedView.id);
+      const invalidated = invalidatePicker({ ...model, recentIds });
+      const closed = foldPicker(
+        {
+          ...invalidated.model,
+          selection: {
+            id: message.savedView.id,
+            title: message.savedView.title,
+            filters: message.savedView.filters,
           },
-          Popover.close(model.picker),
-        ),
+          notice: "",
+        },
+        Popover.close(model.picker),
+      );
+      return {
+        ...closed,
+        commands: [
+          ...(closed.commands ?? []),
+          ...(invalidated.commands ?? []),
+          SavedViewsCommands.RememberRecentSavedView({
+            id: message.savedView.id,
+            fallback: model.recentIds,
+          }),
+        ],
         outMessage: {
           _tag: "RestoreFilters",
           filters: message.savedView.filters,
         },
       };
-    case "ClearView":
+    }
+    case "ClearView": {
+      const invalidated = invalidatePicker(model);
+      const closed = foldPicker(
+        { ...invalidated.model, selection: null, notice: "" },
+        Popover.close(model.picker),
+      );
       return {
-        ...foldPicker(
-          { ...model, selection: null, notice: "" },
-          Popover.close(model.picker),
-        ),
+        ...closed,
+        commands: [...(closed.commands ?? []), ...(invalidated.commands ?? [])],
         outMessage: { _tag: "RestoreFilters", filters: {} },
       };
+    }
   }
 }
 

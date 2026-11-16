@@ -409,3 +409,177 @@ test("continuation survives deletion of the boundary saved view and ignores newe
     }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
   );
 });
+
+test("saved-view search finds older views across title, notes, dates and ZIP using every token", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const { savedViews, sql } = yield* lakebaseFixture;
+      const target = yield* savedViews.save({
+        ...input,
+        title: "Airport Focus",
+        body: "Amber findings",
+        filters: { from: "2016-01-03", to: "2016-02-27", zip: "10001" },
+      });
+      yield* sql`UPDATE metrocab.saved_views SET updated_at = '2026-01-01T00:00:00Z'::timestamptz`;
+      for (let index = 0; index < 30; index++) {
+        yield* savedViews.save({
+          ...input,
+          id: randomUUID(),
+          title: `Other ${index}`,
+        });
+      }
+      assert.equal(
+        (yield* savedViews.list({})).rows.some((row) => row.id === target.id),
+        false,
+      );
+      for (const q of [
+        "FOCUS",
+        "amber",
+        "2016-01-03",
+        "2016-02-27",
+        "10001",
+        "  fOcUs\tAMBER\n2016-01 2016-02 10001  ",
+      ]) {
+        const page = yield* savedViews.list({ q });
+        assert.deepEqual(
+          page.rows.map((row) => row.id),
+          [target.id],
+          q,
+        );
+        assert.equal(page.nextCursor, null);
+      }
+      assert.deepEqual(
+        (yield* savedViews.list({ q: "focus missing" })).rows,
+        [],
+      );
+      assert.deepEqual(
+        yield* savedViews.list({ q: " \t\n " }),
+        yield* savedViews.list({}),
+      );
+    }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
+  );
+});
+
+test("saved-view search treats wildcard characters and SQL text as literal substrings", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const { savedViews } = yield* lakebaseFixture;
+      const target = yield* savedViews.save({
+        ...input,
+        title: "100% target_rate \\vendor's",
+      });
+      yield* savedViews.save({
+        ...input,
+        id: randomUUID(),
+        title: "100X targetXrate vendors",
+      });
+      for (const q of ["%", "_", "\\vendor", "vendor's", "100% target_rate"]) {
+        assert.deepEqual(
+          (yield* savedViews.list({ q })).rows.map((row) => row.id),
+          [target.id],
+          q,
+        );
+      }
+      assert.deepEqual((yield* savedViews.list({ q: "' OR 1=1 --" })).rows, []);
+    }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
+  );
+});
+
+test("saved-view search paginates only matching rows while preserving pins and microsecond ties", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const { savedViews, sql } = yield* lakebaseFixture;
+      const inputs = Array.from({ length: 58 }, (_, index) => ({
+        ...input,
+        id: randomUUID(),
+        title: String(index),
+        body: index % 2 === 0 ? "Matching notes" : "Other notes",
+      }));
+      yield* Effect.forEach(inputs, (view) => savedViews.save(view));
+      yield* sql`UPDATE metrocab.saved_views SET pinned = title::int < 30,
+        updated_at = '2026-11-13T10:00:00Z'::timestamptz +
+          (title::int % 3) * INTERVAL '1 microsecond'`;
+      const expected = inputs
+        .filter((view) => view.body === "Matching notes")
+        .sort(
+          (a, b) =>
+            Number(Number(b.title) < 30) - Number(Number(a.title) < 30) ||
+            (Number(b.title) % 3) - (Number(a.title) % 3) ||
+            b.id.localeCompare(a.id),
+        );
+      const first = yield* savedViews.list({ q: "MATCHING notes" });
+      assert.equal(first.rows.length, 24);
+      assert.ok(first.nextCursor);
+      assert.match(first.nextCursor.updatedAt, /\.\d{6}Z$/);
+      const second = yield* savedViews.list({
+        q: "MATCHING notes",
+        cursor: first.nextCursor,
+      });
+      assert.equal(second.rows.length, 5);
+      assert.equal(second.nextCursor, null);
+      assert.deepEqual(
+        [...first.rows, ...second.rows].map((row) => row.id),
+        expected.map((row) => row.id),
+      );
+    }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
+  );
+});
+
+test("saved-view IDs hydrate current versions beyond the first page and compose with search and cursor", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const { savedViews, sql } = yield* lakebaseFixture;
+      const recent = yield* savedViews.save(input);
+      const changed = yield* savedViews.save({
+        ...recent,
+        title: "Fresh title",
+        body: "Updated notes",
+      });
+      const removed = yield* savedViews.save({ ...input, id: randomUUID() });
+      yield* savedViews.remove(removed.id, removed.version);
+      yield* sql`UPDATE metrocab.saved_views SET updated_at = '2026-01-01T00:00:00Z'::timestamptz`;
+      for (let index = 0; index < 30; index++) {
+        yield* savedViews.save({
+          ...input,
+          id: randomUUID(),
+          title: `Other ${index}`,
+        });
+      }
+      const first = yield* savedViews.list({});
+      assert.ok(first.nextCursor);
+      assert.equal(
+        first.rows.some((row) => row.id === recent.id),
+        false,
+      );
+      const [newest, next] = first.rows;
+      assert.ok(newest && next);
+      const ids = [recent.id, removed.id, randomUUID(), newest.id, next.id];
+      const hydrated = yield* savedViews.list({ ids });
+      assert.equal(hydrated.rows.length, 3);
+      assert.equal(hydrated.nextCursor, null);
+      assert.equal(
+        hydrated.rows.find((row) => row.id === recent.id)?.title,
+        changed.title,
+      );
+      assert.equal(
+        hydrated.rows.find((row) => row.id === recent.id)?.version,
+        2,
+      );
+      assert.deepEqual(
+        (yield* savedViews.list({
+          ids,
+          q: "fresh notes",
+          cursor: first.nextCursor,
+        })).rows.map((row) => row.id),
+        [recent.id],
+      );
+      assert.deepEqual((yield* savedViews.list({ ids, q: "absent" })).rows, []);
+      for (const ids of [[], [removed.id, randomUUID()]]) {
+        assert.deepEqual(yield* savedViews.list({ ids }), {
+          rows: [],
+          nextCursor: null,
+        });
+      }
+    }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
+  );
+});

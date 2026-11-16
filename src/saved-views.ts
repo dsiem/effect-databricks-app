@@ -28,12 +28,19 @@ export const makeSavedViews = (sql: LakebaseSql) => {
       execute: () => sql`SELECT ${columns},
       to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_updated_at
       FROM metrocab.saved_views AS saved_views
-      ${
-        search.cursor
-          ? sql`WHERE (pinned, updated_at, id) <
-        (${search.cursor.pinned}, ${search.cursor.updatedAt}::timestamptz, ${search.cursor.id}::uuid)`
-          : sql``
-      }
+      WHERE ${sql.and([
+        ...(search.cursor
+          ? [
+              sql`(pinned, updated_at, id) <
+            (${search.cursor.pinned}, ${search.cursor.updatedAt}::timestamptz, ${search.cursor.id}::uuid)`,
+            ]
+          : []),
+        ...(search.ids ? [sql.in("id", search.ids)] : []),
+        ...(search.q?.match(/\S+/gu) ?? []).map(
+          (token) => sql`strpos(lower(concat_ws(' ', title, body,
+            filters->>'from', filters->>'to', filters->>'zip')), lower(${token})) > 0`,
+        ),
+      ])}
       ORDER BY saved_views.pinned DESC, saved_views.updated_at DESC, saved_views.id DESC LIMIT ${pageSize + 1}`,
     })(undefined).pipe(
       Effect.mapError(lakebaseUnavailable),

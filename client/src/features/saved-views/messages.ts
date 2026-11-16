@@ -2,6 +2,7 @@ import { Dialog, Popover } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
+import { RecentIds, Shortcuts } from "./model";
 
 export const messages = {
   CloseSavedView: {},
@@ -23,11 +24,27 @@ export const messages = {
     error: Schema.String,
   },
   LoadSavedViews: { more: Schema.Boolean },
+  SavedViewSearchChanged: { value: Schema.String },
+  BrowseSavedViews: {},
+  ShowSavedViewShortcuts: {},
+  LoadSavedViewShortcuts: {},
+  LoadedSavedViewShortcuts: {
+    version: Schema.Number,
+    data: Schema.NullOr(Shortcuts),
+    recentIds: RecentIds,
+    error: Schema.String,
+  },
+  CompletedCancelLoadSavedViews: {
+    version: Schema.Number,
+    more: Schema.Boolean,
+    debounce: Schema.Boolean,
+  },
   LoadedSavedViews: {
     data: Schema.NullOr(D.SavedViewsPage),
     error: Schema.String,
     more: Schema.Boolean,
     pages: Schema.Number,
+    version: Schema.Number,
   },
   PinSavedView: { savedView: D.SavedView },
   DeleteSavedView: { savedView: D.SavedView },

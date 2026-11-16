@@ -115,7 +115,12 @@ const fixture = () => {
           Layer.succeed(SavedViews, {
             list: (search) =>
               Effect.sync(() => {
-                if (search.cursor) calls.push(["savedViews", search]);
+                if (
+                  search.cursor ||
+                  search.q !== undefined ||
+                  search.ids !== undefined
+                )
+                  calls.push(["savedViews", search]);
                 return { rows: savedViews, nextCursor: null };
               }),
             save: (input) =>
@@ -327,6 +332,27 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
         ] as const,
     ),
     ["/api/saved-views?cursor=not-json", undefined],
+    [
+      `/api/saved-views?${new URLSearchParams({ q: "x".repeat(201) })}`,
+      undefined,
+    ],
+    ["/api/saved-views?ids=not-json", undefined],
+    ...[
+      null,
+      {},
+      savedView.id,
+      [null],
+      [1],
+      ["bad-id"],
+      ["472a6613-2337-1af1-a416-e9b6b61064dd"],
+      Array(6).fill(savedView.id),
+    ].map(
+      (ids) =>
+        [
+          `/api/saved-views?${new URLSearchParams({ ids: JSON.stringify(ids) })}`,
+          undefined,
+        ] as const,
+    ),
     ...[
       {},
       {
@@ -416,6 +442,55 @@ test("generated client round-trips a microsecond saved-view cursor through the H
     },
   );
   assert.deepEqual(calls, [["savedViews", { cursor }]]);
+});
+
+test("saved-view query round-trips bounded global search and recent IDs through the HTTP boundary", async (t) => {
+  const { app, client, calls } = fixture();
+  t.after(app.dispose);
+  const cursor = {
+    id: savedView.id,
+    pinned: false,
+    updatedAt: "2026-11-13T10:00:00.000123Z",
+  };
+  const ids = Array.from(
+    { length: 5 },
+    (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+  );
+  const queries = [
+    { q: "" },
+    { q: " \t\n " },
+    { q: "Airport % _ ' \\ 10001" },
+    { q: "x".repeat(200), ids, cursor },
+    { ids: [] },
+  ];
+  for (const query of queries) {
+    assert.deepEqual(await Effect.runPromise(client.savedViews({ query })), {
+      rows: [],
+      nextCursor: null,
+    });
+  }
+  assert.deepEqual(
+    calls,
+    queries.map((query) => ["savedViews", query]),
+  );
+});
+
+test("generated saved-view client rejects search or IDs outside their bounds before sending", async (t) => {
+  const { app, client, calls } = fixture();
+  t.after(app.dispose);
+  for (const query of [
+    { q: "x".repeat(201) },
+    { ids: Array(6).fill(savedView.id) },
+    { ids: ["bad-id"] },
+  ]) {
+    const result = await Effect.runPromise(
+      Effect.result(client.savedViews({ query })),
+    );
+    assert.ok(
+      result._tag === "Failure" && Schema.isSchemaError(result.failure),
+    );
+  }
+  assert.deepEqual(calls, []);
 });
 
 test("generated client rejects reversed dates before sending a request", async (t) => {

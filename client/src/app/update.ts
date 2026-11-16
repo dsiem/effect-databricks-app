@@ -306,6 +306,12 @@ function updateApplication(
     case "SavedViewSaved":
     case "LoadSavedViews":
     case "LoadedSavedViews":
+    case "SavedViewSearchChanged":
+    case "BrowseSavedViews":
+    case "ShowSavedViewShortcuts":
+    case "LoadSavedViewShortcuts":
+    case "LoadedSavedViewShortcuts":
+    case "CompletedCancelLoadSavedViews":
     case "PinSavedView":
     case "DeleteSavedView":
     case "ConfirmDelete":

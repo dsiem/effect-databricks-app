@@ -7,8 +7,10 @@ export function appliedView(model: Model, filters: Filters) {
   const selection = model.selection;
   if (selection && queryFor(selection.filters) === query) return selection;
   return (
-    model.savedViews.data?.rows.find(
-      (savedView) => queryFor(savedView.filters) === query,
-    ) ?? null
+    [
+      ...(model.savedViews.data?.rows ?? []),
+      ...(model.shortcuts.data?.rows ?? []),
+      ...(model.shortcuts.data?.recents ?? []),
+    ].find((savedView) => queryFor(savedView.filters) === query) ?? null
   );
 }

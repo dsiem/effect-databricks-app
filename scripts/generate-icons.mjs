@@ -11,6 +11,7 @@ const names = [
   "table-2",
   "map",
   "book-open",
+  "search",
   "sparkles",
   "car-taxi-front",
   "circle-dollar-sign",

@@ -66,6 +66,9 @@ test("all saved views remain reachable beyond 200 and pinning a later saved view
   const headings = page.getByRole("button", {
     name: /^Open saved view for Finding /,
   });
+  await page
+    .getByRole("button", { name: "Browse all views", exact: true })
+    .click();
   await expect(headings).toHaveCount(24);
   const more = page.getByRole("button", {
     name: "Load more views",
@@ -150,6 +153,9 @@ test("a failed next page keeps existing saved views visible and can be retried",
   const headings = page.getByRole("button", {
     name: /^Open saved view for Finding /,
   });
+  await page
+    .getByRole("button", { name: "Browse all views", exact: true })
+    .click();
   await expect(headings).toHaveCount(24);
   await page.getByRole("button", { name: "Load more views" }).click();
   const views = page.getByRole("dialog", { name: "Saved views", exact: true });

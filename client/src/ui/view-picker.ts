@@ -1,8 +1,8 @@
 import { Popover } from "@foldkit/ui";
+import type { Attribute } from "foldkit/html";
 import { icon } from "./icons";
 import { button, type Child, type H } from "./primitives";
 
-/** A styled Foldkit popover. Callers supply view data, labels, and actions. */
 export function viewPicker<Message>(
   h: H<Message>,
   options: {
@@ -11,6 +11,7 @@ export function viewPicker<Message>(
     readonly label: string;
     readonly triggerLabel: string;
     readonly children: Child[];
+    readonly focusSelector?: string;
   },
 ) {
   return h.submodel({
@@ -20,6 +21,9 @@ export function viewPicker<Message>(
     toParentMessage: options.onMessage,
     viewInputs: {
       ariaLabel: options.label,
+      ...(options.focusSelector
+        ? { focusSelector: options.focusSelector }
+        : {}),
       anchor: { placement: "bottom-start", gap: 8, padding: 12 },
       toView: ({ button: trigger, panel, backdrop, isVisible }) =>
         h.div(
@@ -55,7 +59,6 @@ export function viewPicker<Message>(
   });
 }
 
-/** A whole-row selection target, with management actions outside that target. */
 export function viewOption<Message>(
   h: H<Message>,
   options: {
@@ -67,6 +70,9 @@ export function viewOption<Message>(
     readonly pinned?: boolean;
     readonly onSelect: Message;
     readonly actions?: Child[];
+    readonly attributes?: ReadonlyArray<
+      Exclude<Attribute<Message>, { readonly _tag: "Class" }>
+    >;
   },
 ) {
   return h.div(
@@ -100,7 +106,10 @@ export function viewOption<Message>(
         onClick: options.onSelect,
         variant: "ghost",
         className: "view-option-open",
-        attributes: [h.AriaLabel(options.accessibleLabel)],
+        attributes: [
+          h.AriaLabel(options.accessibleLabel),
+          ...(options.attributes ?? []),
+        ],
       }),
       ...(options.actions?.length
         ? [h.div([h.Class("view-option-actions")], options.actions)]
