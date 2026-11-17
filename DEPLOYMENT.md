@@ -112,10 +112,10 @@ Keep `.env` out of Git.
 
 1. Replace the source and cleaning rules in [the ingestion job](jobs/seed-trip-snapshot.sql).
 2. Update [the shared domain](shared/domain.ts), [HTTP contract](shared/api.ts),
-   and [analytics queries](src/analytics.ts) for your dataset.
+   and [analytics queries](server/src/analytics.ts) for your dataset.
 3. Update the Genie tables and instructions in [databricks.yml](databricks.yml).
 4. Replace the taxi controls and views in [client/src/features](client/src/features).
-5. Add the authorization your records require at the HTTP boundary in [src/routes.ts](src/routes.ts).
+5. Add the authorization your records require at the HTTP boundary in [server/src/routes.ts](server/src/routes.ts).
 
 Use [client/src/ui/styles.css](client/src/ui/styles.css) to reuse the visual
 helpers. Change the palette and semantic tokens in

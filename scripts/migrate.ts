@@ -1,11 +1,11 @@
 import { NodeRuntime } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
-import { makeLakebaseClient } from "../src/lakebase.js";
-import { migrateAppSchema } from "../src/migrations.js";
-import { restoreCredentialFailure } from "../src/pg-credentials.js";
-import { Settings } from "../src/settings.js";
-import { Workspace } from "../src/workspace.js";
+import { makeLakebaseClient } from "../server/src/lakebase.js";
+import { migrateAppSchema } from "../server/src/migrations.js";
+import { restoreCredentialFailure } from "../server/src/pg-credentials.js";
+import { Settings } from "../server/src/settings.js";
+import { Workspace } from "../server/src/workspace.js";
 
 NodeRuntime.runMain(
   Effect.gen(function* () {

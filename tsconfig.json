@@ -16,7 +16,8 @@
     "skipLibCheck": true
   },
   "include": [
-    "src/**/*.ts",
+    "server/src/**/*.ts",
+    "server/test/**/*.ts",
     "test/**/*.ts",
     "scripts/**/*.ts",
     "shared/**/*.ts"

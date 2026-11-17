@@ -146,7 +146,7 @@ resources:
       description: NYC taxi analytics, Genie, and Lakebase saved views, composed with Effect.
       source_code_path: .
       config:
-        command: [node, dist/src/main.js]
+        command: [node, dist/server/src/main.js]
         env:
           - name: DATABRICKS_WAREHOUSE_ID
             value_from: lakehouse
@@ -181,6 +181,8 @@ sync:
     - design/**
     - scripts/**
     - test/**
+    - server/test/**
+    - client/test/browser/**
     - e2e/**
     - config/**
     - jobs/nyc-zcta.jsonl
