@@ -1,19 +1,19 @@
 import type { GenieContext } from "../../../shared/domain";
-import { filtersFromQuery } from "../domain/filters";
 import { gpsContext } from "../features/gps/context";
 import { overviewContext } from "../features/overview/context";
 import { tripsContext } from "../features/trips/context";
 import type { Model } from "./model";
 export const pageContext = (model: Model): GenieContext => {
-  const filters = filtersFromQuery(model.query);
-  switch (model.path) {
-    case "/trip-map":
+  const { route, filters } = model.location;
+  switch (route._tag) {
+    case "TripMap":
       return gpsContext(model.gpsState, filters ?? {});
-    case "/":
+    case "Overview":
       return overviewContext(model.overviewState);
-    case "/trips":
-      return tripsContext(model.tripsState, filters);
-    default:
+    case "Trips":
+      return tripsContext(model.tripsState, { filters, sort: route.sort });
+    case "Genie":
+    case "NotFound":
       return { page: "genie", title: "Taxi trip data" };
   }
 };

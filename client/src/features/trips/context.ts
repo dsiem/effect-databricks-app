@@ -1,8 +1,8 @@
 import type { Filters, GenieContext } from "../../../../shared/domain";
-import type { Model } from "./model";
+import type { Model, Sort } from "./model";
 export function tripsContext(
   state: Model,
-  filters: Filters | null,
+  { filters, sort }: { filters: Filters | null; sort: typeof Sort.Type },
 ): GenieContext {
   const trips = state.trips.data;
   return {
@@ -12,7 +12,7 @@ export function tripsContext(
       ? {
           data: JSON.stringify({
             page: state.page,
-            sort: state.sort,
+            sort,
             totalMatchingTrips: trips.total,
             pageSize: trips.pageSize,
             filters: filters,

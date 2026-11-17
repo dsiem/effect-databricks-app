@@ -17,7 +17,8 @@ const summary = (endpoint: "pickup" | "dropoff" = "pickup") =>
 
 test("same-query retries reject old dataset and render revisions", () => {
   const previous = initGps();
-  const current = reloadGps(previous, "").model;
+  const location = { query: "", filters: {} };
+  const current = reloadGps(previous, location).model;
   for (const message of [
     M.LoadedGps({
       key: dataKey("", "pickup", previous.revision),
@@ -29,7 +30,7 @@ test("same-query retries reject old dataset and render revisions", () => {
       error: "",
     }),
   ])
-    assert.equal(updateGps(current, message, { query: "" }).model, current);
+    assert.equal(updateGps(current, message, location).model, current);
 });
 
 test("stale endpoint, filter and render responses cannot replace the active GPS map", () => {
@@ -48,7 +49,11 @@ test("stale endpoint, filter and render responses cannot replace the active GPS 
     }),
     M.GpsReady({ key: dataKey(query, "pickup"), error: "Old renderer failed" }),
   ])
-    assert.deepEqual(updateGps(model, message, { query }).model, model);
+    assert.deepEqual(
+      updateGps(model, message, { query, filters: { from: "2016-01-10" } })
+        .model,
+      model,
+    );
 });
 
 test("selection and Genie use the same GPS endpoint, counts and area without copying all geometry", () => {
@@ -62,6 +67,7 @@ test("selection and Genie use the same GPS endpoint, counts and area without cop
   assert.ok(cell);
   const selected = updateGps(model, M.GpsSelect({ id: cell.id }), {
     query: "",
+    filters: {},
   }).model;
   const context = gpsContext(selected);
   const data = JSON.parse(context.data ?? "{}");
@@ -72,8 +78,8 @@ test("selection and Genie use the same GPS endpoint, counts and area without cop
   assert.equal(data.selectedArea.id, cell.id);
   assert.equal(data.selectedArea.boundary, undefined);
   assert.equal(
-    updateGps(selected, M.GpsSelect({ id: null }), { query: "" }).model
-      .selected,
+    updateGps(selected, M.GpsSelect({ id: null }), { query: "", filters: {} })
+      .model.selected,
     null,
   );
 });

@@ -1,6 +1,6 @@
 import { defineView } from "foldkit/submodel";
 import { ask } from "../../domain/analysis";
-import { filtersFromQuery, href, queryFor } from "../../domain/filters";
+import { href, queryFor } from "../../domain/filters";
 import { compact, money, number } from "../../lib/format";
 import { chart } from "../../ui/chart";
 import { icon } from "../../ui/icons";
@@ -249,7 +249,7 @@ function overview(h: H, model: Model): Child[] {
                             href(
                               "/trips",
                               queryFor({
-                                ...filtersFromQuery(model.query),
+                                ...model.filters,
                                 zip: zone.zip,
                               }),
                             ),

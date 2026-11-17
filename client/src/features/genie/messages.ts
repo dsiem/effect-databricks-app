@@ -4,6 +4,21 @@ import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
 import { History, Turn } from "./model";
 
+export const PollTarget = Schema.Struct({
+  id: Schema.String,
+  operation: D.GenieOperation,
+});
+
+const PollOutcome = Schema.Union([
+  Schema.Struct({ state: Schema.Literal("retrieving") }),
+  Schema.Struct({
+    state: Schema.Literal("paused"),
+    stage: Schema.Literal("waiting"),
+    error: Schema.String,
+  }),
+  Schema.Struct({ state: Schema.Literal("failed"), error: Schema.String }),
+]);
+
 export const messages = {
   CloseGenie: {},
   GenieDialog: { message: Dialog.Message },
@@ -18,6 +33,11 @@ export const messages = {
   SendQuestion: { question: Schema.String },
   CreatedTurn: { id: Schema.String, question: Schema.String },
   ChangedTurn: { turn: Turn },
+  PolledQuestion: {
+    ...PollTarget.fields,
+    generation: Schema.Int,
+    outcome: PollOutcome,
+  },
   ResumeTurn: { id: Schema.String },
   EditQuestion: { question: Schema.String },
   NewConversation: {},

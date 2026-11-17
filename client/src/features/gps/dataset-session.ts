@@ -1,10 +1,11 @@
-import type { GpsEndpoint } from "../../../../shared/domain";
+import type { Filters, GpsEndpoint } from "../../../../shared/domain";
 import type { MapSummary } from "../../../../shared/map-dataset";
 import type { MapResource } from "./dataset";
 import { dataKey } from "./model";
 
 export type MapQuery = {
   readonly query: string;
+  readonly filters: Filters;
   readonly endpoint: GpsEndpoint;
   readonly revision: number;
 };

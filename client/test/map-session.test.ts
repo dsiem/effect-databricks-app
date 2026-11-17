@@ -9,7 +9,12 @@ import {
 import { dataKey } from "../src/features/gps/model";
 import { gpsFixture } from "./gps-fixture";
 
-const query: MapQuery = { query: "zip=10001", endpoint: "pickup", revision: 0 };
+const query: MapQuery = {
+  query: "zip=10001",
+  filters: { zip: "10001" },
+  endpoint: "pickup",
+  revision: 0,
+};
 const resource = () => jsonMap(gpsFixture());
 const deferred = <A>() => {
   let resolve: ((value: A) => void) | undefined;
@@ -127,7 +132,7 @@ test("a failed map replacement keeps the visible dataset until a revision retrie
   const first = resource();
   loads.at(0).result.resolve(first);
   await initial;
-  const input = { ...query, query: "zip=10019" };
+  const input = { ...query, query: "zip=10019", filters: { zip: "10019" } };
   const replacement = session.replace(input);
   const error = new Error("offline");
   loads.at(1).result.reject(error);

@@ -2,7 +2,7 @@ import type * as D from "../../../../shared/domain";
 import type { Model } from "./model";
 export type ViewModel = Model & {
   readonly mobile: boolean;
-  readonly query: string;
+  readonly filters: D.Filters | null;
   readonly context: D.GenieContext;
   readonly status: {
     readonly data: typeof D.Status.Type | null;

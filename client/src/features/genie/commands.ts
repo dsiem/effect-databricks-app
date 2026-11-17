@@ -80,62 +80,6 @@ export const SubmitQuestion = Command.define("SubmitQuestion", {
       }),
     ),
 });
-export const PollQuestion = Command.define("PollQuestion", {
-  args: { turn: Turn },
-  messages: [M.ChangedTurn],
-  execute: ({ turn }) => {
-    if (!("operation" in turn)) return Effect.succeed(M.ChangedTurn({ turn }));
-    const operation = turn.operation;
-    return Effect.gen(function* () {
-      const deadline = Date.now() + 180_000;
-      while (true) {
-        const progress = yield* request((client) =>
-          client.pollGenie({ params: operation }),
-        );
-        if (progress.state === "failed")
-          return M.ChangedTurn({
-            turn: {
-              ...turnBase(turn),
-              operation,
-              state: "failed",
-              error: `Genie could not complete this question (${progress.status}).`,
-            },
-          });
-        if (progress.state === "completed")
-          return M.ChangedTurn({
-            turn: { ...turnBase(turn), operation, state: "retrieving" },
-          });
-        if (Date.now() >= deadline)
-          return M.ChangedTurn({
-            turn: {
-              ...turnBase(turn),
-              operation,
-              state: "paused",
-              stage: "waiting",
-              error:
-                "Genie is taking longer than expected. Resume waiting for this answer.",
-            },
-          });
-        yield* Effect.sleep("1 second");
-      }
-    }).pipe(
-      Effect.scoped,
-      Effect.catch((error) =>
-        Effect.succeed(
-          M.ChangedTurn({
-            turn: {
-              ...turnBase(turn),
-              operation,
-              state: "paused",
-              stage: "waiting",
-              error: failure(error),
-            },
-          }),
-        ),
-      ),
-    );
-  },
-});
 export const RetrieveQuestion = Command.define("RetrieveQuestion", {
   args: { turn: Turn },
   messages: [M.ChangedTurn],

@@ -18,7 +18,7 @@ import { Sort } from "./model";
 import type { H } from "./view-messages";
 import { Message as M } from "./view-messages";
 
-function trips(h: H, model: Model): Child[] {
+function trips(h: H, model: Model, sort: typeof Sort.Type): Child[] {
   const data = model.trips.data;
   const heading = title(
     h,
@@ -47,7 +47,7 @@ function trips(h: H, model: Model): Child[] {
             Select.view(
               {
                 id: "trip-sort",
-                value: model.sort,
+                value: sort,
                 onChange: (value) =>
                   M.SortTrips({ sort: Schema.decodeUnknownSync(Sort)(value) }),
                 toView: ({ select, label }) =>
@@ -202,6 +202,8 @@ function trips(h: H, model: Model): Child[] {
   ];
 }
 
-export const tripsView = defineView<Model, typeof M.Type>((model, h) =>
-  h.div([h.Class("contents")], trips(h, model)),
-);
+export const tripsView = defineView<
+  Model,
+  typeof M.Type,
+  { sort: typeof Sort.Type }
+>((model, { sort }, h) => h.div([h.Class("contents")], trips(h, model, sort)));

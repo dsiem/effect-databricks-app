@@ -1,10 +1,11 @@
-import { Effect, Queue, Stream } from "effect";
+import { Effect, Option, Queue, Stream } from "effect";
 import { Subscription } from "foldkit";
+import { subscriptions as genieSubscriptions } from "../features/genie/subscription";
 import { Message as M, type Message } from "./message";
 import type { Model } from "./model";
 import { systemThemeQuery } from "./theme";
 
-export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
+const appSubscriptions = Subscription.make<Model, Message>()((entry) => ({
   browser: entry(
     {},
     {
@@ -43,3 +44,11 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     },
   ),
 }));
+
+export const subscriptions = Subscription.aggregate(
+  appSubscriptions,
+  Subscription.lift(genieSubscriptions)<Model, Message>({
+    read: (model) => Option.some(model.genieState),
+    toParentMessage: (message) => message,
+  }),
+);

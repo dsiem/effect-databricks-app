@@ -1,8 +1,10 @@
 import { Schema } from "effect";
 import * as D from "../../../shared/domain";
-export const filtersFromQuery = (query: string) => {
+export const filtersFromQuery = (query: string | URLSearchParams) => {
   const parsed = Schema.decodeUnknownOption(D.Filters)(
-    Object.fromEntries(new URLSearchParams(query)),
+    Object.fromEntries(
+      typeof query === "string" ? new URLSearchParams(query) : query,
+    ),
   );
   return parsed._tag === "Some" ? parsed.value : null;
 };
@@ -18,12 +20,6 @@ export const queryFor = (filters: D.Filters) =>
 export const href = (path: string, query: string) =>
   path + (query ? `?${query}` : "");
 
-export const tripSortFromQuery = (query: string): typeof D.TripSort.Type => {
-  const parsed = Schema.decodeUnknownOption(D.TripSort)(
-    new URLSearchParams(query).get("sort"),
-  );
-  return parsed._tag === "Some" ? parsed.value : "newest";
-};
 export const withTripSort = (query: string, sort: typeof D.TripSort.Type) => {
   const params = new URLSearchParams(query);
   params.delete("sort");

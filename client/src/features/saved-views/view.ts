@@ -1,5 +1,6 @@
 import { defineView } from "foldkit/submodel";
-import { filtersFromQuery, queryFor } from "../../domain/filters";
+import type { Filters } from "../../../../shared/domain";
+import { queryFor } from "../../domain/filters";
 import { savedViewBrowser } from "./browser-view";
 import type { Model } from "./model";
 import { appliedView } from "./selection";
@@ -9,13 +10,13 @@ type ViewModel = Pick<
   Model,
   "browser" | "selection" | "savedViewBusy" | "savedViewError" | "deleting"
 > & {
-  readonly query: string;
+  readonly filters: Filters;
   readonly canSave: boolean;
 };
 
 export const savedViewsView = defineView<ViewModel, typeof M.Type>(
   (model, h) => {
-    const filters = filtersFromQuery(model.query) ?? {};
+    const { filters } = model;
     return savedViewBrowser(h, {
       ...model.browser,
       selected: appliedView(model, filters),

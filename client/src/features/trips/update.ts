@@ -7,7 +7,7 @@ import type { FeatureUpdate } from "../../lib/feature-update";
 import { empty, pending } from "../../lib/request-state";
 import * as TripsCommands from "./commands";
 import { Message as M, type Message } from "./messages";
-import type { Model } from "./model";
+import type { Model, Sort } from "./model";
 
 function countComments(model: Model): FeatureUpdate<Model, Message, Out> {
   const tripIds = model.trips.data?.rows.map((trip) => trip.trip_id) ?? [];
@@ -46,14 +46,18 @@ const comments = (
 function updateTripsState(
   model: Model,
   message: Message,
-  context: Context,
 ): FeatureUpdate<Model, Message, Out> {
   switch (message._tag) {
     case "Idle":
       return { model };
     case "ResetTrips":
       return {
-        model: { ...model, page: 1, sort: "newest", selectedTrip: null },
+        model: {
+          ...model,
+          loadGeneration: model.loadGeneration + 1,
+          page: 1,
+          selectedTrip: null,
+        },
       };
     case "CloseTrip":
       return { model: { ...model, selectedTrip: null } };
@@ -74,7 +78,7 @@ function updateTripsState(
       };
     }
     case "LoadedTrips":
-      return message.key !== context.requestKey
+      return message.generation !== model.loadGeneration
         ? { model }
         : {
             outMessage: { _tag: "SelectionInvalidated" },
@@ -108,7 +112,7 @@ function updateTripsState(
       };
     case "SortTrips":
       return {
-        model: { ...model, page: 1, sort: message.sort },
+        model: { ...model, page: 1 },
         outMessage: { _tag: "Reload" },
       };
     case "InspectTrip":
@@ -236,23 +240,23 @@ function updateTripsState(
   }
 }
 
-export type Context = { readonly requestKey: string };
 export type Out =
   | { readonly _tag: "Reload" }
   | { readonly _tag: "SelectionInvalidated" };
 
 export function reloadTrips(
   model: Model,
-  context: Context & { readonly filters: Filters },
+  { filters, sort }: { filters: Filters; sort: typeof Sort.Type },
 ): FeatureUpdate<Model, Message> {
+  const generation = model.loadGeneration + 1;
   return {
-    model: { ...model, trips: pending },
+    model: { ...model, loadGeneration: generation, trips: pending },
     commands: [
       TripsCommands.LoadTrips({
-        key: context.requestKey,
-        filters: context.filters,
+        generation,
+        filters,
         page: model.page,
-        sort: model.sort,
+        sort,
       }),
     ],
   };
@@ -261,9 +265,8 @@ export function reloadTrips(
 export function updateTrips(
   model: Model,
   message: Message,
-  context: Context,
 ): FeatureUpdate<Model, Message, Out> {
-  const result = updateTripsState(model, message, context);
+  const result = updateTripsState(model, message);
   const dialog = syncDialog(
     result.model.inspectorDialog,
     result.model.selectedTrip !== null,

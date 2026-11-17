@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Dialog } from "@foldkit/ui";
-import { Option } from "effect";
+import { Effect, Option } from "effect";
+import { FetchHttpClient, HttpClient } from "effect/http";
+import { HttpApiClient } from "effect/http-api";
 import { Url } from "foldkit";
+import { given, message, model, story } from "foldkit/story";
+import { AppApi } from "../../shared/api";
 import { Message as AppMessage } from "../src/app/message";
 import { init, update } from "../src/app/update";
 import { exploreMessage } from "../src/app/view-messages";
@@ -22,6 +26,7 @@ import { updateSavedViews } from "../src/features/saved-views/update";
 import { Message as TripMessage } from "../src/features/trips/messages";
 import * as Trips from "../src/features/trips/model";
 import { updateTrips } from "../src/features/trips/update";
+import { ApiClient } from "../src/lib/api-client";
 
 const app = (path: string) =>
   init(Option.getOrThrow(Url.fromString(`http://localhost${path}`))).model;
@@ -81,18 +86,67 @@ test("view intents are translated by the shell with their analysis scope intact"
   assert.equal(navigated.model.filtersState.filterDraft.zip, "10019");
 });
 
-test("a standalone trip feature closes its inspector and ignores late comments", () => {
-  const context = { requestKey: "current" };
-  const opened = updateTrips(
-    Trips.init(),
-    TripMessage.InspectTrip({ trip }),
-    context,
+test("returning to a filter keeps fresh trip results when the original load fails", async () => {
+  const opened = init(
+    Option.getOrThrow(Url.fromString("http://localhost/trips?zip=10001")),
   );
+  const visit = (zip: string) =>
+    AppMessage.Navigated({ path: "/trips", query: `zip=${zip}` });
+  const changed = update(opened.model, visit("10002"));
+  const returned = update(changed.model, visit("10001"));
+  const respond = (load: ReturnType<typeof init>, response: Response) => {
+    const command = load.commands?.find(({ name }) => name === "LoadTrips");
+    assert.ok(command);
+    return Effect.runPromise(
+      command.effect.pipe(
+        Effect.provideServiceEffect(
+          ApiClient,
+          Effect.gen(function* () {
+            const httpClient = HttpClient.withScope(
+              yield* HttpClient.HttpClient,
+            );
+            return (yield* HttpApiClient.makeWith(AppApi, {
+              httpClient,
+              baseUrl: "http://fixture.test",
+            })).app;
+          }).pipe(Effect.provide(FetchHttpClient.layer)),
+        ),
+        Effect.provideService(FetchHttpClient.Fetch, async () => response),
+      ),
+    );
+  };
+  const data = { rows: [], total: 0, page: 1, pageSize: 25 };
+  const fresh = await respond(returned, Response.json(data));
+  const stale = await respond(
+    opened,
+    Response.json(
+      {
+        error: {
+          code: "workspace_timeout",
+          message: "Original load timed out",
+        },
+      },
+      { status: 504 },
+    ),
+  );
+  story(
+    update,
+    given(returned.model),
+    message(fresh),
+    message(stale),
+    model(({ tripsState }) => {
+      assert.equal(tripsState.trips.error, "");
+      assert.deepEqual(tripsState.trips.data, data);
+    }),
+  );
+});
+
+test("a standalone trip feature closes its inspector and ignores late comments", () => {
+  const opened = updateTrips(Trips.init(), TripMessage.InspectTrip({ trip }));
   assert.equal(opened.model.inspectorDialog.isOpen, true);
   const closed = updateTrips(
     opened.model,
     TripMessage.InspectorDialog({ message: Dialog.Message.RequestedClose() }),
-    context,
   );
   assert.equal(closed.model.selectedTrip, null);
   assert.equal(closed.model.inspectorDialog.isOpen, false);
@@ -105,7 +159,6 @@ test("a standalone trip feature closes its inspector and ignores late comments",
       error: "",
       more: false,
     }),
-    context,
   );
   assert.equal(late.model.selectedTrip, null);
   assert.equal(late.model.inspectorDialog.isOpen, false);
@@ -125,28 +178,40 @@ test("navigation retains the trip feature's dialog cleanup commands", () => {
 });
 
 test("sort URLs survive reload and history; saved views restore global scope with default sort", () => {
-  const model = app("/trips?zip=10001&sort=fare");
-  assert.equal(model.tripsState.sort, "fare");
-  const sorted = update(model, AppMessage.SortTrips({ sort: "distance" }));
-  assert.equal(sorted.model.query, "zip=10001&sort=distance");
+  const open = (path: string) =>
+    init(Option.getOrThrow(Url.fromString(`http://localhost${path}`)));
+  const tripLoad = (result: ReturnType<typeof init>) =>
+    result.commands?.find(({ name }) => name === "LoadTrips")?.args;
+  const opened = open("/trips?zip=10001&sort=fare");
+  assert.equal(tripLoad(opened)?.sort, "fare");
+  const sorted = update(
+    opened.model,
+    AppMessage.SortTrips({ sort: "distance" }),
+  );
+  assert.equal(tripLoad(sorted)?.sort, "distance");
   assert.ok(
     sorted.commands?.some(
       (command) => command.args?.href === "/trips?zip=10001&sort=distance",
     ),
   );
+  const arrived = update(
+    sorted.model,
+    AppMessage.Navigated({ path: "/trips", query: "zip=10001&sort=distance" }),
+  );
+  assert.equal(tripLoad(arrived), undefined);
   const back = update(
     sorted.model,
     AppMessage.Navigated({ path: "/trips", query: "zip=10001&sort=fare" }),
-  ).model;
-  assert.equal(back.tripsState.sort, "fare");
-  const applied = update(back, AppMessage.ApplyFilters());
+  );
+  assert.equal(tripLoad(back)?.sort, "fare");
+  const applied = update(back.model, AppMessage.ApplyFilters());
   assert.ok(
     applied.commands?.some(
       (command) => command.args?.href === "/trips?zip=10001&sort=fare",
     ),
   );
   const restoring = update(
-    back,
+    back.model,
     AppMessage.RestoreView({
       savedView: {
         id: "00000000-0000-4000-8000-000000000003",
@@ -166,25 +231,28 @@ test("sort URLs survive reload and history; saved views restore global scope wit
     ),
   );
   const restored = update(
-    back,
+    back.model,
     AppMessage.Navigated({ path: "/trips", query: "from=2016-01-01" }),
-  ).model;
-  assert.equal(restored.tripsState.sort, "newest");
-  assert.equal(restored.filtersState.filterDraft.from, "2016-01-01");
-  assert.equal(app("/trips?sort=invalid").tripsState.sort, "newest");
+  );
+  assert.equal(tripLoad(restored)?.sort, "newest");
+  assert.equal(restored.model.filtersState.filterDraft.from, "2016-01-01");
+  assert.equal(tripLoad(open("/trips?sort=invalid"))?.sort, "newest");
+  const repeated = tripLoad(
+    open("/trips?zip=10002&sort=fare&zip=10001&sort=distance"),
+  );
+  assert.equal(repeated?.sort, "fare");
+  assert.deepEqual(repeated?.filters, { zip: "10001" });
 });
 
 test("comment counts from an older trip page cannot replace the current rows' counts", () => {
-  const context = { requestKey: "current" };
   const loaded = (model: Trips.Model) =>
     updateTrips(
       model,
       TripMessage.LoadedTrips({
-        key: "current",
+        generation: model.loadGeneration,
         error: "",
         data: { rows: [trip], total: 1, page: 1, pageSize: 25 },
       }),
-      context,
     ).model;
   const firstPage = loaded(Trips.init());
   const nextPage = loaded(firstPage);
@@ -195,7 +263,6 @@ test("comment counts from an older trip page cannot replace the current rows' co
       data: { [trip.trip_id]: 3 },
       error: "",
     }),
-    context,
   ).model;
   const late = updateTrips(
     current,
@@ -204,7 +271,6 @@ test("comment counts from an older trip page cannot replace the current rows' co
       data: { [trip.trip_id]: 0 },
       error: "",
     }),
-    context,
   ).model;
   assert.equal(late.commentCounts.data?.[trip.trip_id], 3);
 });
@@ -348,7 +414,7 @@ test("Genie resumes restored reads without replaying conversation submissions", 
   assert.equal(restored.model.turns.length, 3);
   assert.deepEqual(
     restored.commands?.map((command) => command.name),
-    ["PollQuestion", "RetrieveQuestion"],
+    ["RetrieveQuestion"],
   );
 });
 
@@ -412,7 +478,7 @@ test("invalid draft filters report an error without requesting navigation", () =
       error: "",
     },
     FilterMessage.ApplyFilters(),
-    { query: "zip=10001", metadata: null },
+    { filters: { zip: "10001" }, metadata: null },
   );
   assert.equal(result.outMessage, undefined);
   assert.match(result.model.error, /start date must be on or before/);

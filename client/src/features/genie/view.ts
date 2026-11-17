@@ -4,7 +4,6 @@ import { defineView } from "foldkit/submodel";
 import { Lexer } from "marked";
 import type { GenieReply } from "../../../../shared/domain";
 import { filterSummary } from "../../domain/filter-summary";
-import { filtersFromQuery } from "../../domain/filters";
 import { dialog } from "../../ui/dialog";
 import { icon } from "../../ui/icons";
 import { alert, button, type Child, table } from "../../ui/primitives";
@@ -109,7 +108,7 @@ function answer(h: H, model: Model, reply: GenieReply): Child[] {
 }
 function genie(h: H, model: Model, floating = false) {
   const context = model.genieSelection ?? model.context;
-  const filters = filtersFromQuery(model.query);
+  const { filters } = model;
   const enabled = !!model.status.data?.genie && !!filters;
   const working = busy(model);
   const content: Child[] = [

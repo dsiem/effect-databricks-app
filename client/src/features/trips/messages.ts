@@ -9,7 +9,7 @@ export const messages = {
   ResetTrips: {},
   InspectorDialog: { message: Dialog.Message },
   LoadedTrips: {
-    key: Schema.String,
+    generation: Schema.Int,
     data: Schema.NullOr(D.Trips),
     error: Schema.String,
   },

@@ -12,11 +12,11 @@ import {
 } from "../../ui/primitives";
 import { gpsContext } from "./context";
 import { dataKey, frameKey, type Model } from "./model";
-import { GpsMount, gpsHostId } from "./mount";
+import { GpsMount, gpsHostId, type MapData } from "./mount";
 import { EndpointTabs } from "./tabs";
 import { type H, Message as M } from "./view-messages";
 
-export type ViewModel = Model & { query: string };
+export type ViewModel = Model & Pick<MapData, "query" | "filters">;
 function gpsMap(h: H, model: ViewModel): Child[] {
   const heading = title(
     h,
@@ -146,6 +146,7 @@ function gpsMap(h: H, model: ViewModel): Child[] {
                               h.OnMount(
                                 GpsMount({
                                   query: model.query,
+                                  filters: model.filters,
                                   endpoint: model.endpoint,
                                   revision: model.revision,
                                   key: frameKey(

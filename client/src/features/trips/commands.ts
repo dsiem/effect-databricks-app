@@ -6,16 +6,16 @@ import { result } from "../../lib/command-result";
 import { Message as M } from "./messages";
 export const LoadTrips = Command.define("LoadTrips", {
   args: {
-    key: Schema.String,
+    generation: Schema.Int,
     filters: D.Filters,
     page: Schema.Number,
     sort: D.TripSort,
   },
   messages: [M.LoadedTrips],
-  execute: ({ key, filters, page, sort }) =>
+  execute: ({ generation, filters, page, sort }) =>
     result(
       request((client) => client.trips({ query: { ...filters, page, sort } })),
-    ).pipe(Effect.map((value) => M.LoadedTrips({ key, ...value }))),
+    ).pipe(Effect.map((value) => M.LoadedTrips({ generation, ...value }))),
 });
 export const LoadComments = Command.define("LoadComments", {
   args: {

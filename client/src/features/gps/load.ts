@@ -1,17 +1,14 @@
 import { Effect } from "effect";
-import { filtersFromQuery } from "../../domain/filters";
 import { ApiClient, request } from "../../lib/api-client";
 import { jsonMap } from "./dataset";
 import type { MapQuery } from "./dataset-session";
 
 export async function loadGps(
-  { query, endpoint }: MapQuery,
+  { filters, endpoint }: MapQuery,
   signal: AbortSignal,
 ) {
   const result = await Effect.runPromise(
     Effect.gen(function* () {
-      const filters = filtersFromQuery(query);
-      if (!filters) return yield* Effect.fail(new Error("Invalid map filters"));
       const search = { ...filters, endpoint };
       const response = yield* request((client) =>
         client.tripMap({ query: search }),

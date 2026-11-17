@@ -2,12 +2,7 @@ import { Nav, Tooltip } from "@foldkit/ui";
 import { Array as Arr } from "effect";
 import type { Document } from "foldkit/html";
 import { filterSummary } from "../domain/filter-summary";
-import {
-  filterError,
-  filtersFromQuery,
-  href,
-  queryFor,
-} from "../domain/filters";
+import { filterError, href, queryFor } from "../domain/filters";
 import { filterFields } from "../features/filters/view";
 import { genieHelperView, genieView } from "../features/genie/view";
 import { gpsMapView } from "../features/gps/view";
@@ -26,12 +21,14 @@ import { button, type Child, card } from "../ui/primitives";
 import { pageContext } from "./analysis-context";
 import { Message as M } from "./message";
 import { type Model, navigation } from "./model";
+import { paths, routePath, showsExplore } from "./route";
 import { themeSelector } from "./theme-view";
 import { initTooltip } from "./ui-state";
 import { exploreMessage } from "./view-messages";
 import type { H } from "./view-types";
 
 function sidebar(h: H, model: Model) {
+  const { route, query } = model.location;
   const user = model.user;
   const initials =
     user?.name
@@ -69,8 +66,8 @@ function sidebar(h: H, model: Model) {
   return Nav.view({
     items: navigation.map((item) => item.path),
     ariaLabel: "Main navigation",
-    toHref: (path) => href(path, model.query),
-    isItemCurrent: (path) => model.path === path,
+    toHref: (path) => href(path, query),
+    isItemCurrent: (path) => routePath(route) === path,
     toView: ({ nav, items }) =>
       h.nav(
         [
@@ -82,7 +79,7 @@ function sidebar(h: H, model: Model) {
         ],
         [
           h.a(
-            [h.Href(href("/", model.query)), h.Class("sidebar-brand")],
+            [h.Href(href(paths.Overview, query)), h.Class("sidebar-brand")],
             [
               h.span([h.Class("icon-tile")], [icon(h, "car-taxi-front")]),
               h.div(
@@ -178,7 +175,7 @@ function sidebar(h: H, model: Model) {
   });
 }
 function filters(h: H, model: Model) {
-  const applied = filtersFromQuery(model.query);
+  const { filters: applied, query } = model.location;
   const hasChanges =
     !applied || queryFor(model.filtersState.filterDraft) !== queryFor(applied);
   return filterPanel(h, {
@@ -188,7 +185,7 @@ function filters(h: H, model: Model) {
       view: savedViewsView,
       model: {
         ...model.savedViewsState,
-        query: model.query,
+        filters: applied ?? {},
         canSave: !!applied && !hasChanges,
       },
       toParentMessage: (message) => message,
@@ -216,7 +213,7 @@ function filters(h: H, model: Model) {
       ],
     }),
     onApply: M.ApplyFilters(),
-    ...(model.query || hasChanges ? { onReset: M.ResetFilters() } : {}),
+    ...(query || hasChanges ? { onReset: M.ResetFilters() } : {}),
     hasChanges,
     ...(applied ? { appliedSummary: filterSummary(h, applied) } : {}),
     error: model.filtersState.error,
@@ -224,8 +221,10 @@ function filters(h: H, model: Model) {
   });
 }
 export function view(model: Model, h: H): Document {
+  const { route, query, filters: applied } = model.location;
+  const explore = showsExplore(route);
   let content: Child[];
-  if (!filtersFromQuery(model.query))
+  if (!applied)
     content = [
       card(
         h,
@@ -241,44 +240,44 @@ export function view(model: Model, h: H): Document {
       ),
     ].map((child) => h.div([h.Role("alert")], [child]));
   else
-    switch (model.path) {
-      case "/":
+    switch (route._tag) {
+      case "Overview":
         content = [
           h.submodel({
             slotId: "overview",
             view: overviewView,
             model: {
               ...model.overviewState,
-              query: model.query,
+              query,
+              filters: applied ?? {},
               mobile: model.mobile,
             },
             toParentMessage: exploreMessage,
           }),
         ];
         break;
-      case "/trips":
+      case "Trips":
         content = [
           h.submodel({
             slotId: "trips",
             view: tripsView,
-            model: {
-              ...model.tripsState,
-            },
+            model: model.tripsState,
+            viewInputs: { sort: route.sort },
             toParentMessage: exploreMessage,
           }),
         ];
         break;
-      case "/trip-map":
+      case "TripMap":
         content = [
           h.submodel({
             slotId: "gpsMap",
             view: gpsMapView,
-            model: { ...model.gpsState, query: model.query },
+            model: { ...model.gpsState, query, filters: applied ?? {} },
             toParentMessage: exploreMessage,
           }),
         ];
         break;
-      case "/genie":
+      case "Genie":
         content = [
           h.submodel({
             slotId: "genie",
@@ -287,27 +286,30 @@ export function view(model: Model, h: H): Document {
               ...model.genieState,
               context: pageContext(model),
               mobile: model.mobile,
-              query: model.query,
+              filters: applied,
               status: model.status,
             },
             toParentMessage: (message) => message,
           }),
         ];
         break;
-      default:
+      case "NotFound":
         content = [
           h.p(
             [h.Class("text-center py-20")],
             [
               "Page not found. ",
-              h.a([h.Href("/"), h.Class("underline")], ["Back to overview"]),
+              h.a(
+                [h.Href(paths.Overview), h.Class("underline")],
+                ["Back to overview"],
+              ),
             ],
           ),
         ];
     }
   const current =
-    navigation.find((item) => item.path === model.path)?.label ??
-    (model.path === "/genie" ? "Ask Genie" : "Workspace");
+    navigation.find((item) => item.path === routePath(route))?.label ??
+    (route._tag === "Genie" ? "Ask Genie" : "Workspace");
   return {
     title: `NYC Taxi · ${current}`,
     body: h.div(
@@ -344,7 +346,7 @@ export function view(model: Model, h: H): Document {
                 h.span([h.Class("h-4 border-l mx-2")], []),
                 h.a(
                   [
-                    h.Href(href("/", model.query)),
+                    h.Href(href(paths.Overview, query)),
                     h.Class("hidden sm:block muted text-sm"),
                   ],
                   ["NYC Taxi"],
@@ -353,7 +355,7 @@ export function view(model: Model, h: H): Document {
                 h.span([h.Class("text-sm")], [current]),
                 h.div(
                   [h.Class("ml-auto flex items-center gap-2")],
-                  model.path !== "/genie"
+                  explore
                     ? [
                         button(h, {
                           label: h.span(
@@ -364,7 +366,7 @@ export function view(model: Model, h: H): Document {
                             context: null,
                             question: null,
                           }),
-                          disabled: !filtersFromQuery(model.query),
+                          disabled: !applied,
                           attributes: [h.Id("genie-trigger")],
                         }),
                       ]
@@ -374,14 +376,11 @@ export function view(model: Model, h: H): Document {
             ),
             h.main(
               [h.Class("workspace-content")],
-              [
-                ...(model.path !== "/genie" ? [filters(h, model)] : []),
-                ...content,
-              ],
+              [...(explore ? [filters(h, model)] : []), ...content],
             ),
           ],
         ),
-        ...(model.genieState.genieOpen && model.path !== "/genie"
+        ...(model.genieState.genieOpen && explore
           ? [
               h.submodel({
                 slotId: "genie-helper",
@@ -390,7 +389,7 @@ export function view(model: Model, h: H): Document {
                   ...model.genieState,
                   context: pageContext(model),
                   mobile: model.mobile,
-                  query: model.query,
+                  filters: applied,
                   status: model.status,
                 },
                 toParentMessage: (message) => message,

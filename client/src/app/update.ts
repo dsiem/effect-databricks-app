@@ -2,13 +2,7 @@ import { Dialog, Menu, Tooltip } from "@foldkit/ui";
 import { Option } from "effect";
 import { Command, Update } from "foldkit";
 import type { Url } from "foldkit/url";
-import {
-  filtersFromQuery,
-  href,
-  queryFor,
-  tripSortFromQuery,
-  withTripSort,
-} from "../domain/filters";
+import { href, queryFor, withTripSort } from "../domain/filters";
 import * as FilterDates from "../features/filters/dates";
 import * as Filters from "../features/filters/model";
 import { updateFilters } from "../features/filters/update";
@@ -29,17 +23,19 @@ import { pending } from "../lib/request-state";
 import { pageContext } from "./analysis-context";
 import * as AppCommands from "./commands";
 import { Message as M, type Message } from "./message";
-import { type Model, requestKey } from "./model";
+import { type Model, overviewRequestKey } from "./model";
 import { loadPage } from "./navigation";
+import { AppRoute, parseLocation, routePath, showsExplore } from "./route";
 import { ThemeMenu } from "./theme";
 import { initTooltip } from "./ui-state";
 
 export function init(url: Url): Update.Return<Model, Message, ApiClient> {
-  const query = Option.getOrElse(url.search, () => "").replace(/^\?/, "");
-  const filters = filtersFromQuery(query) ?? {};
+  const location = parseLocation(
+    url.pathname,
+    Option.getOrElse(url.search, () => "").replace(/^\?/, ""),
+  );
   const model: Model = {
-    path: url.pathname,
-    query,
+    location,
     sidebar: true,
     themePreference: "System",
     themeMenu: Menu.init({ id: "theme" }),
@@ -53,9 +49,9 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
     metadata: pending,
     status: pending,
     user: null,
-    filtersState: Filters.init(filters),
+    filtersState: Filters.init(location.filters ?? {}),
     overviewState: Overview.init(),
-    tripsState: { ...Trips.init(), sort: tripSortFromQuery(query) },
+    tripsState: Trips.init(),
     savedViewsState: SavedViews.init(),
     genieState: Genie.init(),
     gpsState: Gps.init(),
@@ -77,31 +73,29 @@ function updateApplication(
   model: Model,
   message: Message,
 ): Update.Return<Model, Message, ApiClient> {
+  const { route, query, filters } = model.location;
   switch (message._tag) {
     case "Idle":
       return { model };
     case "Navigate":
       return { model, commands: [AppCommands.Navigate(message)] };
     case "Navigated": {
-      if (model.path === message.path && model.query === message.query)
+      if (routePath(route) === message.path && query === message.query)
         return { model: { ...model, mobileNavigation: false } };
-      const filters = filtersFromQuery(message.query) ?? {};
-      const reset = updateTrips(model.tripsState, M.ResetTrips(), {
-        requestKey: requestKey(model),
-      });
+      const location = parseLocation(message.path, message.query);
+      const reset = updateTrips(model.tripsState, M.ResetTrips());
       const loaded = loadPage({
         ...model,
-        path: message.path,
-        query: message.query,
+        location,
         mobileNavigation: false,
         tooltips: {},
         filtersState: FilterDates.reset(
           model.filtersState,
-          filters,
+          location.filters ?? {},
           model.metadata.data,
         ),
         savedViewsState: { ...model.savedViewsState, notice: "" },
-        tripsState: { ...reset.model, sort: tripSortFromQuery(message.query) },
+        tripsState: reset.model,
         genieState: { ...model.genieState, genieSelection: null },
       });
       return {
@@ -236,7 +230,7 @@ function updateApplication(
     case "ResetFilters":
     case "PickZip": {
       const changed = updateFilters(model.filtersState, message, {
-        query: model.query,
+        filters,
         metadata: model.metadata.data,
       });
       const next = { ...model, filtersState: changed.model };
@@ -246,12 +240,9 @@ function updateApplication(
             commands: [
               AppCommands.Navigate({
                 href: href(
-                  model.path,
-                  model.path === "/trips"
-                    ? withTripSort(
-                        changed.outMessage.query,
-                        model.tripsState.sort,
-                      )
+                  routePath(route),
+                  route._tag === "Trips"
+                    ? withTripSort(changed.outMessage.query, route.sort)
                     : changed.outMessage.query,
                 ),
                 external: false,
@@ -263,7 +254,7 @@ function updateApplication(
     case "MetricTabs":
     case "LoadedOverview": {
       const changed = updateOverview(model.overviewState, message, {
-        requestKey: requestKey(model),
+        requestKey: overviewRequestKey(model),
       });
       const next = { ...model, overviewState: changed.model };
       return {
@@ -291,20 +282,26 @@ function updateApplication(
     case "CreatedCommentDraft":
     case "PostComment":
     case "PostedComment": {
-      const changed = updateTrips(model.tripsState, message, {
-        requestKey: requestKey(model),
-      });
+      const changed = updateTrips(model.tripsState, message);
       const next = { ...model, tripsState: changed.model };
       if (changed.outMessage?._tag === "Reload") {
         if (message._tag !== "SortTrips") return loadPage(next);
-        const query = withTripSort(model.query, message.sort);
-        const loaded = loadPage({ ...next, query });
+        if (route._tag !== "Trips") return { model };
+        const sortedQuery = withTripSort(query, message.sort);
+        const loaded = loadPage({
+          ...next,
+          location: {
+            ...model.location,
+            route: AppRoute.Trips({ sort: message.sort }),
+            query: sortedQuery,
+          },
+        });
         return {
           ...loaded,
           commands: [
             ...(loaded.commands ?? []),
             AppCommands.Navigate({
-              href: href(model.path, query),
+              href: href(routePath(route), sortedQuery),
               external: false,
             }),
           ],
@@ -346,7 +343,7 @@ function updateApplication(
     case "MutatedSavedView":
     case "RestoreView": {
       const changed = updateSavedViews(model.savedViewsState, message, {
-        filters: filtersFromQuery(model.query) ?? {},
+        filters: filters ?? {},
       });
       const next = {
         ...model,
@@ -368,7 +365,10 @@ function updateApplication(
           ...(changed.outMessage
             ? [
                 AppCommands.Navigate({
-                  href: href(model.path, queryFor(changed.outMessage.filters)),
+                  href: href(
+                    routePath(route),
+                    queryFor(changed.outMessage.filters),
+                  ),
                   external: false,
                 }),
               ]
@@ -386,6 +386,7 @@ function updateApplication(
     case "SendQuestion":
     case "CreatedTurn":
     case "ChangedTurn":
+    case "PolledQuestion":
     case "ResumeTurn":
     case "EditQuestion":
     case "NewConversation":
@@ -393,7 +394,7 @@ function updateApplication(
     case "CopySql":
     case "CopiedSql": {
       const changed = updateGenie(model.genieState, message, {
-        filters: filtersFromQuery(model.query),
+        filters,
         context: pageContext(model),
         enabled: !!model.status.data?.genie,
       });
@@ -415,10 +416,8 @@ function updateApplication(
     case "LoadedGps":
     case "GpsReady":
     case "GpsSelect": {
-      if (model.path !== "/trip-map") return { model };
-      const changed = updateGps(model.gpsState, message, {
-        query: model.query,
-      });
+      if (route._tag !== "TripMap" || !filters) return { model };
+      const changed = updateGps(model.gpsState, message, { query, filters });
       return {
         model: {
           ...model,
@@ -454,7 +453,7 @@ export function update(
   );
   const genie = presentGenie(
     next.genieState,
-    next.mobile && next.path !== "/genie",
+    next.mobile && showsExplore(next.location.route),
   );
   return {
     model: {

@@ -6,7 +6,7 @@ import { syncDialog } from "../../lib/dialog";
 import type { FeatureUpdate } from "../../lib/feature-update";
 import * as GenieCommands from "./commands";
 import { Message as M, type Message } from "./messages";
-import { busy, type Model, turnBase } from "./model";
+import { busy, type Model, type Turn, turnBase } from "./model";
 export function updateGenie(
   model: Model,
   message: Message,
@@ -20,16 +20,13 @@ export function updateGenie(
         model: {
           ...model,
           turns: message.turns,
+          pollGeneration: model.pollGeneration + 1,
           persistenceError: message.persistenceError,
         },
-        commands: message.turns.flatMap<
-          Command.Command<Message, never, ApiClient>
-        >((turn) =>
-          turn.state === "waiting"
-            ? [GenieCommands.PollQuestion({ turn })]
-            : turn.state === "retrieving"
-              ? [GenieCommands.RetrieveQuestion({ turn })]
-              : [],
+        commands: message.turns.flatMap((turn) =>
+          turn.state === "retrieving"
+            ? [GenieCommands.RetrieveQuestion({ turn })]
+            : [],
         ),
       };
     case "CloseGenie":
@@ -104,35 +101,34 @@ export function updateGenie(
       };
     }
     case "ChangedTurn": {
-      const old = model.turns.find((turn) => turn.id === message.turn.id);
-      if (!old) return { model };
-      const turns = model.turns.map((turn) =>
-        turn.id === message.turn.id ? message.turn : turn,
-      );
-      const commands: Command.Command<Message, never, ApiClient>[] = [
-        GenieCommands.PersistTurns({ turns }),
-      ];
-      if (message.turn.state === "waiting" && old.state !== "waiting")
-        commands.push(GenieCommands.PollQuestion({ turn: message.turn }));
-      if (message.turn.state === "retrieving" && old.state !== "retrieving")
-        commands.push(GenieCommands.RetrieveQuestion({ turn: message.turn }));
-      return { model: { ...model, turns }, commands };
+      const current = model.turns.find((turn) => turn.id === message.turn.id);
+      return current ? changeTurn(model, current, message.turn) : { model };
+    }
+    case "PolledQuestion": {
+      const turn = model.turns.find(({ id }) => id === message.id);
+      if (
+        message.generation !== model.pollGeneration ||
+        turn?.state !== "waiting" ||
+        turn.operation.conversationId !== message.operation.conversationId ||
+        turn.operation.messageId !== message.operation.messageId
+      ) {
+        return { model };
+      }
+      return changeTurn(model, turn, {
+        ...turnBase(turn),
+        operation: turn.operation,
+        ...message.outcome,
+      });
     }
     case "ResumeTurn": {
       if (busy(model)) return { model };
-      const turn = model.turns.find((turn) => turn.id === message.id);
+      const turn = model.turns.find(({ id }) => id === message.id);
       return turn?.state === "paused"
-        ? updateGenie(
-            model,
-            M.ChangedTurn({
-              turn: {
-                ...turnBase(turn),
-                operation: turn.operation,
-                state: turn.stage,
-              },
-            }),
-            context,
-          )
+        ? changeTurn(model, turn, {
+            ...turnBase(turn),
+            operation: turn.operation,
+            state: turn.stage,
+          })
         : { model };
     }
     case "EditQuestion":
@@ -154,6 +150,30 @@ export function updateGenie(
     case "CopiedSql":
       return { model: { ...model, clipboard: message.text } };
   }
+}
+
+function changeTurn(
+  model: Model,
+  current: Turn,
+  next: Turn,
+): FeatureUpdate<Model, Message> {
+  const turns = model.turns.map((turn) => (turn.id === next.id ? next : turn));
+  const commands: Command.Command<Message, never, ApiClient>[] = [
+    GenieCommands.PersistTurns({ turns }),
+  ];
+  if (next.state === "retrieving" && current.state !== "retrieving")
+    commands.push(GenieCommands.RetrieveQuestion({ turn: next }));
+  return {
+    model: {
+      ...model,
+      turns,
+      pollGeneration:
+        next.state === "waiting"
+          ? model.pollGeneration + 1
+          : model.pollGeneration,
+    },
+    commands,
+  };
 }
 
 export type Context = {

@@ -7,6 +7,7 @@ import { Message as M } from "./messages";
 export const gpsHostId = "gps-density-map";
 const MapData = Schema.Struct({
   query: Schema.String,
+  filters: D.Filters,
   endpoint: D.GpsEndpoint,
   revision: Schema.Int,
   key: Schema.String,

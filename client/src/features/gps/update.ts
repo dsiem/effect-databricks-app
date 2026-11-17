@@ -1,13 +1,17 @@
 import { Command } from "foldkit";
 import type { FeatureUpdate } from "../../lib/feature-update";
+import type { MapQuery } from "./dataset-session";
 import { Message as M, type Message } from "./messages";
 import { dataKey, frameKey, type Model } from "./model";
 import { RefreshGps } from "./mount";
 import { EndpointTabs } from "./tabs";
 
-const refresh = (model: Model, query: string) => [
+type MapLocation = Pick<MapQuery, "query" | "filters">;
+
+const refresh = (model: Model, { query, filters }: MapLocation) => [
   RefreshGps({
     query,
+    filters,
     endpoint: model.endpoint,
     revision: model.revision,
     key: frameKey(query, model.endpoint, model.selected, model.revision),
@@ -17,7 +21,7 @@ const refresh = (model: Model, query: string) => [
 ];
 export function reloadGps(
   model: Model,
-  query: string,
+  location: MapLocation,
 ): FeatureUpdate<Model, Message> {
   const next = {
     ...model,
@@ -30,13 +34,13 @@ export function reloadGps(
   };
   return {
     model: next,
-    commands: refresh(next, query),
+    commands: refresh(next, location),
   };
 }
 export function updateGps(
   model: Model,
   message: Message,
-  context: { query: string },
+  location: MapLocation,
 ): FeatureUpdate<Model, Message> {
   switch (message._tag) {
     case "Idle":
@@ -49,7 +53,7 @@ export function updateGps(
         endpoint: changed.outMessage?.value ?? model.endpoint,
       };
       const loaded = changed.outMessage
-        ? reloadGps(next, context.query)
+        ? reloadGps(next, location)
         : { model: next };
       return {
         ...loaded,
@@ -63,7 +67,7 @@ export function updateGps(
     }
     case "LoadedGps": {
       if (
-        message.key !== dataKey(context.query, model.endpoint, model.revision)
+        message.key !== dataKey(location.query, model.endpoint, model.revision)
       )
         return { model };
       const next = {
@@ -74,11 +78,11 @@ export function updateGps(
         selected: null,
         selectedCell: null,
       };
-      return { model: next, commands: refresh(next, context.query) };
+      return { model: next, commands: refresh(next, location) };
     }
     case "GpsReady":
       return message.key !==
-        frameKey(context.query, model.endpoint, model.selected, model.revision)
+        frameKey(location.query, model.endpoint, model.selected, model.revision)
         ? { model }
         : {
             model: {
@@ -100,7 +104,7 @@ export function updateGps(
           model.activity.data?.cells.find((cell) => cell.id === message.id) ??
           null,
       };
-      return { model: next, commands: refresh(next, context.query) };
+      return { model: next, commands: refresh(next, location) };
     }
   }
 }

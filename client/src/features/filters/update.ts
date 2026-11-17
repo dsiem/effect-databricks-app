@@ -1,5 +1,6 @@
 import { DatePicker } from "@foldkit/ui";
 import { Command, type Update } from "foldkit";
+import type { Filters } from "../../../../shared/domain";
 import { filterError, filtersFromQuery, queryFor } from "../../domain/filters";
 import type { FeatureUpdate } from "../../lib/feature-update";
 import { isoDay } from "../../lib/format";
@@ -116,7 +117,7 @@ export function updateFilters(
         outMessage: {
           _tag: "Navigate",
           query: queryFor({
-            ...filtersFromQuery(context.query),
+            ...context.filters,
             zip: message.zip,
           }),
         },
@@ -125,7 +126,7 @@ export function updateFilters(
 }
 
 export type Context = {
-  readonly query: string;
+  readonly filters: Filters | null;
   readonly metadata: Metadata;
 };
 export type Out = { readonly _tag: "Navigate"; readonly query: string };

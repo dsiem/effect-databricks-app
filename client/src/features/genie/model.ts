@@ -53,6 +53,7 @@ export const Model = Schema.Struct({
   genieDraft: Schema.String,
   genieSelection: Schema.NullOr(D.GenieContext),
   turns: History,
+  pollGeneration: Schema.Int,
   persistenceError: Schema.String,
   clipboard: Schema.String,
 });
@@ -74,6 +75,7 @@ export const init = (): Model => ({
   genieDraft: "",
   genieSelection: null,
   turns: [],
+  pollGeneration: 0,
   persistenceError: "",
   clipboard: "",
 });

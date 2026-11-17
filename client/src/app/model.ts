@@ -9,10 +9,10 @@ import * as Overview from "../features/overview/model";
 import * as SavedViews from "../features/saved-views/model";
 import * as Trips from "../features/trips/model";
 import { request } from "../lib/request-state";
+import { Location, paths, routePath } from "./route";
 import { ThemePreference } from "./theme";
 export const Model = Schema.Struct({
-  path: Schema.String,
-  query: Schema.String,
+  location: Location,
   sidebar: Schema.Boolean,
   themePreference: ThemePreference,
   themeMenu: Menu.Model,
@@ -31,10 +31,10 @@ export const Model = Schema.Struct({
   gpsState: Gps.Model,
 });
 export type Model = typeof Model.Type;
-export const requestKey = (model: Model) =>
-  `${href(model.path, model.query)}#${model.tripsState.page}:${model.tripsState.sort}`;
+export const overviewRequestKey = ({ location }: Model) =>
+  href(routePath(location.route), location.query);
 export const navigation = [
-  { path: "/", label: "Overview", icon: "layout-dashboard" },
-  { path: "/trips", label: "Trip explorer", icon: "table-2" },
-  { path: "/trip-map", label: "Trip map", icon: "map" },
+  { path: paths.Overview, label: "Overview", icon: "layout-dashboard" },
+  { path: paths.Trips, label: "Trip explorer", icon: "table-2" },
+  { path: paths.TripMap, label: "Trip map", icon: "map" },
 ] as const;
