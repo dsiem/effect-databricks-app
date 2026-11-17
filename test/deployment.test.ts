@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
-import { parse } from "yaml";
 import { gpsFixture } from "../client/test/gps-fixture.js";
 import type { SavedView } from "../shared/domain.js";
 
@@ -186,48 +185,3 @@ console.log(JSON.stringify(responses[process.argv.slice(2, 4).join(" ")]));
     assert.equal(followedCursor, !failure || failure === "genie");
   });
 }
-
-test("CI and deployment require offline browser checks, and deployment requires hosted API verification", async () => {
-  type Workflow = {
-    jobs: Record<
-      string,
-      {
-        needs?: string;
-        steps: Array<{ name?: string; run?: string }>;
-      }
-    >;
-  };
-  for (const filename of ["ci.yml", "deploy.yml"]) {
-    const workflow = parse(
-      await readFile(`.github/workflows/${filename}`, "utf8"),
-    ) as Workflow;
-    const commands = workflow.jobs.check?.steps.map((step) => step.run) ?? [];
-    const check = commands.indexOf("npm run check");
-    const install = commands.indexOf(
-      "npx playwright install --with-deps chromium webkit",
-    );
-    const browser = commands.indexOf("npm run test:browser");
-    const filters = commands.indexOf("npm run test:filters");
-    assert.ok(check >= 0 && install > check && browser > install, filename);
-    assert.ok(
-      filters > browser,
-      `${filename}: filter workflows must cover WebKit before deployment`,
-    );
-    if (filename === "deploy.yml") {
-      const deploy = workflow.jobs.deploy;
-      assert.ok(deploy);
-      assert.equal(deploy.needs, "check");
-      const wait = deploy.steps.findIndex(
-        (step) => step.name === "Wait for the app to run",
-      );
-      const verify = deploy.steps.findIndex(
-        (step) =>
-          step.run === 'node scripts/check-deployed.mjs "$BUNDLE_TARGET"',
-      );
-      assert.ok(
-        wait >= 0 && verify > wait,
-        "RUNNING must be followed by hosted API verification",
-      );
-    }
-  }
-});

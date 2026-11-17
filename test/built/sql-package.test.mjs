@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -36,14 +36,9 @@ try {
     directory,
   ]);
   symlinkSync(resolve("node_modules"), join(directory, "node_modules"), "dir");
-  const metadata = JSON.parse(
-    readFileSync(join(directory, "package/package.json"), "utf8"),
-  );
-  assert.equal(metadata.name, "effect-sql-databricks");
-  const exports = await import(
-    pathToFileURL(join(directory, "package", metadata.exports["."].import))
-  );
-  assert.equal(typeof exports.Credentials.clientCredentials, "function");
+  const consumer = join(directory, "package/consumer.mjs");
+  writeFileSync(consumer, 'export * from "effect-sql-databricks";\n');
+  const exports = await import(pathToFileURL(consumer));
   const ipc = tableToIPC(
     tableFromArrays({ id: BigInt64Array.of(9007199254740993n) }),
     "stream",

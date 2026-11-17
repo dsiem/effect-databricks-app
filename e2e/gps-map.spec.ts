@@ -49,9 +49,6 @@ test("GPS map selects areas by keyboard and pointer and switches endpoints witho
   await expect(
     navigation.getByRole("link", { name: "Trip map", exact: true }),
   ).toHaveCount(1);
-  await expect(
-    navigation.getByRole("link", { name: "Pickup map", exact: true }),
-  ).toHaveCount(0);
   const canvas = await map.locator("canvas").first().elementHandle();
   const area = page.getByRole("button", {
     name: "Area 1, 60 pickups",

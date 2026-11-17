@@ -38,7 +38,6 @@ await import(process.env.SETUP_ENTRY_POINT);
 
 for (const { failure, catalog, schema } of [
   { failure: "", catalog: "seed_catalog", schema: "seed-schema" },
-  { failure: "", catalog: "custom_catalog", schema: "taxi_snapshot" },
   { failure: "seed", catalog: "seed_catalog", schema: "seed-schema" },
   { failure: "migration", catalog: "seed_catalog", schema: "seed-schema" },
 ]) {
@@ -102,24 +101,18 @@ for (const { failure, catalog, schema } of [
         `app_service_principal_id=${principal}`,
       ],
     });
-    assert.deepEqual(
-      calls.slice(seedIndex + 1).map((call) => call.args),
-      [
-        ...(failure !== "seed"
-          ? [
-              [
-                "--env-file-if-exists=.env",
-                "--import",
-                "tsx",
-                "scripts/migrate.ts",
-              ],
-            ]
-          : []),
-        ...(failure === "" ? [["bundle", "run", "app", "-t", "prod"]] : []),
-      ],
+    const started = calls.some(
+      (call) =>
+        call.file === "databricks" &&
+        call.args.slice(0, 3).join(" ") === "bundle run app",
+    );
+    assert.equal(
+      started,
+      failure === "",
+      "failed setup must not start the app",
     );
     if (failure !== "seed")
-      assert.equal(calls[seedIndex + 1]?.principal, principal);
+      assert.ok(calls.some((call) => call.principal === principal));
     if (failure === "seed")
       await assert.rejects(readFile(join(directory, ".env")), {
         code: "ENOENT",

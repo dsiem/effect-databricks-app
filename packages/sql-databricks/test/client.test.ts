@@ -708,7 +708,23 @@ test("rejects incompatible Arrow schemas across chunks", async (t) => {
 
 test("managed app storage proxy is explicitly scoped and never receives workspace credentials", async () => {
   const ipc = tableToIPC(fixture([1n, 2n], ["first", "second"]), "stream");
-  for (const enabled of [false, true]) {
+  for (const [enabled, externalLink, allowed] of [
+    [
+      false,
+      "http://storage-proxy.databricks.com/result?signature=signed-secret",
+      false,
+    ],
+    [
+      true,
+      "http://storage-proxy.databricks.com/result?signature=signed-secret",
+      true,
+    ],
+    [true, "http://storage-proxy.databricks.com.evil.example/result", false],
+    [true, "http://untrusted.example/result", false],
+    [true, "http://secret@storage-proxy.databricks.com/result", false],
+    [true, "http://storage-proxy.databricks.com:8080/result", false],
+    [true, "http://storage-proxy.databricks.com/result#secret", false],
+  ] as const) {
     let downloaded = false;
     const result = await Effect.runPromise(
       Effect.result(
@@ -723,10 +739,7 @@ test("managed app storage proxy is explicitly scoped and never receives workspac
               accessToken: Effect.succeed(Redacted.make(token)),
               allowDatabricksStorageProxy: enabled,
               fetch: async (input, init) => {
-                if (
-                  new URL(String(input)).hostname ===
-                  "storage-proxy.databricks.com"
-                ) {
+                if (new URL(String(input)).hostname !== "workspace.example") {
                   downloaded = true;
                   assert.equal(
                     new Headers(init?.headers).get("Authorization"),
@@ -744,8 +757,7 @@ test("managed app storage proxy is explicitly scoped and never receives workspac
                     external_links: [
                       {
                         chunk_index: 0,
-                        external_link:
-                          "http://storage-proxy.databricks.com/result?signature=signed-secret",
+                        external_link: externalLink,
                       },
                     ],
                   },
@@ -756,8 +768,8 @@ test("managed app storage proxy is explicitly scoped and never receives workspac
         ),
       ),
     );
-    assert.equal(downloaded, enabled);
-    assert.equal(result._tag, enabled ? "Success" : "Failure");
+    assert.equal(downloaded, allowed, externalLink);
+    assert.equal(result._tag, allowed ? "Success" : "Failure", externalLink);
     if (result._tag === "Success") assert.equal(result.success.numRows, 2);
     else assert.ok(!JSON.stringify(result.failure).includes("signed-secret"));
   }

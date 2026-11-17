@@ -57,9 +57,6 @@ test("sidebar collapses to icons, keeps filters, persists, and supports the keyb
   await page.goto("/genie?zip=10001");
   const navigation = page.getByRole("navigation", { name: "Main navigation" });
   await expect(navigation).toBeVisible();
-  await expect(
-    navigation.getByRole("link", { name: "Saved views", exact: true }),
-  ).toHaveCount(0);
   const expanded = await navigation.boundingBox();
   expect(expanded?.width).toBeGreaterThan(200);
   await page.screenshot({

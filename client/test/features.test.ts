@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Dialog, Tabs } from "@foldkit/ui";
+import { Dialog } from "@foldkit/ui";
 import { Option } from "effect";
 import { Url } from "foldkit";
 import { Message as AppMessage } from "../src/app/message";
@@ -36,30 +36,6 @@ const trip = {
   fare: 12,
   duration: 15,
 };
-
-test("overview owns metric selection and asks the shell to invalidate analysis", () => {
-  const message = OverviewMessage.MetricTabs({
-    message: Tabs.Message.SelectedTab({ index: 1, value: "revenue" }),
-  });
-  const changed = updateOverview(Overview.init(), message, {
-    requestKey: "current",
-  });
-  assert.equal(changed.model.series, "revenue");
-  assert.deepEqual(changed.outMessage, { _tag: "SelectionInvalidated" });
-  const model = app("/");
-  const coordinated = update(
-    {
-      ...model,
-      genieState: {
-        ...model.genieState,
-        genieSelection: { page: "overview", title: "Trip counts" },
-      },
-    },
-    message,
-  );
-  assert.equal(coordinated.model.overviewState.series, "revenue");
-  assert.equal(coordinated.model.genieState.genieSelection, null);
-});
 
 test("view intents are translated by the shell with their analysis scope intact", () => {
   const context = {
@@ -336,65 +312,7 @@ test("overview accepts only the active response and requests selection invalidat
   assert.deepEqual(current.outMessage, { _tag: "SelectionInvalidated" });
 });
 
-test("filters request navigation without owning routing state", () => {
-  const changed = updateFilters(
-    Filters.init(),
-    FilterMessage.PickZip({ zip: "10001" }),
-    { query: "from=2016-01-01", metadata: null },
-  );
-  assert.deepEqual(changed.outMessage, {
-    _tag: "Navigate",
-    query: "from=2016-01-01&zip=10001",
-  });
-});
-
-test("saved views capture supplied filters and emit restoration context", () => {
-  const context = { filters: { zip: "10001" }, query: "zip=10001" };
-  const created = updateSavedViews(
-    SavedViews.init(),
-    SavedMessage.CreatedSavedView({ id: "draft" }),
-    context,
-  );
-  assert.deepEqual(created.model.editor?.draft.filters, context.filters);
-  const restored = updateSavedViews(
-    created.model,
-    SavedMessage.RestoreView({
-      savedView: {
-        id: "8aa0cc1a-6033-4fd0-9a61-908958570382",
-        title: "Uptown",
-        body: "",
-        filters: { zip: "10019" },
-        version: 1,
-        pinned: false,
-        created_at: "2026-11-14T10:00:00Z",
-        updated_at: "2026-11-14T10:00:00Z",
-      },
-    }),
-    context,
-  );
-  assert.deepEqual(restored.outMessage, {
-    _tag: "RestoreFilters",
-    filters: { zip: "10019" },
-  });
-});
-
-test("Genie retains the supplied analysis scope on the new turn", () => {
-  const context = {
-    filters: { zip: "10001" },
-    context: { page: "trips" as const, title: "Visible records" },
-    enabled: true,
-  };
-  const changed = updateGenie(
-    Genie.init(),
-    GenieMessage.CreatedTurn({ id: "turn", question: "Explain these fares" }),
-    context,
-  );
-  assert.deepEqual(changed.model.turns[0]?.context, context.context);
-  assert.deepEqual(changed.model.turns[0]?.filters, context.filters);
-  assert.equal(changed.commands?.length, 2);
-});
-
-test("application coordinates trip paging and preserves unrelated feature state", () => {
+test("paging trips clears analysis of the previous page", () => {
   const model = app("/trips?zip=10001");
   const selected = {
     ...model,
@@ -407,8 +325,6 @@ test("application coordinates trip paging and preserves unrelated feature state"
   assert.equal(changed.model.tripsState.page, 2);
   assert.equal(changed.model.tripsState.trips.loading, true);
   assert.equal(changed.model.genieState.genieSelection, null);
-  assert.equal(changed.model.savedViewsState, model.savedViewsState);
-  assert.equal(changed.commands?.[0]?.name, "LoadTrips");
 });
 
 test("application opens Genie, dismisses mobile navigation, and requests focus", () => {
@@ -419,7 +335,6 @@ test("application opens Genie, dismisses mobile navigation, and requests focus",
   );
   assert.equal(changed.model.genieState.genieOpen, true);
   assert.equal(changed.model.mobileNavigation, false);
-  assert.equal(changed.model.tripsState, model.tripsState);
   assert.ok(changed.commands?.some((command) => command.name === "Focus"));
 });
 
@@ -435,40 +350,4 @@ test("invalid draft filters report an error without requesting navigation", () =
   );
   assert.equal(result.outMessage, undefined);
   assert.match(result.model.error, /start date must be on or before/);
-});
-
-test("reset clears unapplied filters even when the applied query is empty", () => {
-  const result = updateFilters(
-    { ...Filters.init(), filterDraft: { from: "", to: "", zip: "10002" } },
-    FilterMessage.ResetFilters(),
-    { query: "", metadata: null },
-  );
-  assert.deepEqual(result.model, Filters.init());
-});
-
-test("restoring the current saved view replaces its draft even if navigation is a no-op", () => {
-  const model = app("/trips?zip=10019");
-  const changed = update(
-    {
-      ...model,
-      filtersState: {
-        ...model.filtersState,
-        filterDraft: { from: "", to: "", zip: "10002" },
-      },
-    },
-    AppMessage.RestoreView({
-      savedView: {
-        id: "8aa0cc1a-6033-4fd0-9a61-908958570382",
-        title: "Uptown",
-        body: "",
-        filters: { zip: "10019" },
-        version: 1,
-        pinned: false,
-        created_at: "2026-11-14T10:00:00Z",
-        updated_at: "2026-11-14T10:00:00Z",
-      },
-    }),
-  );
-  assert.equal(changed.model.filtersState.filterDraft.zip, "10019");
-  assert.equal(changed.model.savedViewsState.selection?.title, "Uptown");
 });

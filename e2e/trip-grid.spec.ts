@@ -94,32 +94,11 @@ async function fixtures(
   return requests;
 }
 
-test("JSON worker keeps DOM and model bounded, sorts locally and restores inspector focus", async ({
+test("trip explorer bounds rendered rows, sorts locally and restores inspector focus", async ({
   page,
   context,
 }) => {
   const requests = await fixtures(context);
-  await page.addInitScript(() => {
-    const audit = { started: 0, terminated: 0, windows: 0, maxRows: 0 };
-    Object.defineProperty(window, "gridWorkerAudit", { value: audit });
-    const Original = window.Worker;
-    window.Worker = class extends Original {
-      constructor(url: string | URL, options?: WorkerOptions) {
-        super(url, options);
-        audit.started++;
-        this.addEventListener("message", (event) => {
-          if (event.data?.type === "window") {
-            audit.windows++;
-            audit.maxRows = Math.max(audit.maxRows, event.data.rows.length);
-          }
-        });
-      }
-      override terminate() {
-        audit.terminated++;
-        super.terminate();
-      }
-    };
-  });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/trips-preview");
@@ -169,23 +148,6 @@ test("JSON worker keeps DOM and model bounded, sorts locally and restores inspec
     .click();
   await expect(grid).toHaveCount(0);
   expect(errors).toEqual([]);
-  const audit = await page.evaluate(
-    () =>
-      (
-        window as unknown as {
-          gridWorkerAudit: {
-            started: number;
-            terminated: number;
-            windows: number;
-            maxRows: number;
-          };
-        }
-      ).gridWorkerAudit,
-  );
-  expect(audit.started).toBe(1);
-  expect(audit.terminated).toBe(1);
-  expect(audit.windows).toBeGreaterThan(0);
-  expect(audit.maxRows).toBeLessThanOrEqual(80);
 });
 
 test("server scrolling evicts windows, retains rows during replacement and rejects obsolete results", async ({

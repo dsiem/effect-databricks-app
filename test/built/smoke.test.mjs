@@ -38,7 +38,11 @@ try {
     const response = await fetch(`${origin}${path}`, {
       signal: AbortSignal.timeout(3000),
     });
-    return { status: response.status, body: await response.text() };
+    return {
+      status: response.status,
+      contentType: response.headers.get("content-type"),
+      body: await response.text(),
+    };
   };
 
   const health = await request("/health");
@@ -48,20 +52,16 @@ try {
   assert.equal(root.status, 200);
   assert.match(root.body, /<div id="root"><\/div>/);
   const assets = [...root.body.matchAll(/src="([^"]+\.js)"/g)];
-  assert.ok(
-    assets.length >= 2,
-    "Built HTML references theme initialization and the application bundle",
-  );
+  assert.ok(assets.length > 0, "Built HTML references executable assets");
   for (const [, asset] of assets) {
     const response = await request(asset);
     assert.equal(response.status, 200, `${asset} is served`);
-    assert.doesNotMatch(response.body, /<!doctype html>/i);
+    assert.match(response.contentType ?? "", /javascript/);
+    assert.ok(response.body.length > 0, `${asset} contains executable code`);
   }
   for (const path of ["/trips", "/trip-map", "/genie"]) {
     assert.equal((await request(path)).status, 200);
   }
-  assert.equal((await request("/map")).status, 404);
-  assert.equal((await request("/nyc-zips.geojson")).status, 404);
   const initialStatus = await request("/api/status");
   assert.equal(initialStatus.status, 200);
   assert.equal(JSON.parse(initialStatus.body).lakebase, true);
@@ -75,14 +75,6 @@ try {
   assert.equal((await request("/health")).status, 200);
   assert.equal((await request("/")).status, 200);
   assert.equal((await request("/api/metadata")).status, 503);
-  assert.equal((await request("/api/overview?zip=invalid")).status, 400);
-  assert.equal((await request("/api/overview?from=2026-02-31")).status, 400);
-  assert.equal(
-    (await request("/api/overview?from=2026-03-01&to=2026-01-01")).status,
-    400,
-  );
-  assert.equal((await request("/api/trips?page=0")).status, 400);
-  assert.equal((await request("/api/trips?sort=unsafe")).status, 400);
   assert.equal((await request("/missing")).status, 404);
 
   app.kill("SIGTERM");

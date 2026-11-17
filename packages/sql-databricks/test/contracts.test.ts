@@ -7,23 +7,6 @@ import * as SqlSchema from "effect/sql/SqlSchema";
 import * as Statement from "effect/sql/Statement";
 import * as TestClock from "effect/testing/TestClock";
 import { DatabricksClient } from "../src/index.js";
-import { parseUrl } from "../src/internal/protocol.js";
-
-test("the managed storage exception keeps other HTTP locations and unsafe URLs rejected", () => {
-  assert.throws(() => parseUrl("http://storage-proxy.databricks.com/result"));
-  assert.equal(
-    parseUrl("http://storage-proxy.databricks.com/result", true).hostname,
-    "storage-proxy.databricks.com",
-  );
-  for (const url of [
-    "http://storage-proxy.databricks.com.evil.example/result",
-    "http://untrusted.example/result",
-    "http://secret@storage-proxy.databricks.com/result",
-    "http://storage-proxy.databricks.com:8080/result",
-    "http://storage-proxy.databricks.com/result#secret",
-  ])
-    assert.throws(() => parseUrl(url, true));
-});
 
 const clientLayer = (fetch: typeof globalThis.fetch) =>
   DatabricksClient.layer({

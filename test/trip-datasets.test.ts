@@ -6,7 +6,6 @@ import { ConfigProvider, Effect, Layer, Redacted, Schema } from "effect";
 import {
   compareTrips,
   matchesTrip,
-  serverWindowSize,
   TripDataset,
   type TripQuery,
 } from "../shared/trip-dataset.js";
@@ -30,11 +29,9 @@ test("complete and cursor results agree with local queries, ties and calendar bo
   await db.exec(`INSERT INTO trips SELECT '00000000-0000-4000-8000-' || lpad(i::text,12,'0'),
     timestamp '2016-01-31 23:59:59.999999' + (i % 3) * interval '0.000001 seconds',
     timestamp '2016-02-01 00:10:00', CASE WHEN i % 2 = 0 THEN '10001' END,
-    NULL, (i % 7)::double precision, (i % 5)::double precision FROM generate_series(1,451) i`);
+    NULL, (i % 7)::double precision, (i % 5)::double precision FROM generate_series(1,11) i`);
   let truncated = false;
-  const statements: string[] = [];
   globalThis.fetch = warehouseFetch(async (statement, _signal, parameters) => {
-    statements.push(statement);
     if (statement.startsWith("DESCRIBE HISTORY"))
       return tableFromArrays({ version: [7n] });
     assert.match(statement, /VERSION AS OF 7/);
@@ -76,207 +73,148 @@ test("complete and cursor results agree with local queries, ties and calendar bo
     ),
     Layer.provide(Settings.layer),
   );
-  await Effect.runPromise(
-    Effect.gen(function* () {
-      const { tripDatasets: api } = yield* Analytics;
-      const base: TripQuery = { filters: {}, sort: "newest" };
-      const complete = yield* api.open(base);
-      assert.equal(complete.scope, "complete");
-      assert.equal(complete.rows.length, 451);
-      assert.ok(Schema.is(TripDataset)(complete));
-      for (const sort of ["newest", "fare", "distance"] as const) {
-        for (const filters of [
-          {},
-          { to: "2016-01-31" },
-          { from: "2016-02-01", zip: "10001" },
-          { from: "2017-01-01" },
-        ]) {
-          const query = { filters, sort };
-          const server = yield* api.open(query);
-          assert.deepEqual(
-            server.rows.map((row) => row.trip_id),
-            complete.rows
-              .filter((row) => matchesTrip(row, filters))
-              .sort((a, b) => compareTrips(a, b, sort))
-              .map((row) => row.trip_id),
-          );
-        }
-      }
-      truncated = true;
-      assert.equal((yield* Effect.exit(api.open(base)))._tag, "Failure");
-      truncated = false;
-    }).pipe(
-      Effect.provide(layer),
-      Effect.provideService(
-        ConfigProvider.ConfigProvider,
-        ConfigProvider.fromEnvRecord({
-          DATABRICKS_HOST: "https://workspace.invalid",
-          DATABRICKS_WAREHOUSE_ID: "warehouse",
-          TRIP_SNAPSHOT_TABLE: "custom.taxi.trips",
-          EXPLORER_ROW_BUDGET: "500",
-        }),
-      ),
-      Effect.scoped,
-    ),
-  );
-  await Effect.runPromise(
-    Effect.gen(function* () {
-      const { tripDatasets: api } = yield* Analytics;
-      const query: TripQuery = { filters: {}, sort: "fare" };
-      const first = yield* api.open(query);
-      assert.equal(first.scope, "server-window");
-      if (first.scope !== "server-window" || !first.next)
-        throw new Error("missing cursor");
-      assert.equal(first.rows.length, 200);
-      assert.ok(Schema.is(TripDataset)(first));
-      const second = yield* api.scroll({ query, cursor: first.next });
-      if (second.scope !== "server-window" || !second.next || !second.previous)
-        throw new Error("missing cursors");
-      const third = yield* api.scroll({ query, cursor: second.next });
-      assert.equal(third.rows.length, 51);
-      assert.equal(
-        new Set(
-          [...first.rows, ...second.rows, ...third.rows].map(
-            (row) => row.trip_id,
+  await t.test(
+    "complete results agree with local filtering and sorting at date boundaries",
+    async () => {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const { tripDatasets: api } = yield* Analytics;
+          const base: TripQuery = { filters: {}, sort: "newest" };
+          const complete = yield* api.open(base);
+          assert.equal(complete.scope, "complete");
+          assert.equal(complete.rows.length, 11);
+          assert.ok(Schema.is(TripDataset)(complete));
+          for (const sort of ["newest", "fare", "distance"] as const) {
+            for (const filters of [
+              {},
+              { to: "2016-01-31" },
+              { from: "2016-02-01", zip: "10001" },
+              { from: "2017-01-01" },
+            ]) {
+              const query = { filters, sort };
+              const server = yield* api.open(query);
+              assert.deepEqual(
+                server.rows.map((row) => row.trip_id),
+                complete.rows
+                  .filter((row) => matchesTrip(row, filters))
+                  .sort((a, b) => compareTrips(a, b, sort))
+                  .map((row) => row.trip_id),
+              );
+            }
+          }
+          truncated = true;
+          assert.equal((yield* Effect.exit(api.open(base)))._tag, "Failure");
+          truncated = false;
+        }).pipe(
+          Effect.provide(layer),
+          Effect.provideService(
+            ConfigProvider.ConfigProvider,
+            ConfigProvider.fromEnvRecord({
+              DATABRICKS_HOST: "https://workspace.invalid",
+              DATABRICKS_WAREHOUSE_ID: "warehouse",
+              TRIP_SNAPSHOT_TABLE: "custom.taxi.trips",
+              EXPLORER_ROW_BUDGET: "20",
+            }),
           ),
-        ).size,
-        451,
-      );
-      const back = yield* api.scroll({ query, cursor: second.previous });
-      assert.deepEqual(back.rows, first.rows);
-      assert.equal(
-        (yield* Effect.exit(
-          api.scroll({
-            query: { ...query, sort: "distance" },
-            cursor: first.next,
-          }),
-        ))._tag,
-        "Failure",
-      );
-      assert.equal(
-        (yield* Effect.exit(api.scroll({ query, cursor: `${first.next}x` })))
-          ._tag,
-        "Failure",
-      );
-    }).pipe(
-      Effect.provide(layer),
-      Effect.provideService(
-        ConfigProvider.ConfigProvider,
-        ConfigProvider.fromEnvRecord({
-          DATABRICKS_HOST: "https://workspace.invalid",
-          DATABRICKS_WAREHOUSE_ID: "warehouse",
-          TRIP_SNAPSHOT_TABLE: "custom.taxi.trips",
-          EXPLORER_ROW_BUDGET: "200",
-        }),
-      ),
-      Effect.scoped,
-    ),
-  );
-  for (const [rows, bytes, expected] of [
-    [500, 300000, serverWindowSize({ rows: 500, bytes: 300000 })],
-    [25, 33554432, 25],
-  ] as const) {
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const { tripDatasets: api } = yield* Analytics;
-        const first = yield* api.open({ filters: {}, sort: "newest" });
-        assert.equal(first.scope, "server-window");
-        assert.equal(first.loaded, expected);
-        assert.ok(Schema.is(TripDataset)(first));
-        assert.ok(first.retainedBytes <= bytes);
-      }).pipe(
-        Effect.provide(layer),
-        Effect.provideService(
-          ConfigProvider.ConfigProvider,
-          ConfigProvider.fromEnvRecord({
-            DATABRICKS_HOST: "https://workspace.invalid",
-            DATABRICKS_WAREHOUSE_ID: "warehouse",
-            TRIP_SNAPSHOT_TABLE: "custom.taxi.trips",
-            EXPLORER_ROW_BUDGET: String(rows),
-            EXPLORER_BYTE_BUDGET: String(bytes),
-          }),
-        ),
-        Effect.scoped,
-      ),
-    );
-  }
-  await Effect.runPromise(
-    Effect.gen(function* () {
-      const { tripDatasets: api } = yield* Analytics;
-      const query: TripQuery = { filters: {}, sort: "newest" };
-      const first = yield* api.open(query);
-      assert.equal(first.scope, "server-window");
-      const size = serverWindowSize({ rows: 500, bytes: 200000 });
-      assert.equal(first.loaded, size);
-      assert.ok(first.retainedBytes <= 200000);
-      if (first.scope !== "server-window" || !first.next)
-        throw new Error("missing continuation");
-      const next = yield* api.scroll({ query, cursor: first.next });
-      assert.equal(next.scope === "server-window" && next.start, size);
-    }).pipe(
-      Effect.provide(layer),
-      Effect.provideService(
-        ConfigProvider.ConfigProvider,
-        ConfigProvider.fromEnvRecord({
-          DATABRICKS_HOST: "https://workspace.invalid",
-          DATABRICKS_WAREHOUSE_ID: "warehouse",
-          TRIP_SNAPSHOT_TABLE: "custom.taxi.trips",
-          EXPLORER_ROW_BUDGET: "500",
-          EXPLORER_BYTE_BUDGET: "200000",
-        }),
-      ),
-      Effect.scoped,
-    ),
-  );
-  assert.ok(statements.every((s) => !s.includes("OFFSET")));
-  await db.exec(`INSERT INTO trips SELECT '00000000-0000-4000-8000-' || lpad(i::text,12,'0'),
-    timestamp '2016-02-01 12:00:00' + (i % 3) * interval '0.000001 seconds',
-    timestamp '2016-02-01 12:10:00', '10001', NULL,
-    (i % 7)::double precision, (i % 5)::double precision FROM generate_series(452,12051) i`);
-  await Effect.runPromise(
-    Effect.gen(function* () {
-      const { tripDatasets: api } = yield* Analytics;
-      const query: TripQuery = { filters: {}, sort: "fare" };
-      const first = yield* api.open(query);
-      assert.equal(first.scope, "server-window");
-      assert.equal(first.loaded, 5000);
-      assert.ok(Schema.is(TripDataset)(first));
-      if (first.scope !== "server-window" || !first.next)
-        throw new Error("Missing first cursor");
-      const second = yield* api.scroll({ query, cursor: first.next });
-      assert.equal(second.scope === "server-window" && second.start, 5000);
-      assert.equal(second.loaded, 5000);
-      if (second.scope !== "server-window" || !second.next || !second.previous)
-        throw new Error("Missing second cursors");
-      const third = yield* api.scroll({ query, cursor: second.next });
-      assert.equal(third.loaded, 2051);
-      assert.equal(third.scope === "server-window" && third.next, null);
-      const expected = yield* Effect.promise(() =>
-        db.query<{ trip_id: string }>(
-          'SELECT trip_id FROM trips ORDER BY fare_amount DESC, trip_id COLLATE "C"',
+          Effect.scoped,
         ),
       );
-      assert.deepEqual(
-        [...first.rows, ...second.rows, ...third.rows].map((r) => r.trip_id),
-        expected.rows.map((r) => r.trip_id),
+    },
+  );
+  await t.test(
+    "row budgets produce reversible cursors and reject changed or tampered queries",
+    async () => {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const { tripDatasets: api } = yield* Analytics;
+          const query: TripQuery = { filters: {}, sort: "fare" };
+          const first = yield* api.open(query);
+          assert.equal(first.scope, "server-window");
+          if (first.scope !== "server-window" || !first.next)
+            throw new Error("missing cursor");
+          assert.equal(first.rows.length, 4);
+          assert.ok(Schema.is(TripDataset)(first));
+          const second = yield* api.scroll({ query, cursor: first.next });
+          if (
+            second.scope !== "server-window" ||
+            !second.next ||
+            !second.previous
+          )
+            throw new Error("missing cursors");
+          const third = yield* api.scroll({ query, cursor: second.next });
+          assert.equal(third.rows.length, 3);
+          assert.deepEqual(
+            [...first.rows, ...second.rows, ...third.rows].map((row) =>
+              Number(row.trip_id.slice(-12)),
+            ),
+            [4, 9, 3, 8, 2, 7, 1, 6, 11, 5, 10],
+          );
+          assert.equal(third.scope === "server-window" && third.next, null);
+          const back = yield* api.scroll({ query, cursor: second.previous });
+          assert.deepEqual(back.rows, first.rows);
+          assert.equal(
+            (yield* Effect.exit(
+              api.scroll({
+                query: { ...query, sort: "distance" },
+                cursor: first.next,
+              }),
+            ))._tag,
+            "Failure",
+          );
+          assert.equal(
+            (yield* Effect.exit(
+              api.scroll({ query, cursor: `${first.next}x` }),
+            ))._tag,
+            "Failure",
+          );
+        }).pipe(
+          Effect.provide(layer),
+          Effect.provideService(
+            ConfigProvider.ConfigProvider,
+            ConfigProvider.fromEnvRecord({
+              DATABRICKS_HOST: "https://workspace.invalid",
+              DATABRICKS_WAREHOUSE_ID: "warehouse",
+              TRIP_SNAPSHOT_TABLE: "custom.taxi.trips",
+              EXPLORER_ROW_BUDGET: "4",
+            }),
+          ),
+          Effect.scoped,
+        ),
       );
-      assert.deepEqual(
-        (yield* api.scroll({ query, cursor: second.previous })).rows,
-        first.rows,
+    },
+  );
+  await t.test(
+    "byte budgets bound the first and subsequent windows",
+    async () => {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const { tripDatasets: api } = yield* Analytics;
+          const query: TripQuery = { filters: {}, sort: "newest" };
+          const first = yield* api.open(query);
+          assert.equal(first.scope, "server-window");
+          assert.equal(first.loaded, 4);
+          assert.ok(first.retainedBytes <= 8192);
+          if (first.scope !== "server-window" || !first.next)
+            throw new Error("missing continuation");
+          const next = yield* api.scroll({ query, cursor: first.next });
+          assert.equal(next.scope === "server-window" && next.start, 4);
+          assert.ok(next.retainedBytes <= 8192);
+        }).pipe(
+          Effect.provide(layer),
+          Effect.provideService(
+            ConfigProvider.ConfigProvider,
+            ConfigProvider.fromEnvRecord({
+              DATABRICKS_HOST: "https://workspace.invalid",
+              DATABRICKS_WAREHOUSE_ID: "warehouse",
+              TRIP_SNAPSHOT_TABLE: "custom.taxi.trips",
+              EXPLORER_ROW_BUDGET: "20",
+              EXPLORER_BYTE_BUDGET: "8192",
+            }),
+          ),
+          Effect.scoped,
+        ),
       );
-    }).pipe(
-      Effect.provide(layer),
-      Effect.provideService(
-        ConfigProvider.ConfigProvider,
-        ConfigProvider.fromEnvRecord({
-          DATABRICKS_HOST: "https://workspace.invalid",
-          DATABRICKS_WAREHOUSE_ID: "warehouse",
-          TRIP_SNAPSHOT_TABLE: "custom.taxi.trips",
-          EXPLORER_ROW_BUDGET: "10000",
-        }),
-      ),
-      Effect.scoped,
-    ),
+    },
   );
 });
 

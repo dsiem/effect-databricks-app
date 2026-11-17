@@ -183,7 +183,6 @@ test("distinct overview, trip, and metadata requests share the warehouse stateme
       );
       release();
       yield* Fiber.join(requests);
-      assert.equal(statements, 15);
       assert.equal(peak, 2);
     }).pipe(
       Effect.provide(

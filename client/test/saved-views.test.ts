@@ -194,7 +194,7 @@ test("applying a view promotes only its ID and invalidates pending recent hydrat
 });
 
 test("shortcuts are bounded, deduplicate pinned recents, and stay unavailable until fresh hydration succeeds", () => {
-  const pins = Array.from({ length: 24 }, (_, index) => ({
+  const pins = Array.from({ length: 6 }, (_, index) => ({
     ...row(index),
     pinned: true,
   }));

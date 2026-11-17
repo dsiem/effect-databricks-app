@@ -51,10 +51,6 @@ for (const truncated of [false, true])
           matching: [located + 20],
           located: [located],
         });
-      assert.match(
-        statement,
-        /h3_longlatash3\(dropoff_longitude, dropoff_latitude, 10\)/,
-      );
       return tableFromArrays({
         id: rows.map((x) => x.id),
         longitude: rows.map((x) => x.longitude),

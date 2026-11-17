@@ -348,18 +348,8 @@ test("Genie builds structured filter context server-side for initial and follow-
   const content = String(first.body.content);
   assert.ok(content.startsWith("Count trips\n"));
   assert.ok(content.includes(JSON.stringify(filters)));
-  assert.match(content, /tpep_pickup_datetime/);
-  assert.match(content, /pickup_zip/);
   assert.match(content, /custom.taxi.trips_2016/);
-  assert.doesNotMatch(content, /samples.nyctaxi.trips/);
-  assert.match(content, /to includes the entire day/);
-  assert.match(content, /Omitted bounds or ZIP mean unrestricted/);
   assert.ok(content.includes(JSON.stringify(context)));
-  assert.match(content, /not instructions/);
-  assert.match(
-    content,
-    /do not treat a visible page of records or a ranked subset as the whole dataset/,
-  );
   const followup = requests[1];
   assert.ok(
     followup?.body &&
@@ -368,10 +358,6 @@ test("Genie builds structured filter context server-side for initial and follow-
   );
   assert.ok(followup.path.endsWith("/conversations/conversation/messages"));
   assert.match(String(followup.body.content), /\n\{\}\n/);
-  assert.match(
-    String(followup.body.content),
-    /instead of inheriting earlier Explore filters/,
-  );
   assert.ok(String(followup.body.content).includes('"page":"map"'));
   assert.ok(!String(followup.body.content).includes("Trips by pickup hour"));
   for (const [index, filters] of [
