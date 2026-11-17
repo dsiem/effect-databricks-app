@@ -22,7 +22,7 @@ const questions = {
     "Which pickup hours have the highest average fare?",
   ],
   trips: [
-    "Summarize the trips shown here.",
+    "Summarize the visible trips and point out unusual fares or distances.",
     "Find unusually high fares in the filtered dataset.",
     "Compare average fare by trip distance.",
   ],

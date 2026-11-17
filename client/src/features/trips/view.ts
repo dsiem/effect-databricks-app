@@ -1,7 +1,6 @@
 import { Select } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineView } from "foldkit/submodel";
-import { ask } from "../../domain/analysis";
 import { money, number } from "../../lib/format";
 import { icon } from "../../ui/icons";
 import {
@@ -26,13 +25,6 @@ function trips(h: H, model: Model): Child[] {
     "Trip records",
     "Explore individual trips. Open a record to inspect its details and discuss it with your team.",
     [
-      ask(
-        h,
-        (context, question) => M.Analyze({ context, question }),
-        "Ask Genie about these trips",
-        null,
-        "Summarize the visible trips and point out unusual fares or distances.",
-      ),
       button(h, {
         label: "Export loaded page subset",
         onClick: M.ExportTrips(),

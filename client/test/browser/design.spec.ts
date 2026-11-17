@@ -249,7 +249,22 @@ for (const colorScheme of ["light", "dark"] as const) {
       });
       await expect(table.getByRole("row")).toHaveCount(9);
       await fitsViewport(page);
+      await expect(
+        page.getByRole("button", { name: /^Ask Genie/ }),
+      ).toHaveCount(1);
       await capture(page, info, "trips");
+      await page
+        .getByRole("button", { name: "Ask Genie", exact: true })
+        .click();
+      await expect(
+        helper.getByRole("button", {
+          name: "Summarize the visible trips and point out unusual fares or distances.",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await helper
+        .getByRole("button", { name: "Close Genie", exact: true })
+        .click();
       await table
         .getByRole("button", { name: /^Details and comments for trip/ })
         .first()

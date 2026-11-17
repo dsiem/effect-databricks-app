@@ -115,7 +115,9 @@ export const title = <Message>(
         [],
         [h.h1([], [text]), h.p([h.Class("muted mt-2")], [description])],
       ),
-      h.div([h.Class("flex flex-wrap gap-2")], actions),
+      ...(actions.length
+        ? [h.div([h.Class("flex flex-wrap gap-2")], actions)]
+        : []),
     ],
   );
 export const loading = <Message>(h: H<Message>, text = "Loading…") =>

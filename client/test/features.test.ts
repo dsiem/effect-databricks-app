@@ -15,13 +15,13 @@ import { presentGenie, updateGenie } from "../src/features/genie/update";
 import { Message as OverviewMessage } from "../src/features/overview/messages";
 import * as Overview from "../src/features/overview/model";
 import { updateOverview } from "../src/features/overview/update";
+import { Message as OverviewViewMessage } from "../src/features/overview/view-messages";
 import { Message as SavedMessage } from "../src/features/saved-views/messages";
 import * as SavedViews from "../src/features/saved-views/model";
 import { updateSavedViews } from "../src/features/saved-views/update";
 import { Message as TripMessage } from "../src/features/trips/messages";
 import * as Trips from "../src/features/trips/model";
 import { updateTrips } from "../src/features/trips/update";
-import { Message as TripViewMessage } from "../src/features/trips/view-messages";
 
 const app = (path: string) =>
   init(Option.getOrThrow(Url.fromString(`http://localhost${path}`))).model;
@@ -55,14 +55,14 @@ const trip = {
 
 test("view intents are translated by the shell with their analysis scope intact", () => {
   const context = {
-    page: "trips" as const,
-    title: "Selected trips",
+    page: "overview" as const,
+    title: "Trips by pickup date",
     data: "[]",
   };
   const changed = update(
-    app("/trips"),
+    app("/"),
     exploreMessage(
-      TripViewMessage.Analyze({ context, question: "Explain these fares" }),
+      OverviewViewMessage.Analyze({ context, question: "Explain these fares" }),
     ),
   );
   assert.equal(changed.model.genieState.genieOpen, true);
