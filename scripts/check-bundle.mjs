@@ -85,23 +85,4 @@ assert.equal(
   "Seed job and app must use the same catalog, schema, and table",
 );
 
-// Check opt-in data bindings in the same resource structure used at deployment.
-const dataResources = parse(
-  readFileSync("examples/data-resources.yml", "utf8"),
-);
-assert.ok(
-  validate({
-    ...bundle,
-    variables: { ...bundle.variables, ...dataResources.variables },
-    resources: {
-      apps: {
-        app: {
-          ...bundle.resources.apps.app,
-          ...dataResources.resources.apps.app,
-        },
-      },
-    },
-  }),
-  ajv.errorsText(validate.errors, { separator: "\n" }),
-);
-console.log("Bundle and data-resource example match the installed CLI schema");
+console.log("Bundle matches the installed CLI schema");

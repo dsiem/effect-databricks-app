@@ -5,6 +5,12 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 
+test("application sources respect architecture boundaries", () => {
+  execFileSync(process.execPath, [resolve("test/architecture-check.mjs")], {
+    stdio: "pipe",
+  });
+});
+
 for (const [name, file, source, allowed] of [
   [
     "shared contracts use saved-view vocabulary",
@@ -208,7 +214,7 @@ for (const [name, file, source, allowed] of [
       const run = () =>
         execFileSync(
           process.execPath,
-          [resolve("scripts/check-architecture.mjs"), root],
+          [resolve("test/architecture-check.mjs"), root],
           { stdio: "pipe" },
         );
       if (allowed) assert.doesNotThrow(run);

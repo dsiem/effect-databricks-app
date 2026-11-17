@@ -44,13 +44,9 @@ npm run test:trip-grid
 npm run check
 # Existing surrounding explorer and inspector behavior:
 npx playwright test --config playwright.architecture.config.ts foldkit.spec.ts trip-comments.spec.ts filter-workflow.spec.ts filter-validation.spec.ts --workers=1
-# Optional bounded read-only check against the configured warehouse:
-EXPLORER_ROW_BUDGET=200 npm run data:check:trip-grid
 ```
 
 The focused checks cover SQL/local agreement with ties, null ZIPs, empty results and microsecond date boundaries; row and byte fallback; incomplete-response rejection; signed bidirectional continuations; generated HTTP-client contracts; JSON model preservation; bounded worker messages and DOM rows; deep-scroll eviction; stale queries; keyboard inspection and focus return; narrow screens with enlarged text; worker restart and disposal.
-
-The live check has also passed against the configured snapshot: a 17,433-match query loaded a 200-row server window, traversed forward and back, fetched snapshot-consistent inspector details, and returned a complete empty result for a future date filter.
 
 Device and browser measurements, assistive-technology validation, and rollout remain open. The production `/trips` route is retained until those release checks are complete. The Arrow experiments and their research are preserved on the `experiments/arrow` branch.
 

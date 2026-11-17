@@ -133,8 +133,12 @@ npm run test:filters
 ```
 
 For UI changes, run `npm run test:ui` and inspect its screenshots in `test-results/`.
-For live data changes, run `npm run data:check` and `npm run data:check:gps`.
-For comment changes, run `npm run data:check:comments`.
+After deployment, run `node scripts/check-deployed.mjs dev` to verify the hosted
+SQL, maps, saved views, and Genie APIs.
+
+`npm test` includes source, architecture, and documentation checks. After building,
+`npm run test:dist` checks app startup and the packed SQL adapter. `npm run check`
+runs both suites in order.
 
 ## Deploy from GitHub Actions
 

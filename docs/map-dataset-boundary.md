@@ -19,8 +19,6 @@ Before retaining a dataset, the browser checks unique cell identities and applie
 ```sh
 npm run check
 npx playwright test --config playwright.architecture.config.ts gps-map.spec.ts foldkit.spec.ts explore-context.spec.ts --workers=1
-# Read-only checks against the configured warehouse:
-npm run data:check:gps
 ```
 
 Resource tests cover picking, bounded summaries, disposal, duplicate identities, and row budgets. Browser scenarios cover filters, endpoint changes, cancellation, retry, unmounting, tooltips, keyboard selection, themes, and narrow screens.
