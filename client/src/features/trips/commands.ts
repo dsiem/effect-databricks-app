@@ -2,10 +2,8 @@ import { Effect, Schema } from "effect";
 import { Command } from "foldkit";
 import * as D from "../../../../shared/domain";
 import { request } from "../../lib/api-client";
-import { done, result } from "../../lib/command-result";
-import { Idle } from "../../lib/idle";
+import { result } from "../../lib/command-result";
 import { randomUuid } from "../../lib/uuid";
-import { downloadCsv, tripCsv } from "./export";
 import { Message as M } from "./messages";
 export const LoadTrips = Command.define("LoadTrips", {
   args: {
@@ -68,15 +66,5 @@ export const PostComment = Command.define("PostComment", {
   execute: ({ input }) =>
     result(request((client) => client.addTripComment({ payload: input }))).pipe(
       Effect.map(({ error }) => M.PostedComment({ input, error })),
-    ),
-});
-export const ExportTrips = Command.define("ExportTrips", {
-  args: { rows: Schema.Array(D.Trip), page: Schema.Number },
-  messages: [Idle],
-  execute: ({ rows, page }) =>
-    done(
-      Effect.sync(() => {
-        downloadCsv(tripCsv(rows), `taxi-trips-loaded-page-${page}.csv`);
-      }),
     ),
 });

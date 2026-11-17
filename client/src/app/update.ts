@@ -281,7 +281,6 @@ function updateApplication(
     case "InspectorDialog":
     case "SetPage":
     case "SortTrips":
-    case "ExportTrips":
     case "LoadedTrips":
     case "InspectTrip":
     case "InspectComments":

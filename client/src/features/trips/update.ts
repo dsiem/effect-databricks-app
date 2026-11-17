@@ -111,18 +111,6 @@ function updateTripsState(
         model: { ...model, page: 1, sort: message.sort },
         outMessage: { _tag: "Reload" },
       };
-    case "ExportTrips":
-      return {
-        model,
-        commands: model.trips.data
-          ? [
-              TripsCommands.ExportTrips({
-                rows: model.trips.data.rows,
-                page: model.page,
-              }),
-            ]
-          : [],
-      };
     case "InspectTrip":
     case "InspectComments":
       return comments({

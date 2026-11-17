@@ -2,7 +2,7 @@ resources:
   genie_spaces:
     taxi:
       title: ${var.app_name} NYC taxi analyst
-      description: Historical NYC taxi analytics with source-grounded SQL.
+      description: NYC yellow taxi trips in January and February 2016.
       warehouse_id: ${resources.sql_warehouses.analytics.id}
       serialized_space: |
         {
@@ -34,7 +34,7 @@ resources:
               {
                 "identifier": "${var.data_catalog}.${var.data_schema}.trip_quality_2016",
                 "description": [
-                  "Full-source monthly ingestion counts: raw, accepted, rejected and accepted trips missing GPS. These file-level counts do not support arbitrary date/ZIP filters."
+                  "Ingestion counts for each source file, independent of the app's date and ZIP filters."
                 ]
               },
               {
@@ -47,7 +47,7 @@ resources:
               {
                 "id": "01f1df70000000000000000000000004",
                 "content": [
-                  "Use the configured trips_2016 table: full January-February 2016 NYC yellow taxi source files, with invalid trip records excluded from analytics. Each row is a trip with a persisted trip_id; source_file provides lineage. All 19 original fields are retained. tpep_pickup_datetime and tpep_dropoff_datetime are local New York wall-clock times stored as TIMESTAMP_NTZ, not UTC instants. fare_amount is USD excluding tips and tolls; SUM(fare_amount) is fare revenue. total_amount includes the recorded fare, taxes, tips, tolls and surcharges; cash tips are absent from tip_amount and total_amount. trip_distance is miles. Passenger counts are driver-reported; payment_type: 1 credit card, 2 cash, 3 no charge, 4 dispute, 5 unknown, 6 voided. VendorID identifies the technology provider, not the driver or taxi. RatecodeID is the rate type. GPS coordinates are recorded endpoints, not a driven route. Only use pickup/dropoff coordinates for maps when the corresponding pickup_coordinates_valid/dropoff_coordinates_valid flag is true. These flags use a broad NYC-region box: longitude [-75,-72], latitude [40,42]. ZIP codes are derived by point-in-polygon against the pinned Census 2020 ZCTA geometry distributed by NYC, not recorded postal addresses or historical 2016 boundaries. Unknown ZIPs remain NULL, including trips outside the boundary coverage. Trips with missing GPS are retained if other trip fields pass validation. Accepted trips have pickup in Jan-Feb 2016, positive distance and fare, and duration greater than zero and no more than 24 hours; all source records remain in the engineering table trips_2016_raw. The attached trip_quality_2016 view provides full-file quality counts. State its full-source scope explicitly; those counts cannot be narrowed to arbitrary date or ZIP filters. Do not assume current dates. User to dates are inclusive; duration minutes is timestampdiff(SECOND,tpep_pickup_datetime,tpep_dropoff_datetime)/60.0. Do not invent identities, ratings, explanations or routes. Read-only analytics only. The trip map groups matching trips into H3 resolution-10 cells for the selected pickup or dropoff endpoint, requiring its corresponding coordinates_valid flag. Area IDs use h3_h3tostring(h3_longlatash3(endpoint_longitude,endpoint_latitude,10)). When analyzing a selected GPS area, restrict further queries to its cell ID, endpoint and current pickup date/ZIP filters. The area center is derived from the cell, not an individual recorded endpoint. Use the supplied located, shown and matching trip counts to explain coverage and any truncation."
+                  "Use trips_2016 for read-only analysis of accepted NYC taxi trips in January and February 2016. Pickup and drop-off timestamps are in New York local time. Filter on pickup time and include the entire end date. Trip distance is in miles. Sum fare_amount for USD fare revenue. total_amount includes fees, tolls, and recorded tips. Cash tips are absent from the data. ZIP codes come from 2020 Census ZCTA boundaries. For a selected map area, apply the active pickup date and ZIP filters and use the selected pickup or drop-off coordinates and their validity flag. Match the area ID with h3_h3tostring(h3_longlatash3(longitude, latitude, 10)). Use the matching, located, and shown counts to describe the map's coverage."
                 ]
               }
             ]

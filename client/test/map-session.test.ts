@@ -10,19 +10,7 @@ import { dataKey } from "../src/features/gps/model";
 import { gpsFixture } from "./gps-fixture";
 
 const query: MapQuery = { query: "zip=10001", endpoint: "pickup", revision: 0 };
-const resource = () => {
-  const data = jsonMap(gpsFixture());
-  const release = data.release.bind(data);
-  let releases = 0;
-  data.release = () => {
-    releases++;
-    release();
-  };
-  return {
-    data,
-    releases: () => releases,
-  };
-};
+const resource = () => jsonMap(gpsFixture());
 const deferred = <A>() => {
   let resolve: ((value: A) => void) | undefined;
   let reject: ((error: unknown) => void) | undefined;
@@ -63,7 +51,7 @@ const loader = () => {
   };
 };
 
-test("map session deduplicates identity and replaces data after synchronous drawing", async () => {
+test("map session deduplicates requests and makes new data available before notifying", async () => {
   const loads = loader();
   const events: MapSessionEvent[] = [];
   const first = resource();
@@ -72,46 +60,39 @@ test("map session deduplicates identity and replaces data after synchronous draw
     load: loads.load,
     notify: (event) => {
       events.push(event);
-      if (events.length === 2) {
-        assert.equal(session.current(), next.data);
-        assert.equal(first.releases(), 0);
-      }
+      if (events.length === 2) assert.equal(session.current(), next);
     },
   });
   const initial = session.replace(query);
   await session.replace({ ...query });
   assert.equal(loads.requests.length, 1);
-  loads.at(0).result.resolve(first.data);
+  loads.at(0).result.resolve(first);
   await initial;
-  assert.equal(session.current(), first.data);
+  assert.equal(session.current(), first);
   await session.replace(query);
   assert.equal(loads.requests.length, 1);
 
   const replacement = session.replace({ ...query, revision: 1 });
   assert.equal(loads.at(0).signal.aborted, true);
-  assert.equal(session.current(), first.data);
-  assert.equal(first.releases(), 0);
-  loads.at(1).result.resolve(next.data);
+  assert.equal(session.current(), first);
+  loads.at(1).result.resolve(next);
   await replacement;
-  assert.equal(first.releases(), 1);
-  assert.equal(first.data.rows.length, 0);
   assert.deepEqual(events, [
     {
       _tag: "Loaded",
       key: dataKey(query.query, query.endpoint, 0),
-      data: first.data.summary,
+      data: first.summary,
     },
     {
       _tag: "Loaded",
       key: dataKey(query.query, query.endpoint, 1),
-      data: next.data.summary,
+      data: next.summary,
     },
   ]);
   session.dispose();
-  assert.equal(next.releases(), 1);
 });
 
-test("map session releases obsolete results even when the loader ignores abort", async () => {
+test("map session ignores obsolete results even when the loader ignores abort", async () => {
   const loads = loader();
   const events: MapSessionEvent[] = [];
   const session = createMapSession({
@@ -124,14 +105,12 @@ test("map session releases obsolete results even when the loader ignores abort",
   assert.equal(loads.at(0).signal.aborted, true);
   assert.equal(loads.at(1).signal.aborted, true);
   const current = resource();
-  loads.at(2).result.resolve(current.data);
+  loads.at(2).result.resolve(current);
   await retry;
-  const stale = resource();
-  loads.at(0).result.resolve(stale.data);
+  loads.at(0).result.resolve(resource());
   loads.at(1).result.reject(new Error("obsolete failure"));
   await Promise.all([original, changed]);
-  assert.equal(stale.releases(), 1);
-  assert.equal(session.current(), current.data);
+  assert.equal(session.current(), current);
   assert.equal(events.length, 1);
   assert.equal(events[0]?.key, dataKey(query.query, query.endpoint, 1));
   session.dispose();
@@ -146,15 +125,14 @@ test("a failed map replacement keeps the visible dataset until a revision retrie
   });
   const initial = session.replace(query);
   const first = resource();
-  loads.at(0).result.resolve(first.data);
+  loads.at(0).result.resolve(first);
   await initial;
   const input = { ...query, query: "zip=10019" };
   const replacement = session.replace(input);
   const error = new Error("offline");
   loads.at(1).result.reject(error);
   await replacement;
-  assert.equal(session.current(), first.data);
-  assert.equal(first.releases(), 0);
+  assert.equal(session.current(), first);
   assert.deepEqual(events[1], {
     _tag: "Failed",
     key: dataKey(input.query, input.endpoint),
@@ -162,14 +140,13 @@ test("a failed map replacement keeps the visible dataset until a revision retrie
   });
   const retried = session.replace({ ...input, revision: 1 });
   const next = resource();
-  loads.at(2).result.resolve(next.data);
+  loads.at(2).result.resolve(next);
   await retried;
-  assert.equal(session.current(), next.data);
-  assert.equal(first.releases(), 1);
+  assert.equal(session.current(), next);
   session.dispose();
 });
 
-test("map disposal aborts loading, releases once, and suppresses late publication", async () => {
+test("map disposal aborts loading and suppresses late publication", async () => {
   const loads = loader();
   const events: MapSessionEvent[] = [];
   const session = createMapSession({
@@ -177,25 +154,21 @@ test("map disposal aborts loading, releases once, and suppresses late publicatio
     notify: (event) => events.push(event),
   });
   const initial = session.replace(query);
-  const first = resource();
-  loads.at(0).result.resolve(first.data);
+  loads.at(0).result.resolve(resource());
   await initial;
   const pending = session.replace({ ...query, revision: 1 });
   session.dispose();
   session.dispose();
   assert.equal(session.current(), undefined);
-  assert.equal(first.releases(), 1);
   assert.equal(loads.at(1).signal.aborted, true);
-  const late = resource();
-  loads.at(1).result.resolve(late.data);
+  loads.at(1).result.resolve(resource());
   await pending;
-  assert.equal(late.releases(), 1);
   assert.equal(events.length, 1);
   await session.replace({ ...query, revision: 2 });
   assert.equal(loads.requests.length, 2);
 });
 
-test("a drawing exception releases previous map data without reporting a load failure", async () => {
+test("a drawing exception reaches the caller without reporting a load failure", async () => {
   const loads = loader();
   const events: MapSessionEvent[] = [];
   const drawError = new Error("WebGL unavailable");
@@ -207,16 +180,13 @@ test("a drawing exception releases previous map data without reporting a load fa
     },
   });
   const initial = session.replace(query);
-  const first = resource();
-  loads.at(0).result.resolve(first.data);
+  loads.at(0).result.resolve(resource());
   await initial;
   const replacement = session.replace({ ...query, revision: 1 });
   const next = resource();
-  loads.at(1).result.resolve(next.data);
+  loads.at(1).result.resolve(next);
   await assert.rejects(replacement, drawError);
-  assert.equal(first.releases(), 1);
-  assert.equal(session.current(), next.data);
+  assert.equal(session.current(), next);
   assert.ok(events.every((event) => event._tag === "Loaded"));
   session.dispose();
-  assert.equal(next.releases(), 1);
 });

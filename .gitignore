@@ -5,6 +5,7 @@ coverage/
 .env.*
 !.env.example
 .databricks/
+.audit/
 .DS_Store
 *.log
 *.tsbuildinfo

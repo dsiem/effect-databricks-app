@@ -105,6 +105,7 @@ export const GpsCell = Schema.Struct({
   zip: Schema.NullOr(Zip),
 });
 export type GpsCell = typeof GpsCell.Type;
+export const mapCellLimit = 100_000;
 export const TripMap = Schema.Struct({
   endpoint: GpsEndpoint,
   matchingTrips: Schema.Number,
@@ -112,7 +113,7 @@ export const TripMap = Schema.Struct({
   shownTrips: Schema.Number,
   totalCells: Schema.Number,
   truncated: Schema.Boolean,
-  cells: Schema.Array(GpsCell),
+  cells: Schema.Array(GpsCell).check(Schema.isMaxLength(mapCellLimit)),
   queriedAt: Schema.String,
 });
 export type TripMap = typeof TripMap.Type;

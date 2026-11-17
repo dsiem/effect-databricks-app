@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
 const overview = {
@@ -47,7 +46,7 @@ const trip = {
   },
 };
 
-test("overview charts, navigation, paging, CSV download, and browser history work through the runtime", async ({
+test("overview charts, navigation, paging, and browser history work through the runtime", async ({
   page,
 }) => {
   await page.route("**/api/overview**", (route) =>
@@ -96,17 +95,7 @@ test("overview charts, navigation, paging, CSV download, and browser history wor
     fullPage: true,
     animations: "disabled",
   });
-  const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export loaded page subset" }).click();
-  const csv = await download;
-  expect(csv.suggestedFilename()).toBe("taxi-trips-loaded-page-1.csv");
-  const path = await csv.path();
-  expect(path).not.toBeNull();
-  const text = await readFile(path ?? "", "utf8");
-  expect(text.split("\r\n")).toEqual([
-    "trip_id,pickup_at,dropoff_at,pickup_zip,dropoff_zip,distance,fare,duration,source_file,vendor_id,passenger_count,rate_code_id,store_and_fwd_flag,payment_type,pickup_longitude,pickup_latitude,dropoff_longitude,dropoff_latitude,tip_amount,tolls_amount,extra,mta_tax,improvement_surcharge,total_amount",
-    '"stable-trip","2016-01-01 10:00:00","2016-01-01 10:15:00","10001","10019","3","12","15","yellow_tripdata_2016-01.csv.gz","2","1","1","N","2","-73.99","40.75","-73.98","40.76","0","2.5","0.5","0.5","0.3","15.8"',
-  ]);
+  await expect(page.getByRole("button", { name: /Export/ })).toHaveCount(0);
   await page.getByRole("button", { name: "Next page" }).click();
   await expect(page.getByText("Page 2", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Next page" })).toBeDisabled();

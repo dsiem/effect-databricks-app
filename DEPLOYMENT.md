@@ -1,160 +1,121 @@
-# Deploy and adapt the app
+# Deploy the Databricks app
 
-Deployment uses a Databricks bundle. [databricks.yml](databricks.yml) defines the
-bundle settings, variables, and targets, and includes the app and service
-configuration in [resources](resources). The Databricks CLI reads these files to
-create or update the resources together.
-
-Run commands from the repository root. Use the Node version in [.nvmrc](.nvmrc),
-npm 10, and Databricks CLI `>=1.26.0 <2.0.0`.
+Use the Node version in [.nvmrc](.nvmrc), npm 10, and Databricks CLI 1.26 or
+later in the 1.x series. Start in the repository root.
 
 Use a workspace with Databricks Apps, SQL, Genie, Lakebase Autoscaling, and the
-sample files named in [the ingestion job](jobs/seed-trip-snapshot.sql).
-Your deployment identity needs permission to create or manage those resources,
-create a schema in the selected catalog, and grant the app access.
-For an existing Lakebase project, obtain
-[`CAN MANAGE`](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/lakebase).
-Use a PostgreSQL role that can run the application migration and grant table access.
+NYC taxi sample files. Your deployment identity needs permission to manage the
+bundle resources, create a schema in the selected catalog, and grant access to
+the app. The Lakebase migration needs a PostgreSQL role that can create tables
+and grant access. [Lakebase permissions](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/lakebase)
 
-## Deploy a target
+## Deploy the example
 
-1. Install dependencies and sign in to your workspace:
+1. Install dependencies and sign in to your workspace.
 
    ```sh
-   	nvm install
-   	nvm use
-   	npm ci
-   	databricks auth login --host https://YOUR-WORKSPACE.cloud.databricks.com
+   nvm install
+   nvm use
+   npm ci
+   databricks auth login --host https://YOUR-WORKSPACE.cloud.databricks.com
    ```
 
-2. Create `.databricks/bundle/dev/variable-overrides.json` with your resource names:
+   If you use a named profile, set `DATABRICKS_CONFIG_PROFILE` in your shell
+   for the bundle commands.
+
+2. Review the bundle plan. The `dev` target defaults to the `workspace` catalog
+   and uses `metrocab-dev` for both the app and the schema. Set overrides first
+   if your workspace needs [different names](#choose-resource-names) or uses an
+   [existing app or warehouse](#use-an-existing-app-or-warehouse).
 
    ```sh
-   	mkdir -p .databricks/bundle/dev
+   databricks bundle validate --strict -t dev
+   databricks bundle plan -t dev
    ```
 
-   ```json
-   {
-     "app_name": "your-app-dev",
-     "data_name": "your-data-dev",
-     "data_catalog": "workspace"
-   }
-   ```
-
-   Use an existing catalog in `data_catalog`. To choose a different schema, add
-   `data_schema`. Its default is `data_name`. Keep these values for subsequent runs.
-   The file is ignored by Git.
-
-3. If you reuse resources, bind them before deployment:
-   - For an existing warehouse, add `warehouse_name` with its exact display name
-     to the overrides. Match its settings in `resources.sql_warehouses.analytics`
-     in [resources/warehouse.yml](resources/warehouse.yml). Then bind its ID:
-
-     ```sh
-     	databricks bundle deployment bind analytics EXISTING_WAREHOUSE_ID -t dev
-     ```
-
-   - For an existing app, set `app_name` to its name. Then bind that name:
-
-     ```sh
-     	databricks bundle deployment bind app your-app-dev -t dev
-     ```
-
-   If your workspace cannot create another warehouse, use its existing warehouse.
-   Binding makes the bundle manage the resource. Deployment applies the declared
-   settings, and `bundle destroy` can delete adopted resources. See
-   [resource binding](https://docs.databricks.com/aws/en/dev-tools/cli/bundle-commands#databricks-bundle-deployment-bind).
-
-4. Validate the configuration and review the plan:
+3. Deploy the bundle, seed the taxi data, and migrate Lakebase.
 
    ```sh
-   	databricks bundle validate --strict -t dev
-   	databricks bundle plan -t dev
+   npm run workspace:setup -- dev
    ```
 
-   For a warehouse with locked settings, resolve every planned warehouse change
-   before deployment.
-
-5. Deploy the resources, prepare the data, migrate Lakebase, and start the app:
-
-   ```sh
-   	npm run workspace:setup -- dev
-   ```
-
-   Use the URL printed after `Metrocab deployed:`. Setup also fills the local `.env`.
-   Rerun the same command to update the app while preserving existing snapshot IDs.
-
-6. Wait for **RUNNING** in the Databricks Apps page. Then verify the hosted app:
-
-   ```sh
-   	node scripts/check-deployed.mjs dev
-   ```
-
-   Expect `Deployed app verified:`. The check covers SQL, maps, a temporary saved
-   view, and Genie through the app's identity.
-
-For production, use `prod` in commands and the override path. Use distinct app and
-data names for each target.
+   Setup starts the app, prints its URL, and writes the connection settings to
+   `.env`. Open the URL once the Databricks Apps page shows **Running**. Rerun
+   setup to update the app and reuse the existing trip snapshot.
 
 ## Develop locally
-
-After setup, start the frontend and API:
 
 ```sh
 npm run dev
 ```
 
-Open the frontend URL printed in the console. Use your CLI login for data access.
-To select a named profile, set `DATABRICKS_CONFIG_PROFILE` in `.env`.
-Keep `.env` out of Git.
+Open the frontend URL printed in the terminal. The local API uses your
+Databricks CLI login. Set `DATABRICKS_CONFIG_PROFILE` in `.env` if you use a
+named profile. Run `npm run db:migrate` after changing the Lakebase schema.
 
-## Adapt the example
+## Verify the app
 
-1. Replace the source and cleaning rules in [the ingestion job](jobs/seed-trip-snapshot.sql).
-2. Update [the shared domain](shared/domain.ts), [HTTP contract](shared/api.ts),
-   and [analytics queries](server/src/analytics.ts) for your dataset.
-3. Update the Genie tables and instructions in [resources/genie.yml](resources/genie.yml).
-4. Replace the taxi controls and views in [client/src/features](client/src/features).
-5. Add the authorization your records require at the HTTP boundary in [server/src/routes.ts](server/src/routes.ts).
-
-Use [client/src/ui/styles.css](client/src/ui/styles.css) to reuse the visual
-helpers. Change the palette and semantic tokens in
-[client/src/ui/theme.css](client/src/ui/theme.css).
-
-## Check a change
-
-Run `npm run format` to format with Oxfmt and `npm run lint` for Oxlint
-with type-aware rules. Use `npm run lint:fix` for automatic lint fixes.
-
-Run the local checks, then the browser suites:
+Run the build and local tests, then exercise the UI against mocked API responses.
 
 ```sh
 npm run check
 npx playwright install chromium webkit
 npm run test:browser
-npm run test:filters
 ```
 
-For UI changes, run `npm run test:ui` and inspect its screenshots in `test-results/`.
-After deployment, run `node scripts/check-deployed.mjs dev` to verify the hosted
-SQL, maps, saved views, and Genie APIs.
+After deployment, check the hosted app's SQL, maps, Lakebase, and Genie
+connections. This creates and deletes a temporary saved view.
 
-`npm test` checks the API contracts, services, and client behavior. After building,
-`npm run test:dist` checks app startup and the packed SQL adapter. `npm run check`
-runs both suites in order.
+```sh
+node scripts/check-deployed.mjs dev
+```
+
+## Choose resource names
+
+Set workspace-specific values in `.databricks/bundle/dev/variable-overrides.json`.
+Create the parent directory if needed. `data_catalog` names an existing Unity
+Catalog catalog. The schema defaults to `data_name`. Set `data_schema` to use a
+different schema name.
+
+```json
+{
+  "app_name": "your-app-dev",
+  "data_name": "your-data-dev",
+  "data_catalog": "workspace"
+}
+```
+
+For production, use `prod` in the commands and override path. Use distinct app
+and data names for each target.
+
+The CLI stores bundle state under the deployer's workspace home by default. Use
+the same `workspace.root_path` to update an existing deployment. If you deployed
+`prod` to `/Workspace/Shared`, review the plan for moving it before deploying
+with the new defaults. [Move a shared bundle deployment](https://docs.databricks.com/aws/en/dev-tools/bundles/faqs#how-do-i-move-a-bundle-deployment-off-workspaceshared)
+
+## Use an existing app or warehouse
+
+Before deploying, set `app_name` or `warehouse_name` to the existing name in your
+target overrides. Match the existing warehouse settings in
+[resources/warehouse.yml](resources/warehouse.yml). Bind the resources you want
+the bundle to manage.
+
+```sh
+databricks bundle deployment bind app your-app-dev -t dev
+databricks bundle deployment bind analytics EXISTING_WAREHOUSE_ID -t dev
+```
+
+Review `databricks bundle plan -t dev` after binding. Deployment applies the
+declared settings, and `bundle destroy` can delete bound resources.
+[Databricks resource binding](https://docs.databricks.com/aws/en/dev-tools/cli/bundle-commands#databricks-bundle-deployment-bind)
 
 ## Deploy from GitHub Actions
 
-1. Configure [GitHub workload identity federation](https://docs.databricks.com/aws/en/dev-tools/auth/provider-github)
-   for the deployment service principal and your GitHub environment subject.
-2. Create the GitHub environment `dev` or `prod`. Set its `DATABRICKS_HOST`,
-   `DATABRICKS_CLIENT_ID`, and `DATABRICKS_APP_NAME` variables.
-3. Put the target's shared resource variables in `databricks.yml`. Local overrides
-   are unavailable in CI. Include `warehouse_name` when adopting a warehouse.
-4. Use the same target `workspace.root_path` for the initial bindings and CI.
-   The default `dev` path depends on the deployer. Set a shared path before
-   binding if your local and CI identities differ. `prod` already has a shared path.
-5. Run the [Deploy workflow](.github/workflows/deploy.yml) with that target.
-
-Use the [Databricks Apps CI guide](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/cicd-github-actions)
-for federation and existing-app configuration details.
+1. Create a GitHub environment called `dev` or `prod`. Configure federation for
+   the Databricks service principal and that environment. [GitHub federation guide](https://docs.databricks.com/aws/en/dev-tools/auth/provider-github)
+2. Set `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, and `DATABRICKS_APP_NAME` in the
+   GitHub environment's **Variables** settings.
+3. Set shared bundle variables in `databricks.yml` for CI. If you deploy or bind
+   locally with another identity, point both environments at the same restricted
+   `workspace.root_path` so they use the same bundle state.
+4. Run the [Deploy workflow](.github/workflows/deploy.yml) for that target.

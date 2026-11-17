@@ -40,26 +40,16 @@ export function createMapSession({
         if (!disposed && active === run) notify({ _tag: "Failed", key, error });
         return;
       }
-      if (disposed || active !== run) {
-        next.release();
-        return;
-      }
-      const old = resource;
+      if (disposed || active !== run) return;
       resource = next;
-      try {
-        notify({ _tag: "Loaded", key, data: next.summary });
-      } finally {
-        old?.release();
-      }
+      notify({ _tag: "Loaded", key, data: next.summary });
     },
     dispose() {
       if (disposed) return;
       disposed = true;
       active?.controller.abort();
       active = undefined;
-      const old = resource;
       resource = undefined;
-      old?.release();
     },
   };
 }

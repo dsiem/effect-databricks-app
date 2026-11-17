@@ -24,13 +24,6 @@ function trips(h: H, model: Model): Child[] {
     h,
     "Trip records",
     "Explore individual trips. Open a record to inspect its details and discuss it with your team.",
-    [
-      button(h, {
-        label: "Export loaded page subset",
-        onClick: M.ExportTrips(),
-        disabled: !data?.rows.length,
-      }),
-    ],
   );
   if (model.trips.loading) return [heading, loading(h)];
   if (model.trips.error)

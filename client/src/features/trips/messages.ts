@@ -15,7 +15,6 @@ export const messages = {
   },
   SetPage: { page: Schema.Number },
   SortTrips: { sort: Sort },
-  ExportTrips: {},
   InspectTrip: { trip: D.TripSnapshot },
   InspectComments: { trip: D.TripSnapshot },
   LoadedCommentCounts: {

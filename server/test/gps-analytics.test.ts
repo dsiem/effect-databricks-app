@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { tableFromArrays } from "apache-arrow";
 import { ConfigProvider, Effect, Layer, Redacted } from "effect";
 import { gpsFixture } from "../../client/test/gps-fixture.js";
+import { mapCellLimit } from "../../shared/domain.js";
 import { Analytics } from "../src/analytics.js";
 import { Settings } from "../src/settings.js";
 import { Workspace } from "../src/workspace.js";
@@ -36,22 +37,25 @@ for (const truncated of [false, true])
     const cell = fixture.cells[0];
     assert.ok(cell);
     const rows = truncated
-      ? Array.from({ length: 100001 }, (_, index) => ({
+      ? Array.from({ length: mapCellLimit }, (_, index) => ({
           ...cell,
           id: `cell-${index}`,
           trips: 1,
         }))
       : fixture.cells;
-    const located = truncated ? 125000 : 80;
-    const totalCells = truncated ? 125000 : 2;
+    const totalCells = truncated ? mapCellLimit + 1 : fixture.totalCells;
+    const located = truncated ? totalCells : fixture.locatedTrips;
     let statements = 0;
-    globalThis.fetch = warehouseFetch(async (statement) => {
+    globalThis.fetch = warehouseFetch(async (statement, _, parameters) => {
       statements++;
       if (!statement.includes("WITH bins"))
         return tableFromArrays({
           matching: [located + 20],
           located: [located],
         });
+      assert.deepEqual(parameters, [
+        { name: "p1", type: "INT", value: String(mapCellLimit) },
+      ]);
       return tableFromArrays({
         id: rows.map((x) => x.id),
         longitude: rows.map((x) => x.longitude),
@@ -81,8 +85,8 @@ for (const truncated of [false, true])
     assert.equal(first.endpoint, "dropoff");
     assert.equal(first.locatedTrips, located);
     assert.equal(first.truncated, truncated);
-    assert.equal(first.shownTrips, truncated ? 100000 : 80);
-    assert.equal(first.cells.length, truncated ? 100000 : 2);
+    assert.equal(first.shownTrips, truncated ? mapCellLimit : 80);
+    assert.equal(first.cells.length, rows.length);
     assert.equal(first.totalCells, totalCells);
     assert.deepEqual(first.cells[0]?.boundary, cell.boundary);
     const firstCell = first.cells[0];

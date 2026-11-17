@@ -7,6 +7,7 @@ import {
   GpsCell,
   type GpsSearch,
   Hourly,
+  mapCellLimit,
   Metadata,
   type Overview,
   Summary,
@@ -209,21 +210,21 @@ export class Analytics extends Context.Service<
             (h3_centerasgeojson(cell):coordinates[1])::DOUBLE AS latitude,
             h3_boundaryasgeojson(cell) AS boundary, trips, avg_fare, avg_distance, zip,
             COUNT(*) OVER()::DOUBLE AS total_cells
-          FROM bins ORDER BY trips DESC, cell LIMIT 100001`,
+          FROM bins ORDER BY trips DESC, cell LIMIT ${sql.param("INT", String(mapCellLimit))}`,
               ),
             },
             { concurrency: 2 },
           ).pipe(
             Effect.map(({ totals, cells }): TripMap => {
-              const shown = cells.slice(0, 100000);
+              const totalCells = cells[0]?.total_cells ?? 0;
               return {
                 endpoint,
                 matchingTrips: totals[0]?.matching ?? 0,
                 locatedTrips: totals[0]?.located ?? 0,
-                shownTrips: shown.reduce((sum, cell) => sum + cell.trips, 0),
-                totalCells: cells[0]?.total_cells ?? 0,
-                truncated: cells.length > 100000,
-                cells: shown.map(({ total_cells: _, ...cell }) => cell),
+                shownTrips: cells.reduce((sum, cell) => sum + cell.trips, 0),
+                totalCells,
+                truncated: cells.length < totalCells,
+                cells: cells.map(({ total_cells: _, ...cell }) => cell),
                 queriedAt: new Date().toISOString(),
               };
             }),
