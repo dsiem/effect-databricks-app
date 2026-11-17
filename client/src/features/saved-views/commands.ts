@@ -6,7 +6,7 @@ import { request } from "../../lib/api-client";
 import { result } from "../../lib/command-result";
 import { randomUuid } from "../../lib/uuid";
 import { Message as M } from "./messages";
-import { RecentIds } from "./model";
+import { RecentIds } from "./browser-model";
 import { rememberRecent, searchId } from "./picker";
 
 export const recentStorageKey = "taxi.recent-saved-views";

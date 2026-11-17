@@ -18,6 +18,7 @@ const resolver = (
   const user = Effect.runPromise(
     makeCurrentUser.pipe(
       Effect.provideService(Workspace, {
+        authMode: "token",
         accessToken: Effect.succeed(Redacted.make("unused")),
         request: (path) =>
           Effect.suspend(() => {

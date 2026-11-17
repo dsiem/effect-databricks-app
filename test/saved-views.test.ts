@@ -55,6 +55,7 @@ const runSavedViews = <A, E>(
           Layer.provide(Lakebase.layer),
           Layer.provide(
             Layer.succeed(Workspace, {
+              authMode: "token",
               accessToken: Effect.succeed(Redacted.make("unused")),
               request: () => credentials,
             }),

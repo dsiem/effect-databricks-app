@@ -26,6 +26,7 @@ test("Genie accepts ID-less text and visualization attachments and retains follo
     ],
   };
   const workspace = Layer.succeed(Workspace, {
+    authMode: "token",
     accessToken: Effect.succeed(Redacted.make("unused")),
     request: (path, method = "GET") => {
       calls.push({ path, method });
@@ -113,6 +114,7 @@ const provideGenie = (request: typeof Workspace.Service.request) =>
   Genie.layer.pipe(
     Layer.provide(
       Layer.succeed(Workspace, {
+        authMode: "token",
         accessToken: Effect.succeed(Redacted.make("unused")),
         request,
       }),
@@ -310,6 +312,7 @@ test("Genie builds structured filter context server-side for initial and follow-
         Genie.layer.pipe(
           Layer.provide(
             Layer.succeed(Workspace, {
+              authMode: "token",
               accessToken: Effect.succeed(Redacted.make("unused")),
               request: (path, _method, body) =>
                 Effect.sync(() => {

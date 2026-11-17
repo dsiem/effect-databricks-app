@@ -67,6 +67,7 @@ test("complete and cursor results agree with local queries, ties and calendar bo
   const layer = Analytics.layer.pipe(
     Layer.provide(
       Layer.succeed(Workspace, {
+        authMode: "token",
         accessToken: Effect.succeed(Redacted.make("test")),
         request: () => Effect.die("unused"),
       }),

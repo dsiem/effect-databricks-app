@@ -52,6 +52,7 @@ test("warehouse trips decode actual GPS, zero tips and missing endpoints into AP
         Analytics.layer.pipe(
           Layer.provide(
             Layer.succeed(Workspace, {
+              authMode: "token",
               accessToken: Effect.succeed(Redacted.make("test")),
               request: () => Effect.die("Unexpected workspace request"),
             }),

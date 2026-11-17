@@ -1,8 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import type { Trip, TripComment, TripCommentInput } from "../shared/domain";
+import { tripDetails } from "../client/test/trip-fixture";
+import type {
+  Trip,
+  TripComment,
+  TripCommentInput,
+  TripSnapshot,
+} from "../shared/domain";
 
-const trip: Trip = {
+const historicalTrip: TripSnapshot = {
   trip_id: "7b2c6ab2-6f7d-4f8a-a05f-d07e4eb84a19",
   pickup_at: "2016-01-20 09:42:00",
   dropoff_at: "2016-01-20 09:56:00",
@@ -12,6 +18,7 @@ const trip: Trip = {
   fare: 18.5,
   duration: 14,
 };
+const trip: Trip = { ...historicalTrip, details: tripDetails };
 const otherTrip = { ...trip, trip_id: randomUUID() };
 const enrichedTrip: Trip = {
   ...trip,
@@ -35,7 +42,7 @@ const enrichedTrip: Trip = {
 const author = { name: "Avery Morgan", email: "avery@example.test" };
 const makeComment = (body: string): TripComment => ({
   id: randomUUID(),
-  trip,
+  trip: historicalTrip,
   body,
   author,
   created_at: "2026-11-14T10:00:00Z",

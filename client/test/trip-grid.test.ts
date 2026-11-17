@@ -6,11 +6,12 @@ import { pageContext } from "../src/app/analysis-context";
 import { Message as M } from "../src/app/message";
 import { init, update } from "../src/app/update";
 import { GridWindow } from "../src/features/trips/grid-protocol";
+import { tripDetails } from "./trip-fixture";
 
 const initial = () =>
   init(Option.getOrThrow(Url.fromString("http://localhost/trips-preview")))
     .model;
-const trip = {
+const summary = {
   trip_id: "00000000-0000-4000-8000-000000000001",
   pickup_at: "2016-01-01 10:00:00.000000",
   dropoff_at: "2016-01-01 10:15:00.000000",
@@ -20,6 +21,7 @@ const trip = {
   fare: 10,
   duration: 15,
 };
+const trip = { ...summary, details: tripDetails };
 
 test("grid status updates preserve the selected trip and open inspector", () => {
   const model = initial();
@@ -77,7 +79,7 @@ test("preview context bounds its sample and clears obsolete scope on replacement
     snapshot: "snapshot-7",
     start: 100,
     visible: 40,
-    sample: [trip],
+    sample: [summary],
   });
   model = update(model, window).model;
   model = update(
@@ -96,12 +98,12 @@ test("preview context bounds its sample and clears obsolete scope on replacement
   assert.equal(data.scope, "server-window");
   assert.equal(data.totalMatchingTrips, 100000);
   assert.equal(data.visibleStart, 100);
-  assert.deepEqual(data.visibleSample, [trip]);
+  assert.deepEqual(data.visibleSample, [summary]);
   assert.equal(model.tripsState.trips.data, null);
   assert.throws(() =>
     Schema.decodeUnknownSync(GridWindow)({
       ...window,
-      sample: Array(6).fill(trip),
+      sample: Array(6).fill(summary),
     }),
   );
   const replaced = update(model, M.SortTrips({ sort: "distance" })).model;

@@ -21,7 +21,6 @@ import * as Overview from "../features/overview/model";
 import { updateOverview } from "../features/overview/update";
 import * as SavedViews from "../features/saved-views/model";
 import { updateSavedViews } from "../features/saved-views/update";
-import { RefreshTripGrid } from "../features/trips/grid-mount";
 import * as Trips from "../features/trips/model";
 import { updateTrips } from "../features/trips/update";
 import type { ApiClient } from "../lib/api-client";
@@ -298,6 +297,7 @@ function updateApplication(
     case "PostedComment": {
       const changed = updateTrips(model.tripsState, message, {
         preview: model.path === "/trips-preview",
+        filters: filtersFromQuery(model.query) ?? {},
         requestKey: requestKey(model),
       });
       const next = { ...model, tripsState: changed.model };
@@ -323,27 +323,7 @@ function updateApplication(
               genieState: { ...next.genieState, genieSelection: null },
             }
           : next,
-        commands: [
-          ...(changed.commands ?? []),
-          ...((model.path === "/trips-preview" &&
-            model.tripsState.selectedTrip?.trip_id !==
-              next.tripsState.selectedTrip?.trip_id) ||
-          (model.path === "/trips-preview" &&
-            model.tripsState.commentCountsVersion !==
-              next.tripsState.commentCountsVersion)
-            ? [
-                RefreshTripGrid({
-                  key: next.tripsState.gridKey,
-                  query: {
-                    filters: filtersFromQuery(next.query) ?? {},
-                    sort: next.tripsState.sort,
-                  },
-                  countsVersion: next.tripsState.commentCountsVersion,
-                  selectedId: next.tripsState.selectedTrip?.trip_id ?? null,
-                }),
-              ]
-            : []),
-        ],
+        commands: changed.commands ?? [],
       };
     }
     case "CloseSavedView":

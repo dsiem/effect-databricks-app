@@ -1,10 +1,12 @@
 import { Dialog } from "@foldkit/ui";
 import { Option } from "effect";
 import { Command } from "foldkit";
+import type { Filters } from "../../../../shared/domain";
 import { syncDialog } from "../../lib/dialog";
 import type { FeatureUpdate } from "../../lib/feature-update";
-import { empty } from "../../lib/request-state";
+import { empty, pending } from "../../lib/request-state";
 import * as TripsCommands from "./commands";
+import { RefreshTripGrid } from "./grid-mount";
 import { Message as M, type Message } from "./messages";
 import type { Model } from "./model";
 
@@ -276,11 +278,56 @@ function updateTripsState(
 
 export type Context = {
   readonly requestKey: string;
-  readonly preview?: boolean;
-};
+} & (
+  | { readonly preview?: false }
+  | { readonly preview: true; readonly filters: Filters }
+);
 export type Out =
   | { readonly _tag: "Reload" }
   | { readonly _tag: "SelectionInvalidated" };
+
+const refreshGrid = (model: Model, filters: Filters) =>
+  RefreshTripGrid({
+    key: model.gridKey,
+    query: { filters, sort: model.sort },
+    countsVersion: model.commentCountsVersion,
+    selectedId: model.selectedTrip?.trip_id ?? null,
+  });
+
+export function reloadTrips(
+  model: Model,
+  context: Context & { readonly filters: Filters },
+): FeatureUpdate<Model, Message> {
+  if (!context.preview)
+    return {
+      model: { ...model, trips: pending },
+      commands: [
+        TripsCommands.LoadTrips({
+          key: context.requestKey,
+          filters: context.filters,
+          page: model.page,
+          sort: model.sort,
+        }),
+      ],
+    };
+  const revision = model.gridRevision + 1;
+  const key = `${context.requestKey}:${revision}`;
+  const next: Model = {
+    ...model,
+    gridWindow: null,
+    gridKey: key,
+    gridRevision: revision,
+    gridStatus: {
+      key,
+      scope: "none",
+      total: 0,
+      loaded: 0,
+      loading: true,
+      error: "",
+    },
+  };
+  return { model: next, commands: [refreshGrid(next, context.filters)] };
+}
 
 export function updateTrips(
   model: Model,
@@ -302,6 +349,11 @@ export function updateTrips(
           M.InspectorDialog({ message }),
         ),
       ),
+      ...(context.preview &&
+      (model.selectedTrip?.trip_id !== result.model.selectedTrip?.trip_id ||
+        model.commentCountsVersion !== result.model.commentCountsVersion)
+        ? [refreshGrid(result.model, context.filters)]
+        : []),
     ],
   };
 }

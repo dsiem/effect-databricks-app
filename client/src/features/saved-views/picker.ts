@@ -1,5 +1,5 @@
 import type { SavedView } from "../../../../shared/domain";
-import type { Model } from "./model";
+import type { Model } from "./browser-model";
 
 export const searchId = "saved-view-search";
 export const resultId = (id: string) => `saved-view-result-${id}`;

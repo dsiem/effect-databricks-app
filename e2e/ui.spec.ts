@@ -1,3 +1,4 @@
+import { tripDetails } from "../client/test/trip-fixture";
 import { expect, test } from "@playwright/test";
 
 test("wide trip tables scroll within a narrow viewport", async ({ page }) => {
@@ -15,6 +16,7 @@ test("wide trip tables scroll within a narrow viewport", async ({ page }) => {
             distance: 3,
             fare: 12,
             duration: 15,
+            details: tripDetails,
           },
         ],
         total: 1,

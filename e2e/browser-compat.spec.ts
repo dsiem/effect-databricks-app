@@ -1,3 +1,4 @@
+import { tripDetails } from "../client/test/trip-fixture";
 import { expect, test } from "@playwright/test";
 
 const uuid =
@@ -10,6 +11,7 @@ const trip = {
   dropoff_zip: "10003",
   distance: 2.8,
   duration: 14,
+  details: tripDetails,
   fare: 13.42,
 };
 

@@ -60,6 +60,7 @@ const fixture = () => {
       Layer.provide(
         Layer.mergeAll(
           Layer.succeed(Workspace, {
+            authMode: "token",
             accessToken: Effect.succeed(Redacted.make("unused")),
             request: () => Effect.die("Unexpected workspace request"),
           }),
@@ -261,7 +262,7 @@ test("generated client round-trips every endpoint through the real HTTP contract
           genie: "unconfigured",
           lakebase: "unconfigured",
         },
-        auth: "Local development identity",
+        auth: "Configured access token",
       });
       assert.equal(yield* client.currentUser(), null);
       assert.deepEqual(yield* client.metadata(), metadata);

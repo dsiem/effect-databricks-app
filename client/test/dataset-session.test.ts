@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Trip } from "../../shared/domain";
+import { tripDetails } from "./trip-fixture";
 import {
   retentionCharge,
   type TripDataset,
@@ -22,6 +23,7 @@ const trip: Trip = {
   distance: 2,
   fare: 10,
   duration: 15,
+  details: tripDetails,
 };
 const query: TripQuery = { filters: {}, sort: "newest" };
 const dataset = (q = query): TripDataset => ({

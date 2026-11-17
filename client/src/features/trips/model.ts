@@ -17,7 +17,7 @@ export const Model = Schema.Struct({
   trips: request(D.Trips),
   page: Schema.Number,
   sort: Sort,
-  selectedTrip: Schema.NullOr(D.Trip),
+  selectedTrip: Schema.NullOr(D.TripSnapshot),
   comments: request(D.TripComments),
   commentCounts: request(D.TripCommentCounts),
   commentCountsVersion: Schema.Number,

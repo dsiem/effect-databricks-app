@@ -1,3 +1,4 @@
+import { tripDetails } from "../client/test/trip-fixture";
 import { expect, type Page, type TestInfo, test } from "@playwright/test";
 import { gpsFixture } from "../client/test/gps-fixture";
 import type { Overview, Trip } from "../shared/domain";
@@ -58,6 +59,7 @@ const trips: Trip[] = Array.from({ length: 8 }, (_, index) => ({
   distance: 2.8 + index * 0.3,
   fare: 13.5 + index * 2.5,
   duration: 18,
+  details: tripDetails,
 }));
 const query = "?from=2016-01-01&to=2016-01-31";
 

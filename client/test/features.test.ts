@@ -20,7 +20,7 @@ import * as SavedViews from "../src/features/saved-views/model";
 import { updateSavedViews } from "../src/features/saved-views/update";
 import { Message as TripMessage } from "../src/features/trips/messages";
 import * as Trips from "../src/features/trips/model";
-import { updateTrips } from "../src/features/trips/update";
+import { reloadTrips, updateTrips } from "../src/features/trips/update";
 import { Message as TripViewMessage } from "../src/features/trips/view-messages";
 
 const app = (path: string) =>
@@ -35,6 +35,22 @@ const trip = {
   distance: 2,
   fare: 12,
   duration: 15,
+  details: {
+    source_file: "test.csv",
+    vendor_id: null,
+    passenger_count: null,
+    rate_code_id: null,
+    store_and_fwd_flag: null,
+    payment_type: null,
+    pickup_location: null,
+    dropoff_location: null,
+    tip_amount: null,
+    tolls_amount: null,
+    extra: null,
+    mta_tax: null,
+    improvement_surcharge: null,
+    total_amount: null,
+  },
 };
 
 test("view intents are translated by the shell with their analysis scope intact", () => {
@@ -105,6 +121,104 @@ test("navigation retains the trip feature's dialog cleanup commands", () => {
   assert.equal(navigated.model.tripsState.inspectorDialog.isOpen, false);
   assert.ok(
     navigated.commands?.some((command) => command.name === "CloseDialog"),
+  );
+});
+
+test("preview reload gets a new identity and rejects the previous result", () => {
+  const context = {
+    requestKey: "preview",
+    preview: true as const,
+    filters: { zip: "10001" },
+  };
+  const first = reloadTrips({ ...Trips.init(), sort: "fare" }, context);
+  const next = reloadTrips(first.model, context);
+  assert.notEqual(next.model.gridKey, first.model.gridKey);
+  assert.equal(next.model.gridStatus.loading, true);
+  assert.equal(next.model.gridWindow, null);
+  const refresh = next.commands?.find(
+    (command) => command.name === "RefreshTripGrid",
+  );
+  assert.deepEqual(refresh?.args?.query, {
+    filters: { zip: "10001" },
+    sort: "fare",
+  });
+  const stale = updateTrips(
+    next.model,
+    TripMessage.TripGridStatus({
+      key: first.model.gridKey,
+      scope: "complete",
+      total: 100,
+      loaded: 100,
+      loading: false,
+      error: "",
+    }),
+    context,
+  );
+  assert.deepEqual(stale.model.gridStatus, next.model.gridStatus);
+});
+
+test("standalone preview synchronizes selection and counts with its applied scope", () => {
+  const context = {
+    requestKey: "preview",
+    preview: true as const,
+    filters: { zip: "10001" },
+  };
+  const loaded = reloadTrips(Trips.init(), context);
+  const opened = updateTrips(
+    loaded.model,
+    TripMessage.InspectTrip({ trip }),
+    context,
+  );
+  const selected = opened.commands?.find(
+    (command) => command.name === "RefreshTripGrid",
+  );
+  assert.equal(selected?.args?.selectedId, trip.trip_id);
+  assert.deepEqual(selected?.args?.query, {
+    filters: context.filters,
+    sort: "newest",
+  });
+  const posted = updateTrips(
+    opened.model,
+    TripMessage.PostedComment({
+      input: {
+        id: "54a8c786-9678-4e82-8e17-b25bb7af289c",
+        body: "A finding",
+        trip,
+      },
+      error: "",
+    }),
+    context,
+  );
+  const refreshed = posted.commands?.find(
+    (command) => command.name === "RefreshTripGrid",
+  );
+  assert.equal(
+    refreshed?.args?.countsVersion,
+    opened.model.commentCountsVersion + 1,
+  );
+  const closed = updateTrips(posted.model, TripMessage.CloseTrip(), context);
+  assert.equal(
+    closed.commands?.find((command) => command.name === "RefreshTripGrid")?.args
+      ?.selectedId,
+    null,
+  );
+});
+
+test("leaving preview closes the inspector without refreshing the outgoing grid", () => {
+  const opened = update(
+    app("/trips-preview?zip=10001"),
+    AppMessage.InspectTrip({ trip }),
+  );
+  const navigated = update(
+    opened.model,
+    AppMessage.Navigated({ path: "/", query: "zip=10001" }),
+  );
+  assert.equal(navigated.model.tripsState.selectedTrip, null);
+  assert.ok(
+    navigated.commands?.some((command) => command.name === "CloseDialog"),
+  );
+  assert.ok(
+    !navigated.commands?.some((command) => command.name === "RefreshTripGrid"),
   );
 });
 

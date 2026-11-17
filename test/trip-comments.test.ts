@@ -4,14 +4,14 @@ import { test } from "node:test";
 import { Effect, Schema } from "effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import {
-  type Trip,
+  type TripSnapshot,
   TripCommentInput,
   type TripCommentSearch,
 } from "../shared/domain.js";
 import { migrateAppSchema } from "../src/migrations.js";
 import { lakebaseFixture } from "./lakebase-fixture.js";
 
-const trip: Trip = {
+const trip: TripSnapshot = {
   trip_id: "7b2c6ab2-6f7d-4f8a-a05f-d07e4eb84a19",
   pickup_at: "2016-01-20 09:42:00",
   dropoff_at: "2016-01-20 09:56:00",

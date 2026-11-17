@@ -20,8 +20,8 @@ export const messages = {
   SetPage: { page: Schema.Number },
   SortTrips: { sort: Sort },
   ExportTrips: {},
-  InspectTrip: { trip: D.Trip },
-  InspectComments: { trip: D.Trip },
+  InspectTrip: { trip: D.TripSnapshot },
+  InspectComments: { trip: D.TripSnapshot },
   LoadedCommentCounts: {
     version: Schema.Number,
     data: Schema.NullOr(D.TripCommentCounts),

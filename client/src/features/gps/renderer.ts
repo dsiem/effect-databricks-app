@@ -12,10 +12,10 @@ import {
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { failure } from "../../lib/command-result";
 import { mapColors } from "../../lib/map-colors";
-import { activityBucket, type MapResource, pickedIndex } from "./dataset";
+import { activityBucket, pickedIndex } from "./dataset";
+import { createMapSession } from "./dataset-session";
 import { loadGps } from "./load";
 import { Message as M } from "./messages";
-import { dataKey } from "./model";
 import type { MapData, MapEvent } from "./mount";
 
 setWorkerUrl(workerUrl);
@@ -83,9 +83,35 @@ export function mountGpsMap(
     yield* Effect.try(() => {
       let rendered: MapData | undefined;
       let live = false;
-      let resource: MapResource | undefined;
-      let controller = new AbortController();
-      let disposed = false;
+      const session = createMapSession({
+        load: loadGps,
+        notify: (event) => {
+          Queue.offerUnsafe(
+            queue,
+            M.LoadedGps({
+              key: event.key,
+              data: event._tag === "Loaded" ? event.data : null,
+              error: event._tag === "Failed" ? failure(event.error) : "",
+            }),
+          );
+          if (event._tag === "Loaded") redraw();
+        },
+      });
+      const replace = () => {
+        const input = data;
+        session.replace(input).catch(() => {
+          if (
+            session.current() &&
+            data.query === input.query &&
+            data.endpoint === input.endpoint &&
+            data.revision === input.revision
+          )
+            Queue.offerUnsafe(
+              queue,
+              M.GpsReady({ key: data.key, error: renderError }),
+            );
+        });
+      };
       const popup = new Popup({
         closeButton: false,
         closeOnClick: false,
@@ -97,7 +123,7 @@ export function mountGpsMap(
       map.keyboard.disableRotation();
       const interaction = () => {
         const enabled =
-          live && !!resource && !data.loading && rendered === data;
+          live && !!session.current() && !data.loading && rendered === data;
         element.inert = !enabled;
         for (const handler of [
           map.dragPan,
@@ -114,6 +140,7 @@ export function mountGpsMap(
       };
       const deck = new MapLibreOverlay({
         onAfterRender: () => {
+          const resource = session.current();
           if (!resource || data.loading || rendered === data) return;
           rendered = data;
           interaction();
@@ -140,6 +167,7 @@ export function mountGpsMap(
       });
       map.addControl(deck);
       const redraw = () => {
+        const resource = session.current();
         const colors = mapColors(element);
         const maximum = resource?.cell(0)?.trips || 1;
         const selectedIndex = data.selected
@@ -201,6 +229,7 @@ export function mountGpsMap(
         });
       };
       const pick = (x: number, y: number) => {
+        const resource = session.current();
         const hit = deck.pickObject({ x, y, radius: 2 });
         return hit?.layer && resource
           ? resource.cell(pickedIndex(resource, hit.layer.id, hit.index))
@@ -231,82 +260,28 @@ export function mountGpsMap(
         attributeFilter: ["class"],
       });
       map.on("remove", () => {
-        disposed = true;
-        controller.abort();
-        resource?.release();
-        resource = undefined;
+        session.dispose();
         theme.disconnect();
         popup.remove();
       });
-      const load = () => {
-        controller.abort();
-        controller = new AbortController();
-        const signal = controller.signal;
-        const input = data;
-        Effect.runPromise(
-          loadGps(input.query, input.endpoint).pipe(
-            Effect.match({
-              onSuccess: (next) => {
-                if (disposed || signal.aborted) {
-                  next.release();
-                  return;
-                }
-                const old = resource;
-                resource = next;
-                Queue.offerUnsafe(
-                  queue,
-                  M.LoadedGps({
-                    key: dataKey(input.query, input.endpoint, input.revision),
-                    data: next.summary,
-                    error: "",
-                  }),
-                );
-                redraw();
-                old?.release();
-              },
-              onFailure: (error) => {
-                if (!disposed && !signal.aborted)
-                  Queue.offerUnsafe(
-                    queue,
-                    M.LoadedGps({
-                      key: dataKey(input.query, input.endpoint, input.revision),
-                      data: null,
-                      error: failure(error),
-                    }),
-                  );
-              },
-            }),
-          ),
-          { signal },
-        ).catch(() => {
-          if (!disposed && !signal.aborted)
-            Queue.offerUnsafe(
-              queue,
-              M.GpsReady({ key: data.key, error: renderError }),
-            );
-        });
-      };
       redraw();
       interaction();
-      load();
+      replace();
       return Effect.all(
         [
           Stream.runForEach(SubscriptionRef.changes(inputs), (next) =>
             Effect.try(() => {
               if (next === data) return;
+              const resource = session.current();
               const focus =
                 next.selected !== data.selected
                   ? resource?.cell(resource.index(next.selected ?? ""))
                   : undefined;
-              const changed =
-                next.query !== data.query ||
-                next.endpoint !== data.endpoint ||
-                next.revision !== data.revision;
               data = next;
               popup.remove();
               redraw();
               interaction();
-              if (changed) load();
+              replace();
               if (focus)
                 map.easeTo({
                   center: [focus.longitude, focus.latitude],

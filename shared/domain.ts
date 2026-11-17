@@ -132,7 +132,7 @@ export const TripDetails = Schema.Struct({
   improvement_surcharge: Schema.NullOr(Schema.Number),
   total_amount: Schema.NullOr(Schema.Number),
 });
-export const Trip = Schema.Struct({
+export const TripSnapshot = Schema.Struct({
   trip_id: boundedText(256),
   pickup_at: boundedText(80),
   dropoff_at: boundedText(80),
@@ -143,6 +143,11 @@ export const Trip = Schema.Struct({
   duration: Schema.Number,
   // Lakebase comments retain historical trip snapshots from before enrichment.
   details: Schema.optionalKey(TripDetails),
+});
+export type TripSnapshot = typeof TripSnapshot.Type;
+export const Trip = Schema.Struct({
+  ...TripSnapshot.fields,
+  details: TripDetails,
 });
 export type Trip = typeof Trip.Type;
 // Explorer summaries preserve source TIMESTAMP_NTZ values, without Date/UTC conversion.
@@ -285,7 +290,7 @@ export type CurrentUser = typeof CurrentUser.Type;
 
 export const TripCommentInput = Schema.Struct({
   id: Id,
-  trip: Trip,
+  trip: TripSnapshot,
   body: boundedText(4000).check(
     Schema.makeFilter((body) => body.trim().length > 0),
   ),
@@ -303,13 +308,13 @@ export const TripCommentCursor = Schema.Struct({
 });
 export type TripCommentCursor = typeof TripCommentCursor.Type;
 export const TripCommentSearch = Schema.Struct({
-  trip: Schema.fromJsonString(Trip),
+  trip: Schema.fromJsonString(TripSnapshot),
   cursor: Schema.optionalKey(Schema.fromJsonString(TripCommentCursor)),
 });
 export type TripCommentSearch = typeof TripCommentSearch.Type;
 export const TripCommentCountSearch = Schema.Struct({
   tripIds: Schema.fromJsonString(
-    Schema.Array(Trip.fields.trip_id).check(
+    Schema.Array(TripSnapshot.fields.trip_id).check(
       Schema.isMinLength(1),
       Schema.isMaxLength(25),
     ),

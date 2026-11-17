@@ -2,8 +2,7 @@ import type { Update } from "foldkit";
 import { filtersFromQuery } from "../domain/filters";
 import { reloadGps } from "../features/gps/update";
 import * as OverviewCommands from "../features/overview/commands";
-import * as TripsCommands from "../features/trips/commands";
-import { RefreshTripGrid } from "../features/trips/grid-mount";
+import { reloadTrips } from "../features/trips/update";
 import type { ApiClient } from "../lib/api-client";
 import { pending } from "../lib/request-state";
 import type { Message } from "./message";
@@ -35,53 +34,19 @@ export function loadPage(
         OverviewCommands.LoadOverview({ key: requestKey(model), filters }),
       ],
     };
-  if (model.path === "/trips")
+  if (model.path === "/trips" || model.path === "/trips-preview") {
+    const loaded = reloadTrips(model.tripsState, {
+      requestKey: requestKey(model),
+      filters,
+      preview: model.path === "/trips-preview",
+    });
     return {
       model: {
         ...model,
-        tripsState: { ...model.tripsState, trips: pending },
+        tripsState: loaded.model,
         genieState: { ...model.genieState, genieSelection: null },
       },
-      commands: [
-        TripsCommands.LoadTrips({
-          key: requestKey(model),
-          filters,
-          page: model.tripsState.page,
-          sort: model.tripsState.sort,
-        }),
-      ],
-    };
-  if (model.path === "/trips-preview") {
-    const revision = model.tripsState.gridRevision + 1;
-    const key = `${requestKey(model)}:${revision}`;
-    return {
-      model: {
-        ...model,
-        genieState: { ...model.genieState, genieSelection: null },
-        tripsState: {
-          ...model.tripsState,
-          gridWindow: null,
-          gridKey: key,
-          gridRevision: revision,
-          gridStatus: {
-            ...model.tripsState.gridStatus,
-            key,
-            scope: "none",
-            total: 0,
-            loaded: 0,
-            loading: true,
-            error: "",
-          },
-        },
-      },
-      commands: [
-        RefreshTripGrid({
-          key,
-          query: { filters, sort: model.tripsState.sort },
-          countsVersion: model.tripsState.commentCountsVersion,
-          selectedId: model.tripsState.selectedTrip?.trip_id ?? null,
-        }),
-      ],
+      commands: loaded.commands ?? [],
     };
   }
   return { model };

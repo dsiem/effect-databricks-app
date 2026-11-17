@@ -1,3 +1,4 @@
+import { tripDetails } from "../client/test/trip-fixture";
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
@@ -69,7 +70,11 @@ async function fixtures(
     if (path.endsWith("/detail")) {
       const row = source.find((r) => r.trip_id === input.tripId);
       await route.fulfill({
-        json: { ...row, pickup_zip: row?.pickup_zip ?? "Unknown" },
+        json: {
+          ...row,
+          pickup_zip: row?.pickup_zip ?? "Unknown",
+          details: tripDetails,
+        },
       });
     } else if (path.endsWith("/window"))
       await route.fulfill({ json: reply(input.query, Number(input.cursor)) });

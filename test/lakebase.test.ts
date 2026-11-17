@@ -22,6 +22,7 @@ const databaseLayer = (
   Lakebase.layer.pipe(
     Layer.provide(
       Layer.succeed(Workspace, {
+        authMode: "token",
         accessToken: Effect.succeed(Redacted.make("unused")),
         request,
       }),

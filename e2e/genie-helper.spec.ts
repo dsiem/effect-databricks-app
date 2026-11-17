@@ -1,3 +1,4 @@
+import { tripDetails } from "../client/test/trip-fixture";
 import { expect, type Page, test } from "@playwright/test";
 import { gpsFixture } from "../client/test/gps-fixture";
 
@@ -86,6 +87,7 @@ test.beforeEach(async ({ page }) => {
             dropoff_zip: "10003",
             distance: 2.8,
             duration: 14,
+            details: tripDetails,
             fare: 13.42,
           },
         ],

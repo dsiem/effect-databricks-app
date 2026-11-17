@@ -22,7 +22,7 @@ export const LoadTrips = Command.define("LoadTrips", {
 });
 export const LoadComments = Command.define("LoadComments", {
   args: {
-    trip: D.Trip,
+    trip: D.TripSnapshot,
     cursor: Schema.NullOr(D.TripCommentCursor),
     more: Schema.Boolean,
   },
@@ -42,7 +42,7 @@ export const LoadComments = Command.define("LoadComments", {
 });
 export const LoadCommentCounts = Command.define("LoadCommentCounts", {
   args: {
-    tripIds: Schema.Array(D.Trip.fields.trip_id),
+    tripIds: Schema.Array(D.TripSnapshot.fields.trip_id),
     version: Schema.Number,
   },
   messages: [M.LoadedCommentCounts],

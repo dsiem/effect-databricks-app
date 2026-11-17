@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ConfigProvider, Effect, Layer, Redacted } from "effect";
+import { ConfigProvider, Effect, Layer, Redacted, Schema } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
+import { Status } from "../shared/domain.js";
 import { Analytics } from "../src/analytics.js";
 import {
   GenieFailed,
@@ -29,6 +30,7 @@ const appFor = (
       Layer.provide(
         Layer.mergeAll(
           Layer.succeed(Workspace, {
+            authMode: "token",
             accessToken: Effect.succeed(Redacted.make("unused")),
             request: () => Effect.die("Unexpected workspace request"),
           }),
@@ -301,6 +303,26 @@ test("current-user endpoint returns only each viewer's name/email and prevents c
         email: "viewer@example.com",
       });
     }
+  } finally {
+    await app.dispose();
+  }
+});
+
+test("a configured Genie remains configured after an observed outage", async () => {
+  const failure = Effect.fail(unavailable("genie", "Temporarily unavailable"));
+  const app = appFor(failure, {
+    availability: Effect.succeed("unavailable"),
+    submit: () => failure,
+    poll: () => failure,
+    result: () => failure,
+  });
+  try {
+    const response = await app.handler(
+      new Request("http://localhost/api/status"),
+    );
+    const status = Schema.decodeUnknownSync(Status)(await response.json());
+    assert.equal(status.genie, true);
+    assert.equal(status.capabilities.genie, "unavailable");
   } finally {
     await app.dispose();
   }

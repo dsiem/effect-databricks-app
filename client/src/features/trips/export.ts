@@ -62,10 +62,10 @@ export function tripCsv(trips: ReadonlyArray<Trip>) {
   const rows = trips.map(({ details, ...trip }) => ({
     ...trip,
     ...details,
-    pickup_longitude: details?.pickup_location?.longitude,
-    pickup_latitude: details?.pickup_location?.latitude,
-    dropoff_longitude: details?.dropoff_location?.longitude,
-    dropoff_latitude: details?.dropoff_location?.latitude,
+    pickup_longitude: details.pickup_location?.longitude,
+    pickup_latitude: details.pickup_location?.latitude,
+    dropoff_longitude: details.dropoff_location?.longitude,
+    dropoff_latitude: details.dropoff_location?.latitude,
   }));
   return [
     fields.join(","),

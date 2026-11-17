@@ -21,6 +21,7 @@ import { Lakebase } from "./lakebase.js";
 import { SavedViews } from "./saved-views.js";
 import { Settings } from "./settings.js";
 import { TripComments } from "./trip-comments.js";
+import { Workspace } from "./workspace.js";
 
 const toApiError = (error: ServiceError): typeof ApiError.Type => {
   const message = error.message;
@@ -87,6 +88,7 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
     const comments = yield* TripComments;
     const lakebase = yield* Lakebase;
     const settings = yield* Settings;
+    const workspace = yield* Workspace;
     const currentUser = yield* makeCurrentUser;
     return handlers
       .handle("health", () => Effect.succeed({ status: "ok" as const }))
@@ -98,17 +100,15 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
         }).pipe(
           Effect.map((capabilities) => ({
             dataset: settings.tripSnapshotTable || "samples.nyctaxi.trips",
-            warehouse: !!(
-              settings.warehouseId &&
-              settings.host &&
-              settings.tripSnapshotTable
-            ),
-            genie: !!settings.genieSpaceId,
-            lakebase: !!(settings.pgHost || settings.lakebaseEndpoint),
+            warehouse: capabilities.warehouse !== "unconfigured",
+            genie: capabilities.genie !== "unconfigured",
+            lakebase: capabilities.lakebase !== "unconfigured",
             capabilities,
-            auth: settings.clientId
-              ? "App service principal"
-              : "Local development identity",
+            auth: {
+              token: "Configured access token",
+              oauth: "App service principal",
+              cli: "Local development identity",
+            }[workspace.authMode],
           })),
         ),
       )

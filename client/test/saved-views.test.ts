@@ -3,6 +3,11 @@ import test from "node:test";
 import { Popover } from "@foldkit/ui";
 import type { SavedView, SavedViewsPage } from "../../shared/domain";
 import { Message as M } from "../src/features/saved-views/messages";
+import { init as initBrowser } from "../src/features/saved-views/browser-model";
+import {
+  refreshBrowser,
+  updateBrowser,
+} from "../src/features/saved-views/browser-update";
 import { init } from "../src/features/saved-views/model";
 import {
   rememberRecent,
@@ -27,6 +32,11 @@ const opened = () =>
     M.SavedViewsPicker({ message: Popover.Message.RequestedOpen() }),
     context,
   ).model;
+const openedBrowser = () =>
+  updateBrowser(
+    initBrowser(),
+    M.SavedViewsPicker({ message: Popover.Message.RequestedOpen() }),
+  ).model;
 const result = (
   version: number,
   rows: SavedView[],
@@ -42,36 +52,31 @@ const result = (
   });
 
 test("a replaced search cannot start from an old cancellation or accept an old response", () => {
-  const first = update(
-    opened(),
+  const first = updateBrowser(
+    openedBrowser(),
     M.SavedViewSearchChanged({ value: "first" }),
-    context,
   ).model;
-  const latest = update(
+  const latest = updateBrowser(
     first,
     M.SavedViewSearchChanged({ value: "latest" }),
-    context,
   ).model;
-  const staleCancel = update(
+  const staleCancel = updateBrowser(
     latest,
     M.CompletedCancelLoadSavedViews({
       version: first.searchVersion,
       more: false,
       debounce: true,
     }),
-    context,
   );
-  assert.equal(staleCancel.commands?.length, 0);
-  const staleResponse = update(
+  assert.equal(staleCancel.commands?.length ?? 0, 0);
+  const staleResponse = updateBrowser(
     latest,
     result(first.searchVersion, [row(1)]),
-    context,
   ).model;
   assert.deepEqual(visibleSavedViews(staleResponse), []);
-  const current = update(
+  const current = updateBrowser(
     staleResponse,
     result(latest.searchVersion, [row(2)]),
-    context,
   ).model;
   assert.deepEqual(
     visibleSavedViews(current).map((entry) => entry.title),
@@ -80,27 +85,23 @@ test("a replaced search cannot start from an old cancellation or accept an old r
 });
 
 test("closing and reopening cannot accept a previous session's search or shortcut hydration", () => {
-  const first = update(
-    opened(),
+  const first = updateBrowser(
+    openedBrowser(),
     M.SavedViewSearchChanged({ value: "first" }),
-    context,
   ).model;
-  const closed = update(
+  const closed = updateBrowser(
     first,
     M.SavedViewsPicker({ message: Popover.Message.RequestedClose() }),
-    context,
   ).model;
-  const reopened = update(
+  const reopened = updateBrowser(
     closed,
     M.SavedViewsPicker({ message: Popover.Message.RequestedOpen() }),
-    context,
   ).model;
-  const late = update(
+  const late = updateBrowser(
     reopened,
     result(first.searchVersion, [row(1)]),
-    context,
   ).model;
-  const hydrated = update(
+  const hydrated = updateBrowser(
     late,
     M.LoadedSavedViewShortcuts({
       version: first.shortcutVersion,
@@ -108,32 +109,26 @@ test("closing and reopening cannot accept a previous session's search or shortcu
       recentIds: [row(1).id],
       error: "",
     }),
-    context,
   ).model;
   assert.deepEqual(visibleSavedViews(hydrated), []);
   assert.deepEqual(hydrated.recentIds, []);
 });
 
 test("a failed continuation keeps results and its retry cursor, and a successful retry deduplicates IDs", () => {
-  const searching = update(opened(), M.BrowseSavedViews(), context).model;
+  const searching = updateBrowser(openedBrowser(), M.BrowseSavedViews()).model;
   const cursor = {
     id: row(1).id,
     pinned: false,
     updatedAt: "2026-01-01T00:00:00.000000Z",
   };
-  const first = update(
+  const first = updateBrowser(
     searching,
     result(searching.searchVersion, [row(1)], false, cursor),
-    context,
   ).model;
-  const pending = update(
-    first,
-    M.LoadSavedViews({ more: true }),
-    context,
-  ).model;
-  const duplicate = update(pending, M.LoadSavedViews({ more: true }), context);
-  assert.equal(duplicate.commands?.length, 0);
-  const failed = update(
+  const pending = updateBrowser(first, M.LoadSavedViews({ more: true })).model;
+  const duplicate = updateBrowser(pending, M.LoadSavedViews({ more: true }));
+  assert.equal(duplicate.commands?.length ?? 0, 0);
+  const failed = updateBrowser(
     pending,
     M.LoadedSavedViews({
       version: pending.searchVersion,
@@ -142,18 +137,16 @@ test("a failed continuation keeps results and its retry cursor, and a successful
       more: true,
       pages: 1,
     }),
-    context,
   ).model;
   assert.deepEqual(
     visibleSavedViews(failed).map((entry) => entry.id),
     [row(1).id],
   );
   assert.deepEqual(failed.savedViews.data?.nextCursor, cursor);
-  const retry = update(failed, M.LoadSavedViews({ more: true }), context).model;
-  const loaded = update(
+  const retry = updateBrowser(failed, M.LoadSavedViews({ more: true })).model;
+  const loaded = updateBrowser(
     retry,
     result(retry.searchVersion, [row(1), row(2)], true),
-    context,
   ).model;
   assert.deepEqual(
     visibleSavedViews(loaded).map((entry) => entry.id),
@@ -164,11 +157,11 @@ test("a failed continuation keeps results and its retry cursor, and a successful
 test("applying a view promotes only its ID and invalidates pending recent hydration", () => {
   const model = opened();
   const applied = update(
-    { ...model, recentIds: [row(1).id] },
+    { ...model, browser: { ...model.browser, recentIds: [row(1).id] } },
     M.RestoreView({ savedView: row(2) }),
     context,
   );
-  assert.deepEqual(applied.model.recentIds, [row(2).id, row(1).id]);
+  assert.deepEqual(applied.model.browser.recentIds, [row(2).id, row(1).id]);
   assert.deepEqual(applied.outMessage, {
     _tag: "RestoreFilters",
     filters: row(2).filters,
@@ -176,14 +169,14 @@ test("applying a view promotes only its ID and invalidates pending recent hydrat
   const late = update(
     applied.model,
     M.LoadedSavedViewShortcuts({
-      version: model.shortcutVersion,
+      version: model.browser.shortcutVersion,
       data: { rows: [row(1)], recents: [row(1)] },
       recentIds: [row(1).id],
       error: "",
     }),
     context,
   );
-  assert.deepEqual(late.model.recentIds, [row(2).id, row(1).id]);
+  assert.deepEqual(late.model.browser.recentIds, [row(2).id, row(1).id]);
   assert.deepEqual(rememberRecent(["1", "2", "3", "4", "5"], "3"), [
     "3",
     "1",
@@ -199,7 +192,7 @@ test("shortcuts are bounded, deduplicate pinned recents, and stay unavailable un
     pinned: true,
   }));
   const model = {
-    ...opened(),
+    ...openedBrowser(),
     recentIds: [row(0).id, row(30).id],
     shortcuts: {
       loading: false,
@@ -225,4 +218,53 @@ test("shortcuts are bounded, deduplicate pinned recents, and stay unavailable un
     }),
     [],
   );
+});
+
+test("refreshing an open browser preserves loaded pages and rejects responses from before a mutation", () => {
+  const browsing = updateBrowser(openedBrowser(), M.BrowseSavedViews()).model;
+  const first = updateBrowser(
+    browsing,
+    result(browsing.searchVersion, [row(1)]),
+  ).model;
+  const loaded = updateBrowser(
+    first,
+    result(first.searchVersion, [row(2)], true),
+  ).model;
+  const refreshed = refreshBrowser(loaded, row(1).id);
+  const stale = updateBrowser(
+    refreshed.model,
+    result(loaded.searchVersion, [row(3)]),
+  ).model;
+  assert.deepEqual(
+    visibleSavedViews(stale).map((entry) => entry.id),
+    [row(1).id, row(2).id],
+  );
+  const replacement = updateBrowser(
+    stale,
+    M.CompletedCancelLoadSavedViews({
+      version: stale.searchVersion,
+      more: false,
+      debounce: false,
+    }),
+  );
+  assert.equal(
+    replacement.commands?.find((command) => command.name === "LoadSavedViews")
+      ?.args?.pages,
+    2,
+  );
+  assert.equal(
+    refreshed.commands?.find(
+      (command) => command.name === "LoadSavedViewShortcuts",
+    )?.args?.removedId,
+    row(1).id,
+  );
+});
+
+test("a deleted recent view is removed while the browser is closed without starting a request", () => {
+  const refreshed = refreshBrowser(
+    { ...initBrowser(), recentIds: [row(1).id, row(2).id] },
+    row(1).id,
+  );
+  assert.deepEqual(refreshed.model.recentIds, [row(2).id]);
+  assert.equal(refreshed.commands?.length ?? 0, 0);
 });

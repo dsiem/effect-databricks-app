@@ -39,6 +39,7 @@ const workspace = (
     Effect.die("Unexpected workspace request"),
 ) =>
   Layer.succeed(Workspace, {
+    authMode: "token",
     accessToken: Effect.succeed(Redacted.make("unused")),
     request,
   });
