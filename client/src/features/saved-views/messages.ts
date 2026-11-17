@@ -4,7 +4,7 @@ import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
 import { RecentIds, Shortcuts } from "./browser-model";
 
-export const messages = {
+const messages = {
   CloseSavedView: {},
   CloseDelete: {},
   SavedViewDialog: { message: Dialog.Message },

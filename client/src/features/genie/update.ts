@@ -192,7 +192,10 @@ export function presentGenie(
 ): FeatureUpdate<Model, Message> {
   const dialog = syncDialog(model.helperDialog, modal && model.genieOpen);
   return {
-    model: { ...model, helperDialog: dialog.model },
+    model:
+      dialog.model === model.helperDialog
+        ? model
+        : { ...model, helperDialog: dialog.model },
     commands: (dialog.commands ?? []).map((command) =>
       Command.mapMessage(command, (message) => M.GenieDialog({ message })),
     ),

@@ -25,8 +25,14 @@ import { syncDialog } from "../lib/dialog";
 import { pending } from "../lib/request-state";
 import { pageContext } from "./analysis-context";
 import * as AppCommands from "./commands";
-import { Message as M, type Message } from "./message";
-import { type Model, overviewRequestKey } from "./model";
+import {
+  analysisRunsMessage,
+  gpsMessage,
+  Message as M,
+  type Message,
+  savedViewsMessage,
+} from "./message";
+import type { Model } from "./model";
 import { loadPage } from "./navigation";
 import { AppRoute, parseLocation, routePath, showsExplore } from "./route";
 import { ThemeMenu } from "./theme";
@@ -73,6 +79,13 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
     ],
   };
 }
+
+function invalidateGenieSelection(model: Model): Model {
+  return model.genieState.genieSelection === null
+    ? model
+    : { ...model, genieState: { ...model.genieState, genieSelection: null } };
+}
+
 function updateApplication(
   model: Model,
   message: Message,
@@ -85,7 +98,11 @@ function updateApplication(
       return { model, commands: [AppCommands.Navigate(message)] };
     case "Navigated": {
       if (routePath(route) === message.path && query === message.query)
-        return { model: { ...model, mobileNavigation: false } };
+        return {
+          model: model.mobileNavigation
+            ? { ...model, mobileNavigation: false }
+            : model,
+        };
       const location = parseLocation(message.path, message.query);
       const reset = updateTrips(model.tripsState, M.ResetTrips());
       const loaded = loadPage({
@@ -233,27 +250,24 @@ function updateApplication(
       return { model: { ...model, user: message.user } };
     case "LoadPage":
       return loadPage(model);
-    case "AnalysisDatePicker":
-    case "AnalysisFieldChanged":
-    case "StartAnalysis":
-    case "AnalysisSubmitted":
-    case "RefreshAnalysisHistory":
-    case "LoadedAnalysisHistory":
-    case "RetryAnalysisStatus":
-    case "LoadedAnalysisStatus":
-    case "RetryAnalysisReport":
-    case "LoadedAnalysisReport":
-    case "ReuseAnalysisInputs": {
-      const updated = updateAnalysisRuns(
-        model.analysisRunsState,
-        message,
-        route._tag === "AnalysisRuns" ? query : null,
-      );
-      return {
-        model: { ...model, analysisRunsState: updated.model },
-        commands: updated.commands ?? [],
-      };
-    }
+    case "AnalysisRuns":
+      return Update.foldChild({
+        update: (
+          child: AnalysisRuns.Model,
+          childMessage: typeof message.message,
+        ) =>
+          updateAnalysisRuns(
+            child,
+            childMessage,
+            route._tag === "AnalysisRuns" ? query : null,
+          ),
+        read: (parent: Model) => Option.some(parent.analysisRunsState),
+        write: (parent, child) =>
+          parent.analysisRunsState === child
+            ? parent
+            : { ...parent, analysisRunsState: child },
+        toParentMessage: analysisRunsMessage,
+      })(model, message.message);
     case "FilterDatePicker":
     case "FilterChanged":
     case "ApplyFilters":
@@ -283,17 +297,14 @@ function updateApplication(
     }
     case "MetricTabs":
     case "LoadedOverview": {
-      const changed = updateOverview(model.overviewState, message, {
-        requestKey: overviewRequestKey(model),
-      });
-      const next = { ...model, overviewState: changed.model };
+      if (route._tag !== "Overview" || !filters) return { model };
+      const changed = updateOverview(model.overviewState, message);
+      const next =
+        changed.model === model.overviewState
+          ? model
+          : { ...model, overviewState: changed.model };
       return {
-        model: changed.outMessage
-          ? {
-              ...next,
-              genieState: { ...next.genieState, genieSelection: null },
-            }
-          : next,
+        model: changed.outMessage ? invalidateGenieSelection(next) : next,
         commands: changed.commands ?? [],
       };
     }
@@ -313,7 +324,10 @@ function updateApplication(
     case "PostComment":
     case "PostedComment": {
       const changed = updateTrips(model.tripsState, message);
-      const next = { ...model, tripsState: changed.model };
+      const next =
+        changed.model === model.tripsState
+          ? model
+          : { ...model, tripsState: changed.model };
       if (changed.outMessage?._tag === "Reload") {
         if (message._tag !== "SortTrips") return loadPage(next);
         if (route._tag !== "Trips") return { model };
@@ -338,74 +352,41 @@ function updateApplication(
         };
       }
       return {
-        model: changed.outMessage
-          ? {
-              ...next,
-              genieState: { ...next.genieState, genieSelection: null },
-            }
-          : next,
+        model: changed.outMessage ? invalidateGenieSelection(next) : next,
         commands: changed.commands ?? [],
       };
     }
-    case "CloseSavedView":
-    case "CloseDelete":
-    case "SavedViewDialog":
-    case "DeleteDialog":
-    case "SavedViewsPicker":
-    case "ClearView":
-    case "NewSavedView":
-    case "CreatedSavedView":
-    case "EditSavedView":
-    case "SavedViewChanged":
-    case "SaveSavedView":
-    case "SavedViewSaved":
-    case "LoadSavedViews":
-    case "LoadedSavedViews":
-    case "SavedViewSearchChanged":
-    case "BrowseSavedViews":
-    case "ShowSavedViewShortcuts":
-    case "LoadSavedViewShortcuts":
-    case "LoadedSavedViewShortcuts":
-    case "CompletedCancelLoadSavedViews":
-    case "PinSavedView":
-    case "DeleteSavedView":
-    case "ConfirmDelete":
-    case "MutatedSavedView":
-    case "RestoreView": {
-      const changed = updateSavedViews(model.savedViewsState, message, {
-        filters: filters ?? {},
-      });
-      const next = {
-        ...model,
-        savedViewsState: changed.model,
-        ...(changed.outMessage
-          ? {
+    case "SavedViews":
+      return Update.foldChild({
+        update: (
+          child: SavedViews.Model,
+          childMessage: typeof message.message,
+        ) => updateSavedViews(child, childMessage, { filters: filters ?? {} }),
+        read: (parent: Model) => Option.some(parent.savedViewsState),
+        write: (parent, child) =>
+          parent.savedViewsState === child
+            ? parent
+            : { ...parent, savedViewsState: child },
+        toParentMessage: savedViewsMessage,
+        foldOutMessage:
+          ({ filters: restoredFilters }) =>
+          (parent) => ({
+            model: {
+              ...parent,
               filtersState: FilterDates.reset(
-                model.filtersState,
-                changed.outMessage.filters,
-                model.metadata.data,
+                parent.filtersState,
+                restoredFilters,
+                parent.metadata.data,
               ),
-            }
-          : {}),
-      };
-      return {
-        model: next,
-        commands: [
-          ...(changed.commands ?? []),
-          ...(changed.outMessage
-            ? [
-                AppCommands.Navigate({
-                  href: href(
-                    routePath(route),
-                    queryFor(changed.outMessage.filters),
-                  ),
-                  external: false,
-                }),
-              ]
-            : []),
-        ],
-      };
-    }
+            },
+            commands: [
+              AppCommands.Navigate({
+                href: href(routePath(route), queryFor(restoredFilters)),
+                external: false,
+              }),
+            ],
+          }),
+      })(model, message.message);
     case "CloseGenie":
     case "GenieDialog":
     case "RestoredConversation":
@@ -428,10 +409,13 @@ function updateApplication(
         context: pageContext(model),
         enabled: !!model.status.data?.genie,
       });
-      const next = { ...model, genieState: changed.model };
+      const next =
+        changed.model === model.genieState
+          ? model
+          : { ...model, genieState: changed.model };
       return {
         model:
-          changed.outMessage?._tag === "Opened"
+          changed.outMessage?._tag === "Opened" && next.mobileNavigation
             ? { ...next, mobileNavigation: false }
             : next,
         commands: [
@@ -442,21 +426,19 @@ function updateApplication(
         ],
       };
     }
-    case "GpsTabs":
-    case "LoadedGps":
-    case "GpsReady":
-    case "GpsSelect": {
+    case "Gps":
       if (route._tag !== "TripMap" || !filters) return { model };
-      const changed = updateGps(model.gpsState, message, { query, filters });
-      return {
-        model: {
-          ...model,
-          gpsState: changed.model,
-          genieState: { ...model.genieState, genieSelection: null },
-        },
-        commands: changed.commands ?? [],
-      };
-    }
+      return Update.foldChild({
+        update: (child: Gps.Model, childMessage: typeof message.message) =>
+          updateGps(child, childMessage, { query, filters }),
+        read: (parent: Model) => Option.some(parent.gpsState),
+        write: (parent, child) =>
+          parent.gpsState === child ? parent : { ...parent, gpsState: child },
+        toParentMessage: gpsMessage,
+        foldOutMessage: () => (parent) => ({
+          model: invalidateGenieSelection(parent),
+        }),
+      })(model, message.message);
   }
 }
 
@@ -486,11 +468,15 @@ export function update(
     next.mobile && showsExplore(next.location.route),
   );
   return {
-    model: {
-      ...next,
-      navigationDialog: navigation.model,
-      genieState: genie.model,
-    },
+    model:
+      navigation.model === next.navigationDialog &&
+      genie.model === next.genieState
+        ? next
+        : {
+            ...next,
+            navigationDialog: navigation.model,
+            genieState: genie.model,
+          },
     commands: [
       ...commands,
       ...(navigation.commands ?? []).map((command) =>

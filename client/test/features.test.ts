@@ -7,7 +7,7 @@ import { HttpApiClient } from "effect/http-api";
 import { Url } from "foldkit";
 import { given, message, model, story } from "foldkit/story";
 import { AppApi } from "../../shared/api";
-import { Message as AppMessage } from "../src/app/message";
+import { Message as AppMessage, savedViewsMessage } from "../src/app/message";
 import { init, update } from "../src/app/update";
 import { exploreMessage } from "../src/app/view-messages";
 import { Message as FilterMessage } from "../src/features/filters/messages";
@@ -18,7 +18,10 @@ import * as Genie from "../src/features/genie/model";
 import { presentGenie, updateGenie } from "../src/features/genie/update";
 import { Message as OverviewMessage } from "../src/features/overview/messages";
 import * as Overview from "../src/features/overview/model";
-import { updateOverview } from "../src/features/overview/update";
+import {
+  reloadOverview,
+  updateOverview,
+} from "../src/features/overview/update";
 import { Message as OverviewViewMessage } from "../src/features/overview/view-messages";
 import { Message as SavedMessage } from "../src/features/saved-views/messages";
 import * as SavedViews from "../src/features/saved-views/model";
@@ -28,8 +31,41 @@ import * as Trips from "../src/features/trips/model";
 import { updateTrips } from "../src/features/trips/update";
 import { ApiClient } from "../src/lib/api-client";
 
-const app = (path: string) =>
-  init(Option.getOrThrow(Url.fromString(`http://localhost${path}`))).model;
+const open = (path: string) =>
+  init(Option.getOrThrow(Url.fromString(`http://localhost${path}`)));
+const app = (path: string) => open(path).model;
+
+function respond(
+  load: ReturnType<typeof init>,
+  name: string,
+  response: Response,
+) {
+  const command = load.commands?.find((command) => command.name === name);
+  assert.ok(command);
+  return Effect.runPromise(
+    command.effect.pipe(
+      Effect.provideServiceEffect(
+        ApiClient,
+        Effect.gen(function* () {
+          const httpClient = HttpClient.withScope(yield* HttpClient.HttpClient);
+          return (yield* HttpApiClient.makeWith(AppApi, {
+            httpClient,
+            baseUrl: "http://fixture.test",
+          })).app;
+        }).pipe(Effect.provide(FetchHttpClient.layer)),
+      ),
+      Effect.provideService(FetchHttpClient.Fetch, async () => response),
+    ),
+  );
+}
+
+const originalTimeout = () =>
+  Response.json(
+    {
+      error: { code: "workspace_timeout", message: "Original load timed out" },
+    },
+    { status: 504 },
+  );
 
 const trip = {
   trip_id: "trip-1",
@@ -87,48 +123,14 @@ test("view intents are translated by the shell with their analysis scope intact"
 });
 
 test("returning to a filter keeps fresh trip results when the original load fails", async () => {
-  const opened = init(
-    Option.getOrThrow(Url.fromString("http://localhost/trips?zip=10001")),
-  );
+  const opened = open("/trips?zip=10001");
   const visit = (zip: string) =>
     AppMessage.Navigated({ path: "/trips", query: `zip=${zip}` });
   const changed = update(opened.model, visit("10002"));
   const returned = update(changed.model, visit("10001"));
-  const respond = (load: ReturnType<typeof init>, response: Response) => {
-    const command = load.commands?.find(({ name }) => name === "LoadTrips");
-    assert.ok(command);
-    return Effect.runPromise(
-      command.effect.pipe(
-        Effect.provideServiceEffect(
-          ApiClient,
-          Effect.gen(function* () {
-            const httpClient = HttpClient.withScope(
-              yield* HttpClient.HttpClient,
-            );
-            return (yield* HttpApiClient.makeWith(AppApi, {
-              httpClient,
-              baseUrl: "http://fixture.test",
-            })).app;
-          }).pipe(Effect.provide(FetchHttpClient.layer)),
-        ),
-        Effect.provideService(FetchHttpClient.Fetch, async () => response),
-      ),
-    );
-  };
   const data = { rows: [], total: 0, page: 1, pageSize: 25 };
-  const fresh = await respond(returned, Response.json(data));
-  const stale = await respond(
-    opened,
-    Response.json(
-      {
-        error: {
-          code: "workspace_timeout",
-          message: "Original load timed out",
-        },
-      },
-      { status: 504 },
-    ),
-  );
+  const fresh = await respond(returned, "LoadTrips", Response.json(data));
+  const stale = await respond(opened, "LoadTrips", originalTimeout());
   story(
     update,
     given(returned.model),
@@ -139,6 +141,82 @@ test("returning to a filter keeps fresh trip results when the original load fail
       assert.deepEqual(tripsState.trips.data, data);
     }),
   );
+});
+
+test("returning to an Overview filter keeps the fresh summary when the original load fails", async () => {
+  const opened = open("/?zip=10001");
+  const visit = (zip: string) =>
+    AppMessage.Navigated({ path: "/", query: `zip=${zip}` });
+  const changed = update(opened.model, visit("10002"));
+  const returned = update(changed.model, visit("10001"));
+  const data = {
+    summary: {
+      trips: 17,
+      revenue: 100,
+      avg_fare: 6,
+      avg_distance: 2,
+      avg_duration: 10,
+    },
+    daily: [],
+    hourly: [],
+    zones: [],
+    queriedAt: "2026-11-17T09:00:00Z",
+  };
+  const fresh = await respond(returned, "LoadOverview", Response.json(data));
+  const stale = await respond(opened, "LoadOverview", originalTimeout());
+  story(
+    update,
+    given(returned.model),
+    message(fresh),
+    message(stale),
+    model(({ overviewState }) => {
+      assert.equal(overviewState.overview.error, "");
+      assert.deepEqual(overviewState.overview.data, data);
+    }),
+  );
+});
+
+test("reopening the same trip keeps fresh comments when the original list arrives late", async () => {
+  const inspect = AppMessage.InspectComments({ trip });
+  const opened = update(app("/trips"), inspect);
+  const closed = update(opened.model, AppMessage.CloseTrip());
+  const reopened = update(closed.model, inspect);
+  const note = {
+    id: "00000000-0000-4000-8000-000000000001",
+    trip,
+    body: "Current note",
+    author: null,
+    created_at: "2026-11-17T09:00:00Z",
+  };
+  const fresh = await respond(
+    reopened,
+    "LoadComments",
+    Response.json({ rows: [note], nextCursor: null }),
+  );
+  const stale = await respond(
+    opened,
+    "LoadComments",
+    Response.json({ rows: [], nextCursor: null }),
+  );
+  story(
+    update,
+    given(reopened.model),
+    message(fresh),
+    message(stale),
+    model(({ tripsState }) => {
+      assert.deepEqual(
+        tripsState.comments.data?.rows.map(({ body }) => body),
+        ["Current note"],
+      );
+    }),
+  );
+});
+
+test("an idle message keeps the current model reference", () => {
+  const initial = app("/");
+  const result = update(initial, AppMessage.Idle());
+  assert.ok(result.model === initial, "Idle returned a new model");
+  assert.deepEqual(result.commands, []);
 });
 
 test("a standalone trip feature closes its inspector and ignores late comments", () => {
@@ -155,6 +233,7 @@ test("a standalone trip feature closes its inspector and ignores late comments",
     closed.model,
     TripMessage.LoadedComments({
       tripId: trip.trip_id,
+      generation: opened.model.commentLoadGeneration,
       data: { rows: [], nextCursor: null },
       error: "",
       more: false,
@@ -212,18 +291,20 @@ test("sort URLs survive reload and history; saved views restore global scope wit
   );
   const restoring = update(
     back.model,
-    AppMessage.RestoreView({
-      savedView: {
-        id: "00000000-0000-4000-8000-000000000003",
-        title: "January pickups",
-        body: "",
-        filters: { from: "2016-01-01" },
-        version: 1,
-        pinned: false,
-        created_at: "2026-11-16T10:00:00Z",
-        updated_at: "2026-11-16T10:00:00Z",
-      },
-    }),
+    savedViewsMessage(
+      SavedMessage.RestoreView({
+        savedView: {
+          id: "00000000-0000-4000-8000-000000000003",
+          title: "January pickups",
+          body: "",
+          filters: { from: "2016-01-01" },
+          version: 1,
+          pinned: false,
+          created_at: "2026-11-16T10:00:00Z",
+          updated_at: "2026-11-16T10:00:00Z",
+        },
+      }),
+    ),
   );
   assert.ok(
     restoring.commands?.some(
@@ -437,26 +518,24 @@ test("Genie resumes restored reads without replaying conversation submissions", 
 });
 
 test("overview accepts only the active response and requests selection invalidation", () => {
-  const model = Overview.init();
+  const model = reloadOverview(Overview.init(), {}).model;
   const stale = updateOverview(
     model,
     OverviewMessage.LoadedOverview({
-      key: "old",
+      generation: model.loadGeneration - 1,
       data: null,
       error: "old failure",
     }),
-    { requestKey: "current" },
   );
   assert.equal(stale.model, model);
   assert.equal(stale.outMessage, undefined);
   const current = updateOverview(
     model,
     OverviewMessage.LoadedOverview({
-      key: "current",
+      generation: model.loadGeneration,
       data: null,
       error: "Warehouse unavailable",
     }),
-    { requestKey: "current" },
   );
   assert.equal(current.model.overview.error, "Warehouse unavailable");
   assert.deepEqual(current.outMessage, { _tag: "SelectionInvalidated" });

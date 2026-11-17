@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { Option } from "effect";
 import { Url } from "foldkit";
 import { pageContext } from "../src/app/analysis-context";
-import { Message as AppMessage } from "../src/app/message";
+import { gpsMessage, Message as AppMessage } from "../src/app/message";
 import { init, update } from "../src/app/update";
 import { gpsContext } from "../src/features/gps/context";
 import { jsonMap } from "../src/features/gps/dataset";
@@ -90,12 +90,61 @@ test("leaving the GPS page ignores its late responses and keeps the current page
   ).model;
   const result = update(
     model,
-    AppMessage.LoadedGps({
-      key: dataKey("", "pickup"),
-      data: summary(),
-      error: "",
-    }),
+    gpsMessage(
+      M.LoadedGps({
+        key: dataKey("", "pickup"),
+        data: summary(),
+        error: "",
+      }),
+    ),
   );
   assert.deepEqual(result.model, model);
   assert.equal(pageContext(result.model).page, "trips");
+});
+
+test("an old map reply keeps pinned Genie context until the map scope changes", () => {
+  const initialized = init(
+    Option.getOrThrow(Url.fromString("http://localhost/trip-map")),
+  ).model;
+  const activity = summary();
+  const currentReply = gpsMessage(
+    M.LoadedGps({
+      key: dataKey("", "pickup", initialized.gpsState.revision),
+      data: activity,
+      error: "",
+    }),
+  );
+  const loaded = update(initialized, currentReply).model;
+  const context = { page: "map" as const, title: "Pinned map context" };
+  const pinned = update(
+    loaded,
+    AppMessage.OpenGenie({ question: null, context }),
+  ).model;
+  const stale = update(
+    pinned,
+    gpsMessage(
+      M.LoadedGps({
+        key: dataKey("", "pickup", pinned.gpsState.revision - 1),
+        data: null,
+        error: "old failure",
+      }),
+    ),
+  );
+  assert.deepEqual(stale.model.genieState.genieSelection, context);
+  assert.equal(stale.model, pinned);
+  const rendered = update(
+    stale.model,
+    gpsMessage(
+      M.GpsReady({
+        key: frameKey("", "pickup", null, pinned.gpsState.revision),
+        error: "",
+      }),
+    ),
+  ).model;
+  assert.deepEqual(rendered.genieState.genieSelection, context);
+  const cell = activity.cells[0];
+  assert.ok(cell);
+  const changed = update(rendered, gpsMessage(M.GpsSelect({ id: cell.id })));
+  assert.equal(changed.model.gpsState.selected, cell.id);
+  assert.equal(changed.model.genieState.genieSelection, null);
 });

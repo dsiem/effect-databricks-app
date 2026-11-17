@@ -1,12 +1,9 @@
 import type { Message as GpsMessage } from "../features/gps/view-messages";
 import type { Message as OverviewMessage } from "../features/overview/view-messages";
 import type { Message as TripsMessage } from "../features/trips/view-messages";
-import { Message as M, type Message } from "./message";
+import { gpsMessage, Message as M, type Message } from "./message";
 
-type ExploreMessage =
-  | typeof GpsMessage.Type
-  | typeof OverviewMessage.Type
-  | typeof TripsMessage.Type;
+type ExploreMessage = typeof OverviewMessage.Type | typeof TripsMessage.Type;
 
 export function exploreMessage(message: ExploreMessage): Message {
   switch (message._tag) {
@@ -20,4 +17,10 @@ export function exploreMessage(message: ExploreMessage): Message {
     default:
       return message;
   }
+}
+
+export function gpsViewMessage(message: typeof GpsMessage.Type): Message {
+  return message._tag === "Analyze" || message._tag === "Reload"
+    ? exploreMessage(message)
+    : gpsMessage(message);
 }

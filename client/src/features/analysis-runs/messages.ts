@@ -11,7 +11,7 @@ import {
 import { Id } from "../../../../shared/domain";
 import { Selection, WeekField } from "./model";
 
-export const messages = {
+const messages = {
   AnalysisDatePicker: { field: WeekField, message: DatePicker.Message },
   AnalysisFieldChanged: {
     field: Schema.Literals(["baselineWeek", "comparisonWeek", "minimumTrips"]),
@@ -27,8 +27,7 @@ export const messages = {
   RefreshAnalysisHistory: {},
   LoadedAnalysisHistory: {
     generation: Schema.Int,
-    data: Schema.NullOr(Schema.Array(AnalysisRunSummary)),
-    error: Schema.String,
+    result: Schema.Result(Schema.Array(AnalysisRunSummary), Schema.String),
   },
   RetryAnalysisStatus: {},
   LoadedAnalysisStatus: {

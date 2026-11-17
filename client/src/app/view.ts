@@ -12,6 +12,7 @@ import {
   deleteDialogView,
   editorView,
 } from "../features/saved-views/dialogs-view";
+import { Message as SavedViewMessage } from "../features/saved-views/messages";
 import { savedViewsView } from "../features/saved-views/view";
 import { inspectorView } from "../features/trips/inspector";
 import { tripsView } from "../features/trips/view";
@@ -20,12 +21,16 @@ import { filterPanel } from "../ui/filter-panel";
 import { icon } from "../ui/icons";
 import { button, type Child, card } from "../ui/primitives";
 import { pageContext } from "./analysis-context";
-import { Message as M } from "./message";
+import {
+  analysisRunsMessage,
+  Message as M,
+  savedViewsMessage,
+} from "./message";
 import { type Model, navigation } from "./model";
 import { paths, routePath, showsExplore } from "./route";
 import { themeSelector } from "./theme-view";
 import { initTooltip } from "./ui-state";
-import { exploreMessage } from "./view-messages";
+import { exploreMessage, gpsViewMessage } from "./view-messages";
 import type { H } from "./view-types";
 
 function workspaceHref(path: string, query: string) {
@@ -200,7 +205,7 @@ function filters(h: H, model: Model) {
         filters: applied ?? {},
         canSave: !!applied && !hasChanges,
       },
-      toParentMessage: (message) => message,
+      toParentMessage: savedViewsMessage,
     }),
     fields: filterFields(h, {
       draft: model.filtersState.filterDraft,
@@ -213,7 +218,7 @@ function filters(h: H, model: Model) {
         [h.Class("inline-flex items-center gap-2")],
         [icon(h, "plus"), "Save view"],
       ),
-      onClick: M.NewSavedView(),
+      onClick: savedViewsMessage(SavedViewMessage.NewSavedView()),
       disabled: !applied || hasChanges,
       attributes: [
         h.Attribute(
@@ -285,7 +290,7 @@ export function view(model: Model, h: H): Document {
             slotId: "gpsMap",
             view: gpsMapView,
             model: { ...model.gpsState, query, filters: applied ?? {} },
-            toParentMessage: exploreMessage,
+            toParentMessage: gpsViewMessage,
           }),
         ];
         break;
@@ -294,8 +299,9 @@ export function view(model: Model, h: H): Document {
           h.submodel({
             slotId: "analysis-runs",
             view: analysisRunsView,
-            model: { ...model.analysisRunsState, query },
-            toParentMessage: (message) => message,
+            model: model.analysisRunsState,
+            viewInputs: { query },
+            toParentMessage: analysisRunsMessage,
           }),
         ];
         break;
@@ -446,10 +452,8 @@ export function view(model: Model, h: H): Document {
               h.submodel({
                 slotId: "deleteDialog",
                 view: deleteDialogView,
-                model: {
-                  ...model.savedViewsState,
-                },
-                toParentMessage: (message) => message,
+                model: model.savedViewsState,
+                toParentMessage: savedViewsMessage,
               }),
             ]
           : []),
@@ -458,10 +462,8 @@ export function view(model: Model, h: H): Document {
               h.submodel({
                 slotId: "editor",
                 view: editorView,
-                model: {
-                  ...model.savedViewsState,
-                },
-                toParentMessage: (message) => message,
+                model: model.savedViewsState,
+                toParentMessage: savedViewsMessage,
               }),
             ]
           : []),

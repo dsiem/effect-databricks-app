@@ -38,9 +38,15 @@ export const Message = defineMessageUnion({
   ...Filters.messages,
   ...Overview.messages,
   ...Trips.messages,
-  ...SavedViews.messages,
+  SavedViews: { message: SavedViews.Message },
   ...Genie.messages,
-  ...Gps.messages,
-  ...AnalysisRuns.messages,
+  Gps: { message: Gps.Message },
+  AnalysisRuns: { message: AnalysisRuns.Message },
 });
 export type Message = typeof Message.Type;
+
+export const savedViewsMessage = (message: SavedViews.Message) =>
+  Message.SavedViews({ message });
+export const gpsMessage = (message: Gps.Message) => Message.Gps({ message });
+export const analysisRunsMessage = (message: AnalysisRuns.Message) =>
+  Message.AnalysisRuns({ message });

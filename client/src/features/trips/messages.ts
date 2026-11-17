@@ -25,6 +25,7 @@ export const messages = {
   LoadComments: { more: Schema.Boolean },
   LoadedComments: {
     tripId: Schema.String,
+    generation: Schema.Int,
     data: Schema.NullOr(D.TripComments),
     error: Schema.String,
     more: Schema.Boolean,

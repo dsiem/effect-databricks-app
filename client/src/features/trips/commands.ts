@@ -20,11 +20,12 @@ export const LoadTrips = Command.define("LoadTrips", {
 export const LoadComments = Command.define("LoadComments", {
   args: {
     trip: D.TripSnapshot,
+    generation: Schema.Int,
     cursor: Schema.NullOr(D.TripCommentCursor),
     more: Schema.Boolean,
   },
   messages: [M.LoadedComments],
-  execute: ({ trip, cursor, more }) =>
+  execute: ({ trip, generation, cursor, more }) =>
     result(
       request((client) =>
         client.tripComments({
@@ -33,7 +34,7 @@ export const LoadComments = Command.define("LoadComments", {
       ),
     ).pipe(
       Effect.map((value) =>
-        M.LoadedComments({ tripId: trip.trip_id, ...value, more }),
+        M.LoadedComments({ tripId: trip.trip_id, generation, ...value, more }),
       ),
     ),
 });

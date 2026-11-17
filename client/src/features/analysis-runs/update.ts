@@ -1,6 +1,6 @@
 import { DatePicker } from "@foldkit/ui";
-import { Schema } from "effect";
-import { Command, type Update } from "foldkit";
+import { Option, Schema } from "effect";
+import { AsyncData, Command, type Update } from "foldkit";
 import { AnalysisInput } from "../../../../shared/analysis-runs";
 import type { ApiClient } from "../../lib/api-client";
 import { isoDay } from "../../lib/format";
@@ -22,10 +22,20 @@ const editField = (
   submission: readyToSubmit(),
 });
 
-const loadHistory = (model: Model): Change => ({
-  model: { ...model, recent: { ...model.recent, error: "", loading: true } },
-  commands: [Commands.LoadHistory({ generation: model.generation })],
-});
+function loadHistory(model: Model): Change {
+  const generation = model.historyGeneration + 1;
+  return {
+    model: {
+      ...model,
+      historyGeneration: generation,
+      recent: Option.getOrElse(
+        AsyncData.revalidateOrLoad(model.recent),
+        () => model.recent,
+      ),
+    },
+    commands: [Commands.LoadHistory({ generation })],
+  };
+}
 
 export function openAnalysisRuns(model: Model, run: AnalysisRunLink): Change {
   const generation = model.generation + 1;
@@ -157,17 +167,13 @@ export function updateAnalysisRuns(
       };
     }
     case "RefreshAnalysisHistory":
-      return model.recent.loading ? { model } : loadHistory(model);
+      return AsyncData.isPending(model.recent) ? { model } : loadHistory(model);
     case "LoadedAnalysisHistory":
-      if (message.generation !== model.generation) return { model };
+      if (message.generation !== model.historyGeneration) return { model };
       return {
         model: {
           ...model,
-          recent: {
-            data: message.data ?? model.recent.data,
-            error: message.error,
-            loading: false,
-          },
+          recent: AsyncData.settle(model.recent, message.result),
         },
       };
     case "RetryAnalysisStatus":

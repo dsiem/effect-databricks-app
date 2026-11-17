@@ -4,7 +4,7 @@ import * as Dom from "foldkit/dom";
 import { AnalysisInput, AnalysisRunId } from "../../../../shared/analysis-runs";
 import { Id } from "../../../../shared/domain";
 import { request } from "../../lib/api-client";
-import { done, result } from "../../lib/command-result";
+import { done, failure, result } from "../../lib/command-result";
 import { Message as M } from "./messages";
 import { runHref, Selection } from "./model";
 
@@ -32,10 +32,11 @@ export const LoadHistory = Command.define("LoadAnalysisHistory", {
   args: { generation: Schema.Int },
   messages: [M.LoadedAnalysisHistory],
   execute: ({ generation }) =>
-    result(request((client) => client.analysisRuns())).pipe(
-      Effect.map((loaded) =>
-        M.LoadedAnalysisHistory({ ...loaded, generation }),
-      ),
+    request((client) => client.analysisRuns()).pipe(
+      Effect.scoped,
+      Effect.mapError(failure),
+      Effect.result,
+      Effect.map((result) => M.LoadedAnalysisHistory({ generation, result })),
     ),
 });
 

@@ -24,25 +24,28 @@ function countComments(model: Model): FeatureUpdate<Model, Message, Out> {
   };
 }
 
-const comments = (
+function comments(
   model: Model,
   more = false,
-): FeatureUpdate<Model, Message, Out> =>
-  model.selectedTrip
-    ? {
-        model: {
-          ...model,
-          comments: { ...model.comments, loading: true, error: "" },
-        },
-        commands: [
-          TripsCommands.LoadComments({
-            trip: model.selectedTrip,
-            cursor: more ? (model.comments.data?.nextCursor ?? null) : null,
-            more,
-          }),
-        ],
-      }
-    : { model };
+): FeatureUpdate<Model, Message, Out> {
+  if (!model.selectedTrip) return { model };
+  const generation = model.commentLoadGeneration + 1;
+  return {
+    model: {
+      ...model,
+      commentLoadGeneration: generation,
+      comments: { ...model.comments, loading: true, error: "" },
+    },
+    commands: [
+      TripsCommands.LoadComments({
+        trip: model.selectedTrip,
+        generation,
+        cursor: more ? (model.comments.data?.nextCursor ?? null) : null,
+        more,
+      }),
+    ],
+  };
+}
 function updateTripsState(
   model: Model,
   message: Message,
@@ -135,7 +138,8 @@ function updateTripsState(
     case "LoadComments":
       return model.comments.loading ? { model } : comments(model, message.more);
     case "LoadedComments":
-      return message.tripId !== model.selectedTrip?.trip_id
+      return message.generation !== model.commentLoadGeneration ||
+        message.tripId !== model.selectedTrip?.trip_id
         ? { model }
         : {
             model: {
@@ -273,7 +277,10 @@ export function updateTrips(
   );
   return {
     ...result,
-    model: { ...result.model, inspectorDialog: dialog.model },
+    model:
+      dialog.model === result.model.inspectorDialog
+        ? result.model
+        : { ...result.model, inspectorDialog: dialog.model },
     commands: [
       ...(result.commands ?? []),
       ...(dialog.commands ?? []).map((command) =>

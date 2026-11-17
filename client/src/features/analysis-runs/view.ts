@@ -1,3 +1,5 @@
+import { Option } from "effect";
+import { AsyncData } from "foldkit";
 import { defineView } from "foldkit/submodel";
 import type {
   AnalysisRunState,
@@ -20,7 +22,7 @@ import { Message as M, type Message } from "./messages";
 import { type Model, runHref, type WeekField } from "./model";
 
 type H = Builder<Message>;
-type ViewModel = Model & { readonly query: string };
+type ViewInputs = { readonly query: string };
 
 const states = {
   queued: "Queued",
@@ -145,8 +147,10 @@ function setup(h: H, model: Model) {
   ]);
 }
 
-function recentRuns(h: H, model: ViewModel) {
-  const { data, error, loading } = model.recent;
+function recentRuns(h: H, model: Model, query: string) {
+  const data = Option.getOrUndefined(AsyncData.getData(model.recent));
+  const error = Option.getOrUndefined(AsyncData.getError(model.recent));
+  const loading = AsyncData.isPending(model.recent);
   return card(h, [
     panelHeader(h, {
       title: "Recent runs",
@@ -177,7 +181,7 @@ function recentRuns(h: H, model: ViewModel) {
                 [
                   h.a(
                     [
-                      h.Href(runHref(run.id, model.query)),
+                      h.Href(runHref(run.id, query)),
                       h.Class("analysis-history-link"),
                       ...(current ? [h.AriaCurrent("page")] : []),
                     ],
@@ -390,44 +394,45 @@ function selectedRun(
   ]);
 }
 
-export const analysisRunsView = defineView<ViewModel, Message>((model, h) =>
-  h.div(
-    [h.Class("contents")],
-    [
-      title(
-        h,
-        "Analysis runs",
-        "Start a route comparison and return to its report when it finishes.",
-      ),
-      h.div(
-        [h.Class("analysis-grid")],
-        [
-          h.div(
-            [h.Class("analysis-main")],
-            [
-              setup(h, model),
-              ...(model.invalidLink
-                ? [
-                    card(
-                      h,
-                      [
-                        alert(
-                          h,
-                          "This run link is invalid. Choose a recent run or start a new one.",
-                        ),
-                      ],
-                      "analysis-panel-body",
-                    ),
-                  ]
-                : []),
-              ...(model.selected
-                ? [selectedRun(h, model, model.selected)]
-                : []),
-            ],
-          ),
-          recentRuns(h, model),
-        ],
-      ),
-    ],
-  ),
+export const analysisRunsView = defineView<Model, Message, ViewInputs>(
+  (model, { query }, h) =>
+    h.div(
+      [h.Class("contents")],
+      [
+        title(
+          h,
+          "Analysis runs",
+          "Start a route comparison and return to its report when it finishes.",
+        ),
+        h.div(
+          [h.Class("analysis-grid")],
+          [
+            h.div(
+              [h.Class("analysis-main")],
+              [
+                setup(h, model),
+                ...(model.invalidLink
+                  ? [
+                      card(
+                        h,
+                        [
+                          alert(
+                            h,
+                            "This run link is invalid. Choose a recent run or start a new one.",
+                          ),
+                        ],
+                        "analysis-panel-body",
+                      ),
+                    ]
+                  : []),
+                ...(model.selected
+                  ? [selectedRun(h, model, model.selected)]
+                  : []),
+              ],
+            ),
+            recentRuns(h, model, query),
+          ],
+        ),
+      ],
+    ),
 );

@@ -1,5 +1,6 @@
 import { DatePicker } from "@foldkit/ui";
 import { Option, Schema } from "effect";
+import { AsyncData } from "foldkit";
 import {
   AnalysisRun,
   AnalysisRunId,
@@ -9,7 +10,7 @@ import {
   RouteReliabilityReport,
 } from "../../../../shared/analysis-runs";
 import { Id } from "../../../../shared/domain";
-import { empty, request } from "../../lib/request-state";
+import { request } from "../../lib/request-state";
 
 export const Draft = Schema.Struct({
   baselineWeek: Schema.String,
@@ -54,7 +55,9 @@ export const Model = Schema.Struct({
   submission: Submission,
   generation: Schema.Int,
   invalidLink: Schema.Boolean,
-  recent: request(Schema.Array(AnalysisRunSummary)),
+  historyGeneration: Schema.Int,
+  recent: AsyncData.Schema(Schema.Array(AnalysisRunSummary), Schema.String)
+    .schema,
   selected: Schema.NullOr(
     Schema.Struct({
       ...Selection.fields,
@@ -76,7 +79,8 @@ export const init = (): Model => ({
   submission: readyToSubmit(),
   generation: 0,
   invalidLink: false,
-  recent: empty,
+  historyGeneration: 0,
+  recent: AsyncData.Idle(),
   selected: null,
 });
 

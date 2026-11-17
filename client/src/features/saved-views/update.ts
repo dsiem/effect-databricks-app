@@ -20,7 +20,10 @@ function withBrowser(
   changed: FeatureUpdate<Browser.Model, Message>,
 ): FeatureUpdate<Model, Message, Out> {
   return {
-    model: { ...model, browser: changed.model },
+    model:
+      changed.model === model.browser
+        ? model
+        : { ...model, browser: changed.model },
     commands: changed.commands ?? [],
   };
 }
@@ -275,10 +278,14 @@ export function updateSavedViews(
   );
   return {
     ...result,
-    model: {
-      ...result.model,
-      dialogs: { savedView: savedView.model, delete: deletion.model },
-    },
+    model:
+      savedView.model === result.model.dialogs.savedView &&
+      deletion.model === result.model.dialogs.delete
+        ? result.model
+        : {
+            ...result.model,
+            dialogs: { savedView: savedView.model, delete: deletion.model },
+          },
     commands: [
       ...(result.commands ?? []),
       ...(savedView.commands ?? []).map((command) =>

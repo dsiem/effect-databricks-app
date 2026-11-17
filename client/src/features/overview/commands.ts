@@ -5,10 +5,10 @@ import { request } from "../../lib/api-client";
 import { result } from "../../lib/command-result";
 import { Message as M } from "./messages";
 export const LoadOverview = Command.define("LoadOverview", {
-  args: { key: Schema.String, filters: D.Filters },
+  args: { generation: Schema.Int, filters: D.Filters },
   messages: [M.LoadedOverview],
-  execute: ({ key, filters }) =>
+  execute: ({ generation, filters }) =>
     result(request((client) => client.overview({ query: filters }))).pipe(
-      Effect.map((value) => M.LoadedOverview({ key, ...value })),
+      Effect.map((value) => M.LoadedOverview({ generation, ...value })),
     ),
 });

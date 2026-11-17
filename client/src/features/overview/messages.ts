@@ -6,7 +6,7 @@ import * as D from "../../../../shared/domain";
 export const messages = {
   MetricTabs: { message: Tabs.Message },
   LoadedOverview: {
-    key: Schema.String,
+    generation: Schema.Int,
     data: Schema.NullOr(D.Overview),
     error: Schema.String,
   },

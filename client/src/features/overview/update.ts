@@ -1,13 +1,26 @@
 import { Command } from "foldkit";
+import type { Filters } from "../../../../shared/domain";
 import type { FeatureUpdate } from "../../lib/feature-update";
-
+import { pending } from "../../lib/request-state";
+import { LoadOverview } from "./commands";
 import { Message as M, type Message } from "./messages";
 import { MetricTabs } from "./metric-tabs";
 import type { Model } from "./model";
+
+export function reloadOverview(
+  model: Model,
+  filters: Filters,
+): FeatureUpdate<Model, Message> {
+  const generation = model.loadGeneration + 1;
+  return {
+    model: { ...model, loadGeneration: generation, overview: pending },
+    commands: [LoadOverview({ generation, filters })],
+  };
+}
+
 export function updateOverview(
   model: Model,
   message: Message,
-  context: Context,
 ): FeatureUpdate<Model, Message, Out> {
   switch (message._tag) {
     case "Idle":
@@ -29,7 +42,7 @@ export function updateOverview(
       };
     }
     case "LoadedOverview":
-      return message.key !== context.requestKey
+      return message.generation !== model.loadGeneration
         ? { model }
         : {
             outMessage: { _tag: "SelectionInvalidated" },
@@ -45,5 +58,4 @@ export function updateOverview(
   }
 }
 
-export type Context = { readonly requestKey: string };
 export type Out = { readonly _tag: "SelectionInvalidated" };

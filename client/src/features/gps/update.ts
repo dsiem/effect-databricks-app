@@ -7,6 +7,7 @@ import { RefreshGps } from "./mount";
 import { EndpointTabs } from "./tabs";
 
 type MapLocation = Pick<MapQuery, "query" | "filters">;
+type Out = { readonly _tag: "SelectionInvalidated" };
 
 const refresh = (model: Model, { query, filters }: MapLocation) => [
   RefreshGps({
@@ -41,20 +42,24 @@ export function updateGps(
   model: Model,
   message: Message,
   location: MapLocation,
-): FeatureUpdate<Model, Message> {
+): FeatureUpdate<Model, Message, Out> {
   switch (message._tag) {
     case "Idle":
       return { model };
     case "GpsTabs": {
       const changed = EndpointTabs.update(model.endpointTabs, message.message);
-      const next = {
-        ...model,
-        endpointTabs: changed.model,
-        endpoint: changed.outMessage?.value ?? model.endpoint,
-      };
-      const loaded = changed.outMessage
-        ? reloadGps(next, location)
-        : { model: next };
+      const endpoint = changed.outMessage?.value ?? model.endpoint;
+      const next =
+        changed.model === model.endpointTabs && endpoint === model.endpoint
+          ? model
+          : { ...model, endpointTabs: changed.model, endpoint };
+      const loaded: FeatureUpdate<Model, Message, Out> =
+        endpoint === model.endpoint
+          ? { model: next }
+          : {
+              ...reloadGps(next, location),
+              outMessage: { _tag: "SelectionInvalidated" },
+            };
       return {
         ...loaded,
         commands: [
@@ -78,7 +83,11 @@ export function updateGps(
         selected: null,
         selectedCell: null,
       };
-      return { model: next, commands: refresh(next, location) };
+      return {
+        model: next,
+        commands: refresh(next, location),
+        outMessage: { _tag: "SelectionInvalidated" },
+      };
     }
     case "GpsReady":
       return message.key !==
@@ -96,7 +105,8 @@ export function updateGps(
             },
           };
     case "GpsSelect": {
-      if (model.activity.loading) return { model };
+      if (model.activity.loading || model.selected === message.id)
+        return { model };
       const next = {
         ...model,
         selected: message.id,
@@ -104,7 +114,11 @@ export function updateGps(
           model.activity.data?.cells.find((cell) => cell.id === message.id) ??
           null,
       };
-      return { model: next, commands: refresh(next, location) };
+      return {
+        model: next,
+        commands: refresh(next, location),
+        outMessage: { _tag: "SelectionInvalidated" },
+      };
     }
   }
 }
