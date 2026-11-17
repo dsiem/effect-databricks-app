@@ -76,7 +76,7 @@ Keep the application structure and replace the taxi-specific parts:
 | Source data and analytical queries                 | [Ingestion job](jobs/seed-trip-snapshot.sql) and [Analytics](server/src/analytics.ts) |
 | Request and response shapes                        | [Domain schemas](shared/domain.ts) and [HTTP contract](shared/api.ts)                 |
 | Filters, charts, and record views                  | [Client features](client/src/features)                                                |
-| Genie tables, instructions, and deployed resources | [databricks.yml](databricks.yml)                                                      |
+| Genie tables, instructions, and deployed resources | [Resource configuration](resources)                                                   |
 
 All viewers share saved views and trip comments through the app's identity.
 Add authorization at the API boundary before using records with different access

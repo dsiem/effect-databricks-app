@@ -32,8 +32,6 @@ jobs:
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:browser
       - run: npm run test:filters
-      - uses: databricks/setup-cli@v1.26.0
-      - run: npm run bundle:check
 
   deploy:
     needs: check

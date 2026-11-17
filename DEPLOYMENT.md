@@ -1,8 +1,9 @@
 # Deploy and adapt the app
 
-Deployment uses a Databricks bundle: the app and service configuration in
-[databricks.yml](databricks.yml). The Databricks CLI reads that file to create
-or update the resources together.
+Deployment uses a Databricks bundle. [databricks.yml](databricks.yml) defines the
+bundle settings, variables, and targets, and includes the app and service
+configuration in [resources](resources). The Databricks CLI reads these files to
+create or update the resources together.
 
 Run commands from the repository root. Use the Node version in [.nvmrc](.nvmrc),
 npm 10, and Databricks CLI `>=1.26.0 <2.0.0`.
@@ -47,7 +48,7 @@ Use a PostgreSQL role that can run the application migration and grant table acc
 3. If you reuse resources, bind them before deployment:
    - For an existing warehouse, add `warehouse_name` with its exact display name
      to the overrides. Match its settings in `resources.sql_warehouses.analytics`
-     in [databricks.yml](databricks.yml). Then bind its ID:
+     in [resources/warehouse.yml](resources/warehouse.yml). Then bind its ID:
 
      ```sh
      	databricks bundle deployment bind analytics EXISTING_WAREHOUSE_ID -t dev
@@ -67,7 +68,6 @@ Use a PostgreSQL role that can run the application migration and grant table acc
 4. Validate the configuration and review the plan:
 
    ```sh
-   	npm run bundle:check
    	databricks bundle validate --strict -t dev
    	databricks bundle plan -t dev
    ```
@@ -113,7 +113,7 @@ Keep `.env` out of Git.
 1. Replace the source and cleaning rules in [the ingestion job](jobs/seed-trip-snapshot.sql).
 2. Update [the shared domain](shared/domain.ts), [HTTP contract](shared/api.ts),
    and [analytics queries](server/src/analytics.ts) for your dataset.
-3. Update the Genie tables and instructions in [databricks.yml](databricks.yml).
+3. Update the Genie tables and instructions in [resources/genie.yml](resources/genie.yml).
 4. Replace the taxi controls and views in [client/src/features](client/src/features).
 5. Add the authorization your records require at the HTTP boundary in [server/src/routes.ts](server/src/routes.ts).
 

@@ -1,0 +1,19 @@
+resources:
+  jobs:
+    seed_trip_snapshot:
+      name: ${var.data_name}-seed-trip-snapshot
+      description: Full Jan-Feb 2016 taxi ingestion, quality audit, ZIP enrichment, and app grants; preserves trip IDs on rerun.
+      max_concurrent_runs: 1
+      parameters:
+        - name: catalog
+          default: ${resources.schemas.data.catalog_name}
+        - name: schema
+          default: ${resources.schemas.data.name}
+        - name: app_service_principal_id
+          default: ""
+      tasks:
+        - task_key: seed_trip_snapshot
+          timeout_seconds: 3600
+          notebook_task:
+            notebook_path: ../jobs/seed-trip-snapshot.sql
+            warehouse_id: ${resources.sql_warehouses.analytics.id}
