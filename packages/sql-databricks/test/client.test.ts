@@ -303,6 +303,52 @@ test("streams Arrow batches and independently decodable IPC chunks", async (t) =
   );
 });
 
+test("bounded IPC limits cumulative downloads and validates limits before submitting", async (t) => {
+  const server = await warehouse();
+  t.after(server.close);
+  const size = tables.reduce(
+    (total, table) => total + tableToIPC(table, "stream").byteLength,
+    0,
+  );
+  const success = await server.run(
+    Effect.gen(function* () {
+      const sql = yield* DatabricksClient.DatabricksClient;
+      return yield* Stream.runCollect(
+        sql.ipcStream(sql`SELECT * FROM sales`, { maxBytes: size }),
+      );
+    }),
+  );
+  assert.equal(success.length, 2);
+  await assert.rejects(
+    server.run(
+      Effect.gen(function* () {
+        const sql = yield* DatabricksClient.DatabricksClient;
+        return yield* Stream.runCollect(
+          sql.ipcStream(sql`SELECT * FROM sales`, { maxBytes: size - 1 }),
+        );
+      }),
+    ),
+  );
+  assert.equal(
+    server.requests.find((r) => r.method === "POST")?.body.byte_limit,
+    size,
+  );
+  const before = server.requests.length;
+  for (const maxBytes of [0, -1, Number.NaN]) {
+    await assert.rejects(
+      server.run(
+        Effect.gen(function* () {
+          const sql = yield* DatabricksClient.DatabricksClient;
+          return yield* Stream.runCollect(
+            sql.ipcStream(sql`SELECT * FROM sales`, { maxBytes }),
+          );
+        }),
+      ),
+    );
+  }
+  assert.equal(server.requests.length, before);
+});
+
 test("stops downloading when an Arrow stream consumer stops", async (t) => {
   const server = await warehouse();
   t.after(server.close);

@@ -17,3 +17,16 @@ export const queryFor = (filters: D.Filters) =>
   ).toString();
 export const href = (path: string, query: string) =>
   path + (query ? `?${query}` : "");
+
+export const tripSortFromQuery = (query: string): typeof D.TripSort.Type => {
+  const parsed = Schema.decodeUnknownOption(D.TripSort)(
+    new URLSearchParams(query).get("sort"),
+  );
+  return parsed._tag === "Some" ? parsed.value : "newest";
+};
+export const withTripSort = (query: string, sort: typeof D.TripSort.Type) => {
+  const params = new URLSearchParams(query);
+  params.delete("sort");
+  if (sort !== "newest") params.set("sort", sort);
+  return params.toString();
+};

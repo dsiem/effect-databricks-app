@@ -1,4 +1,36 @@
-import type { Trip } from "../../../../shared/domain";
+import type { Trip, TripSummary } from "../../../../shared/domain";
+
+export function downloadCsv(csv: string, filename: string) {
+  const url = URL.createObjectURL(
+    new Blob([csv], { type: "text/csv;charset=utf-8" }),
+  );
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+export function summaryCsv(rows: ReadonlyArray<TripSummary>, header = true) {
+  const fields = [
+    "trip_id",
+    "pickup_at",
+    "dropoff_at",
+    "pickup_zip",
+    "dropoff_zip",
+    "distance",
+    "fare",
+    "duration",
+  ] as const;
+  return [
+    ...(header ? [fields.join(",")] : []),
+    ...rows.map((row) =>
+      fields
+        .map((field) => `"${String(row[field] ?? "").replaceAll('"', '""')}"`)
+        .join(","),
+    ),
+  ].join("\r\n");
+}
 
 export function tripCsv(trips: ReadonlyArray<Trip>) {
   const fields = [

@@ -6,10 +6,31 @@ import { Message as AppMessage } from "../src/app/message";
 import { pageContext } from "../src/app/model";
 import { init, update } from "../src/app/update";
 import { gpsContext } from "../src/features/gps/context";
+import { jsonMap } from "../src/features/gps/dataset";
 import { Message as M } from "../src/features/gps/messages";
-import { dataKey, init as initGps } from "../src/features/gps/model";
-import { updateGps } from "../src/features/gps/update";
+import { dataKey, frameKey, init as initGps } from "../src/features/gps/model";
+import { reloadGps, updateGps } from "../src/features/gps/update";
 import { gpsFixture } from "./gps-fixture";
+
+const summary = (endpoint: "pickup" | "dropoff" = "pickup") =>
+  jsonMap(gpsFixture(endpoint)).summary;
+
+test("same-query retries reject old dataset and render revisions", () => {
+  const previous = initGps();
+  const current = reloadGps(previous, "").model;
+  for (const message of [
+    M.LoadedGps({
+      key: dataKey("", "pickup", previous.revision),
+      data: summary(),
+      error: "",
+    }),
+    M.GpsReady({
+      key: frameKey("", "pickup", null, previous.revision),
+      error: "",
+    }),
+  ])
+    assert.equal(updateGps(current, message, { query: "" }).model, current);
+});
 
 test("stale endpoint, filter and render responses cannot replace the active GPS map", () => {
   const query = "from=2016-01-10";
@@ -17,12 +38,12 @@ test("stale endpoint, filter and render responses cannot replace the active GPS 
   for (const message of [
     M.LoadedGps({
       key: dataKey(query, "pickup"),
-      data: gpsFixture(),
+      data: summary(),
       error: "",
     }),
     M.LoadedGps({
       key: dataKey("", "dropoff"),
-      data: gpsFixture("dropoff"),
+      data: summary("dropoff"),
       error: "",
     }),
     M.GpsReady({ key: dataKey(query, "pickup"), error: "Old renderer failed" }),
@@ -31,7 +52,7 @@ test("stale endpoint, filter and render responses cannot replace the active GPS 
 });
 
 test("selection and Genie use the same GPS endpoint, counts and area without copying all geometry", () => {
-  const activity = gpsFixture("dropoff");
+  const activity = summary("dropoff");
   const model = {
     ...initGps(),
     endpoint: "dropoff" as const,
@@ -65,7 +86,7 @@ test("leaving the GPS page ignores its late responses and keeps the current page
     model,
     AppMessage.LoadedGps({
       key: dataKey("", "pickup"),
-      data: gpsFixture(),
+      data: summary(),
       error: "",
     }),
   );

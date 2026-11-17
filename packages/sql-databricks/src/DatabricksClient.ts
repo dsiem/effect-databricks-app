@@ -44,6 +44,7 @@ export interface DatabricksClient extends Client.Base {
   /** Each element is an independent, complete Arrow IPC stream. Do not concatenate. */
   readonly ipcStream: (
     statement: Statement.Statement<unknown>,
+    limits?: { readonly maxBytes: number },
   ) => Stream.Stream<Uint8Array, SqlError>;
   /** Applies queryTimeout to a complete consumer, including downstream work. */
   readonly withQueryTimeout: <A, E, R>(
@@ -231,7 +232,7 @@ export const make = (
         ),
       );
 
-    const download = (url: string) =>
+    const download = (url: string, maxBytes?: number) =>
       Effect.gen(function* () {
         const safeUrl = yield* Effect.try({
           try: () => parseUrl(url, options.allowDatabricksStorageProxy),
@@ -242,12 +243,34 @@ export const make = (
             // Fresh request: signed storage URLs never inherit workspace headers.
             const client = HttpClient.withScope(yield* HttpClient.HttpClient);
             const response = yield* client.get(safeUrl);
+            if (response.status < 200 || response.status >= 300)
+              return { status: response.status, bytes: new Uint8Array() };
+            if (maxBytes === undefined)
+              return {
+                status: response.status,
+                bytes: new Uint8Array(yield* response.arrayBuffer),
+              };
+            const parts: Uint8Array[] = [];
+            let size = 0;
+            yield* Stream.runForEach(response.stream, (part) =>
+              Effect.gen(function* () {
+                size += part.byteLength;
+                if (size > maxBytes)
+                  return yield* Effect.fail(
+                    failure("Arrow result exceeds the byte limit", "download"),
+                  );
+                parts.push(part);
+              }),
+            );
+            const bytes = new Uint8Array(size);
+            let offset = 0;
+            for (const part of parts) {
+              bytes.set(part, offset);
+              offset += part.byteLength;
+            }
             return {
               status: response.status,
-              bytes:
-                response.status >= 200 && response.status < 300
-                  ? new Uint8Array(yield* response.arrayBuffer)
-                  : new Uint8Array(),
+              bytes,
             };
           }).pipe(
             Effect.provideService(HttpClient.TracerPropagationEnabled, false),
@@ -267,9 +290,17 @@ export const make = (
     const ipc = (
       sql: string,
       params: ReadonlyArray<unknown>,
+      maxBytes?: number,
     ): Stream.Stream<Uint8Array, SqlError> =>
       Stream.unwrap(
         Effect.gen(function* () {
+          if (
+            maxBytes !== undefined &&
+            (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)
+          )
+            return yield* Effect.fail(
+              failure("maxBytes must be a positive safe integer", "configure"),
+            );
           const parameters = yield* Effect.try({
             try: () => params.map(parameter),
             catch: () =>
@@ -292,9 +323,14 @@ export const make = (
               ...(options.schema === undefined
                 ? {}
                 : { schema: options.schema }),
-              ...(options.byteLimit === undefined
+              ...(options.byteLimit === undefined && maxBytes === undefined
                 ? {}
-                : { byte_limit: options.byteLimit }),
+                : {
+                    byte_limit: Math.min(
+                      options.byteLimit ?? Infinity,
+                      maxBytes ?? Infinity,
+                    ),
+                  }),
             }).pipe(
               Effect.flatMap((value) => decode(StatementResponse, value)),
               Effect.map((current) => ({ current })),
@@ -361,6 +397,7 @@ export const make = (
               return link.external_link;
             });
           if (manifest.total_chunk_count === 0) return Stream.empty;
+          let receivedBytes = 0;
           return Stream.range(0, manifest.total_chunk_count - 1).pipe(
             Stream.mapEffect((index) =>
               Effect.gen(function* () {
@@ -370,16 +407,19 @@ export const make = (
                     ? first
                     : undefined;
                 const url = yield* chunkLink(index, cached);
-                let result = yield* download(url);
+                const remaining =
+                  maxBytes === undefined ? undefined : maxBytes - receivedBytes;
+                let result = yield* download(url, remaining);
                 // Signed URLs can expire while the downstream consumer is paused.
                 if (result.status === 401 || result.status === 403) {
-                  result = yield* download(yield* chunkLink(index));
+                  result = yield* download(yield* chunkLink(index), remaining);
                 }
                 if (result.status < 200 || result.status >= 300) {
                   return yield* Effect.fail(
                     httpFailure(result.status, "download"),
                   );
                 }
+                receivedBytes += result.bytes.byteLength;
                 return result.bytes;
               }),
             ),
@@ -490,7 +530,10 @@ export const make = (
     );
     const ipcSql = Object.assign(
       Statement.make(
-        Effect.succeed({ ...connection, executeStream: ipc }),
+        Effect.succeed({
+          ...connection,
+          executeStream: (text, params) => ipc(text, params),
+        }),
         compiler,
         spanAttributes,
         undefined,
@@ -511,8 +554,22 @@ export const make = (
         arrowChunks(statement).pipe(
           Stream.flatMap((table) => Stream.fromIterable(table.batches)),
         ),
-      ipcStream: (statement: Statement.Statement<unknown>) =>
-        ipcSql<Uint8Array>`${statement}`.stream,
+      ipcStream: (
+        statement: Statement.Statement<unknown>,
+        limits?: { readonly maxBytes: number },
+      ) => {
+        if (!limits) return ipcSql<Uint8Array>`${statement}`.stream;
+        const boundedSql = Statement.make(
+          Effect.succeed({
+            ...connection,
+            executeStream: (text, params) => ipc(text, params, limits.maxBytes),
+          }),
+          compiler,
+          spanAttributes,
+          undefined,
+        );
+        return boundedSql<Uint8Array>`${statement}`.stream;
+      },
       withQueryTimeout,
       param: (type: string, value: string | null) =>
         Statement.fragment([

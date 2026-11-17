@@ -5,7 +5,7 @@ import { request } from "../../lib/api-client";
 import { done, result } from "../../lib/command-result";
 import { Idle } from "../../lib/idle";
 import { randomUuid } from "../../lib/uuid";
-import { tripCsv } from "./export";
+import { downloadCsv, tripCsv } from "./export";
 import { Message as M } from "./messages";
 export const LoadTrips = Command.define("LoadTrips", {
   args: {
@@ -76,15 +76,7 @@ export const ExportTrips = Command.define("ExportTrips", {
   execute: ({ rows, page }) =>
     done(
       Effect.sync(() => {
-        const csv = tripCsv(rows);
-        const url = URL.createObjectURL(
-          new Blob([csv], { type: "text/csv;charset=utf-8" }),
-        );
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `taxi-trips-page-${page}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+        downloadCsv(tripCsv(rows), `taxi-trips-loaded-page-${page}.csv`);
       }),
     ),
 });

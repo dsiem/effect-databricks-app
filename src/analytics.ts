@@ -24,6 +24,7 @@ import { makeAdmission } from "./admission.js";
 import { makeCapability } from "./capability.js";
 import { OperationTimeout, type ServiceError, unavailable } from "./errors.js";
 import { Settings } from "./settings.js";
+import { makeTripDatasets } from "./trip-datasets.js";
 import { Workspace } from "./workspace.js";
 
 export class Analytics extends Context.Service<
@@ -37,6 +38,7 @@ export class Analytics extends Context.Service<
     readonly trips: (
       search: TripSearch,
     ) => Effect.Effect<typeof Trips.Type, ServiceError>;
+    readonly tripDatasets: ReturnType<typeof makeTripDatasets>;
     readonly tripMap: (
       search: typeof GpsSearch.Type,
     ) => Effect.Effect<TripMap, ServiceError>;
@@ -337,6 +339,10 @@ export class Analytics extends Context.Service<
             }),
           ),
         trips,
+        tripDatasets: makeTripDatasets(sql, snapshot, read, {
+          rows: settings.explorerRowBudget,
+          bytes: settings.explorerByteBudget,
+        }),
         tripMap: (search: typeof GpsSearch.Type) =>
           Cache.get(
             gpsCache,

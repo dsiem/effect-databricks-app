@@ -48,6 +48,25 @@ function updateTripsState(
   context: Context,
 ): FeatureUpdate<Model, Message, Out> {
   switch (message._tag) {
+    case "TripGridWindow":
+      return message.key === model.gridKey
+        ? {
+            model: { ...model, gridWindow: message },
+            outMessage: { _tag: "SelectionInvalidated" },
+          }
+        : { model };
+    case "TripGridStatus":
+      return message.key === model.gridKey
+        ? { model: { ...model, gridStatus: message } }
+        : { model };
+    case "TripGridSelected":
+      return message.key === model.gridKey
+        ? updateTripsState(
+            model,
+            M.InspectTrip({ trip: message.trip }),
+            context,
+          )
+        : { model };
     case "Idle":
       return { model };
     case "ResetTrips":
@@ -236,7 +255,15 @@ function updateTripsState(
         postError: model.selectedTrip?.trip_id === key ? message.error : "",
       };
       if (message.error) return { model: next };
-      const counted = countComments(next);
+      const counted = context.preview
+        ? {
+            model: {
+              ...next,
+              commentCountsVersion: next.commentCountsVersion + 1,
+            },
+            commands: [],
+          }
+        : countComments(next);
       if (model.selectedTrip?.trip_id !== key) return counted;
       const refreshed = comments(counted.model);
       return {
@@ -247,7 +274,10 @@ function updateTripsState(
   }
 }
 
-export type Context = { readonly requestKey: string };
+export type Context = {
+  readonly requestKey: string;
+  readonly preview?: boolean;
+};
 export type Out =
   | { readonly _tag: "Reload" }
   | { readonly _tag: "SelectionInvalidated" };

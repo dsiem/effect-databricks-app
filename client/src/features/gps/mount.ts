@@ -6,13 +6,16 @@ import { Message as M } from "./messages";
 
 export const gpsHostId = "gps-density-map";
 const MapData = Schema.Struct({
-  data: D.TripMap,
+  query: Schema.String,
+  endpoint: D.GpsEndpoint,
+  revision: Schema.Int,
   key: Schema.String,
   loading: Schema.Boolean,
   selected: Schema.NullOr(Schema.String),
 });
 export type MapData = typeof MapData.Type;
 export type MapEvent =
+  | ReturnType<typeof M.LoadedGps>
   | ReturnType<typeof M.GpsReady>
   | ReturnType<typeof M.GpsSelect>;
 const inputsByHost = new WeakMap<
@@ -33,7 +36,7 @@ export const RefreshGps = Command.define("RefreshGps", {
 });
 export const GpsMount = Mount.defineStream("GpsMap", {
   args: MapData.fields,
-  messages: [M.GpsReady, M.GpsSelect],
+  messages: [M.LoadedGps, M.GpsReady, M.GpsSelect],
   execute: ({ element, viewStateChanges, ...initial }) =>
     Stream.callback<MapEvent>((queue) =>
       Effect.gen(function* () {

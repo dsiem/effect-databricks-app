@@ -3,6 +3,7 @@ import { filtersFromQuery } from "../domain/filters";
 import { reloadGps } from "../features/gps/update";
 import * as OverviewCommands from "../features/overview/commands";
 import * as TripsCommands from "../features/trips/commands";
+import { RefreshTripGrid } from "../features/trips/grid-mount";
 import type { ApiClient } from "../lib/api-client";
 import { pending } from "../lib/request-state";
 import type { Message } from "./message";
@@ -50,5 +51,38 @@ export function loadPage(
         }),
       ],
     };
+  if (model.path === "/trips-preview") {
+    const revision = model.tripsState.gridRevision + 1;
+    const key = `${requestKey(model)}:${revision}`;
+    return {
+      model: {
+        ...model,
+        genieState: { ...model.genieState, genieSelection: null },
+        tripsState: {
+          ...model.tripsState,
+          gridWindow: null,
+          gridKey: key,
+          gridRevision: revision,
+          gridStatus: {
+            ...model.tripsState.gridStatus,
+            key,
+            scope: "none",
+            total: 0,
+            loaded: 0,
+            loading: true,
+            error: "",
+          },
+        },
+      },
+      commands: [
+        RefreshTripGrid({
+          key,
+          query: { filters, sort: model.tripsState.sort },
+          countsVersion: model.tripsState.commentCountsVersion,
+          selectedId: model.tripsState.selectedTrip?.trip_id ?? null,
+        }),
+      ],
+    };
+  }
   return { model };
 }

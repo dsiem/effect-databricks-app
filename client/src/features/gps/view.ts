@@ -8,7 +8,6 @@ import {
   type Child,
   card,
   error,
-  loading,
   title,
 } from "../../ui/primitives";
 import { gpsContext } from "./context";
@@ -26,17 +25,25 @@ function gpsMap(h: H, model: ViewModel): Child[] {
     [badge(h, "NYC yellow taxis")],
   );
   const activity = model.activity;
-  if (!activity.data && activity.loading)
-    return [heading, loading(h, "Loading trip map…")];
   if (activity.error || model.mapError)
     return [heading, error(h, activity.error || model.mapError, M.Reload())];
-  const data = activity.data;
-  if (!data) return [heading];
-  const selected = data.cells.find((cell) => cell.id === model.selected);
+  const data = activity.data ?? {
+    endpoint: model.endpoint,
+    matchingTrips: 0,
+    locatedTrips: 0,
+    shownTrips: 0,
+    totalCells: 0,
+    loaded: 0,
+    truncated: false,
+    cells: [],
+    queriedAt: "",
+  };
+  const selected = model.selectedCell;
   const endpoint = model.endpoint === "pickup" ? "pickups" : "drop-offs";
   const ready =
     !activity.loading &&
-    model.renderedKey === frameKey(model.query, model.endpoint, model.selected);
+    model.renderedKey ===
+      frameKey(model.query, model.endpoint, model.selected, model.revision);
   const metric = (label: string, value: string) =>
     h.div(
       [],
@@ -138,11 +145,14 @@ function gpsMap(h: H, model: ViewModel): Child[] {
                               ),
                               h.OnMount(
                                 GpsMount({
-                                  data,
+                                  query: model.query,
+                                  endpoint: model.endpoint,
+                                  revision: model.revision,
                                   key: frameKey(
                                     model.query,
                                     model.endpoint,
                                     model.selected,
+                                    model.revision,
                                   ),
                                   loading: activity.loading,
                                   selected: model.selected,
@@ -221,7 +231,7 @@ function gpsMap(h: H, model: ViewModel): Child[] {
                           h.p(
                             [h.Class("muted text-xs mt-2")],
                             [
-                              `Showing the ${number(data.cells.length)} busiest of ${number(data.totalCells)} areas, covering ${number(data.shownTrips)} locations.`,
+                              `Showing the ${number(data.loaded)} busiest of ${number(data.totalCells)} areas, covering ${number(data.shownTrips)} locations.`,
                             ],
                           ),
                         ]

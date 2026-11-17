@@ -434,7 +434,7 @@ function editor(h: H, model: Model) {
                 [
                   draft.version !== null
                     ? "This saved view keeps its original filters, even when your Explore view changes."
-                    : "These filters are saved with your view so you can reopen it later.",
+                    : "Saved views store global pickup dates and ZIP. Reopening a view resets trip sorting to latest pickup.",
                 ],
               ),
             ],

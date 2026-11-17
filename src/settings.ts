@@ -1,4 +1,5 @@
 import { Config, Context, Layer, Redacted, Schema } from "effect";
+import { DatasetBudget, defaultDatasetBudget } from "../shared/trip-dataset.js";
 
 const text = (name: string, fallback = "") =>
   Config.String(name).pipe(Config.withDefault(fallback));
@@ -49,6 +50,14 @@ const config = Config.all({
     "TRIP_SNAPSHOT_TABLE",
   ).pipe(Config.withDefault("")),
   warehouseConcurrency: concurrency("WAREHOUSE_MAX_CONCURRENCY", 4),
+  explorerRowBudget: Config.schema(
+    DatasetBudget.fields.rows,
+    "EXPLORER_ROW_BUDGET",
+  ).pipe(Config.withDefault(defaultDatasetBudget.rows)),
+  explorerByteBudget: Config.schema(
+    DatasetBudget.fields.bytes,
+    "EXPLORER_BYTE_BUDGET",
+  ).pipe(Config.withDefault(defaultDatasetBudget.bytes)),
   genieConcurrency: concurrency("GENIE_MAX_CONCURRENCY", 2),
   profile: text("DATABRICKS_CONFIG_PROFILE"),
   token: Config.Redacted("DATABRICKS_TOKEN").pipe(

@@ -10,9 +10,12 @@ import {
   setWorkerUrl,
 } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import type { GpsCell } from "../../../../shared/domain";
+import { failure } from "../../lib/command-result";
 import { mapColors } from "../../lib/map-colors";
+import { activityBucket, type MapResource, pickedIndex } from "./dataset";
+import { loadGps } from "./load";
 import { Message as M } from "./messages";
+import { dataKey } from "./model";
 import type { MapData, MapEvent } from "./mount";
 
 setWorkerUrl(workerUrl);
@@ -80,6 +83,9 @@ export function mountGpsMap(
     yield* Effect.try(() => {
       let rendered: MapData | undefined;
       let live = false;
+      let resource: MapResource | undefined;
+      let controller = new AbortController();
+      let disposed = false;
       const popup = new Popup({
         closeButton: false,
         closeOnClick: false,
@@ -90,7 +96,8 @@ export function mountGpsMap(
       map.touchZoomRotate.disableRotation();
       map.keyboard.disableRotation();
       const interaction = () => {
-        const enabled = live && !data.loading && rendered === data;
+        const enabled =
+          live && !!resource && !data.loading && rendered === data;
         element.inert = !enabled;
         for (const handler of [
           map.dragPan,
@@ -105,7 +112,7 @@ export function mountGpsMap(
       };
       const deck = new MapLibreOverlay({
         onAfterRender: () => {
-          if (data.loading || rendered === data) return;
+          if (!resource || data.loading || rendered === data) return;
           rendered = data;
           interaction();
           Queue.offerUnsafe(
@@ -113,6 +120,10 @@ export function mountGpsMap(
             M.GpsReady({
               key: data.key,
               error: "",
+              selectedCell:
+                data.selected && resource
+                  ? (resource.cell(resource.index(data.selected)) ?? null)
+                  : null,
             }),
           );
         },
@@ -128,9 +139,14 @@ export function mountGpsMap(
       map.addControl(deck);
       const redraw = () => {
         const colors = mapColors(element);
-        const cells = data.data.cells;
-        const maximum = cells[0]?.trips || 1;
-        const selected = cells.find((cell) => cell.id === data.selected);
+        const maximum = resource?.cell(0)?.trips || 1;
+        const selectedIndex = data.selected
+          ? (resource?.index(data.selected) ?? -1)
+          : -1;
+        const selected =
+          selectedIndex >= 0 ? [resource?.ring(selectedIndex) ?? []] : [];
+        const color = (trips: number) =>
+          colors.activity[activityBucket(trips, maximum)] ?? colors.subtle;
         map.setPaintProperty(
           "streets",
           "raster-brightness-max",
@@ -140,30 +156,27 @@ export function mountGpsMap(
           .getCanvas()
           .setAttribute(
             "aria-label",
-            `GPS ${data.data.endpoint === "pickup" ? "pickup" : "drop-off"} density`,
+            `GPS ${data.endpoint === "pickup" ? "pickup" : "drop-off"} density`,
           );
         deck.setProps({
           layers: [
-            new PolygonLayer<GpsCell>({
+            new PolygonLayer({
               id: "gps-cells",
-              data: cells,
+              data: resource?.rows ?? [],
               getPolygon: (cell) => cell.boundary.coordinates[0] ?? [],
               filled: true,
               stroked: false,
               pickable: true,
               opacity: 0.35,
-              getFillColor: (cell) =>
-                colors.activity[
-                  Math.min(4, Math.floor((cell.trips / maximum) ** 0.32 * 5))
-                ] ?? colors.subtle,
+              getFillColor: (cell) => color(cell.trips),
               autoHighlight: true,
               highlightColor: [190, 150, 70, 90],
               updateTriggers: { getFillColor: [colors, maximum] },
             }),
-            new PolygonLayer<GpsCell>({
+            new PolygonLayer({
               id: "gps-selection-halo",
-              data: selected ? [selected] : [],
-              getPolygon: (cell) => cell.boundary.coordinates[0] ?? [],
+              data: selected,
+              getPolygon: (ring) => ring,
               filled: false,
               stroked: true,
               getLineColor: colors.surface,
@@ -171,10 +184,10 @@ export function mountGpsMap(
               lineWidthUnits: "pixels",
               updateTriggers: { getLineColor: [colors] },
             }),
-            new PolygonLayer<GpsCell>({
+            new PolygonLayer({
               id: "gps-selection",
-              data: selected ? [selected] : [],
-              getPolygon: (cell) => cell.boundary.coordinates[0] ?? [],
+              data: selected,
+              getPolygon: (ring) => ring,
               filled: false,
               stroked: true,
               getLineColor: colors.activity[4] ?? colors.surface,
@@ -187,7 +200,9 @@ export function mountGpsMap(
       };
       const pick = (x: number, y: number) => {
         const hit = deck.pickObject({ x, y, radius: 2 });
-        return hit ? data.data.cells[hit.index] : undefined;
+        return hit?.layer && resource
+          ? resource.cell(pickedIndex(resource, hit.layer.id, hit.index))
+          : undefined;
       };
       map.on("mousemove", (event) => {
         if (element.inert) return;
@@ -197,7 +212,7 @@ export function mountGpsMap(
           popup
             .setLngLat(event.lngLat)
             .setText(
-              `${number.format(cell.trips)} ${data.data.endpoint === "pickup" ? "pickups" : "drop-offs"} · $${cell.avg_fare.toFixed(2)} average fare`,
+              `${number.format(cell.trips)} ${data.endpoint === "pickup" ? "pickups" : "drop-offs"} · $${cell.avg_fare.toFixed(2)} average fare`,
             )
             .addTo(map);
         else popup.remove();
@@ -214,11 +229,64 @@ export function mountGpsMap(
         attributeFilter: ["class"],
       });
       map.on("remove", () => {
+        disposed = true;
+        controller.abort();
+        resource?.release();
+        resource = undefined;
         theme.disconnect();
         popup.remove();
       });
+      const load = () => {
+        controller.abort();
+        controller = new AbortController();
+        const signal = controller.signal;
+        const input = data;
+        Effect.runPromise(
+          loadGps(input.query, input.endpoint).pipe(
+            Effect.match({
+              onSuccess: (next) => {
+                if (disposed || signal.aborted) {
+                  next.release();
+                  return;
+                }
+                const old = resource;
+                resource = next;
+                Queue.offerUnsafe(
+                  queue,
+                  M.LoadedGps({
+                    key: dataKey(input.query, input.endpoint, input.revision),
+                    data: next.summary,
+                    error: "",
+                  }),
+                );
+                redraw();
+                old?.release();
+              },
+              onFailure: (error) => {
+                if (!disposed && !signal.aborted)
+                  Queue.offerUnsafe(
+                    queue,
+                    M.LoadedGps({
+                      key: dataKey(input.query, input.endpoint, input.revision),
+                      data: null,
+                      error: failure(error),
+                    }),
+                  );
+              },
+            }),
+          ),
+          { signal },
+        ).catch(() => {
+          if (!disposed && !signal.aborted)
+            Queue.offerUnsafe(
+              queue,
+              M.GpsReady({ key: data.key, error: renderError }),
+            );
+        });
+      };
       redraw();
       interaction();
+      load();
       return Effect.all(
         [
           Stream.runForEach(SubscriptionRef.changes(inputs), (next) =>
@@ -226,12 +294,17 @@ export function mountGpsMap(
               if (next === data) return;
               const focus =
                 next.selected !== data.selected
-                  ? next.data.cells.find((cell) => cell.id === next.selected)
+                  ? resource?.cell(resource.index(next.selected ?? ""))
                   : undefined;
+              const changed =
+                next.query !== data.query ||
+                next.endpoint !== data.endpoint ||
+                next.revision !== data.revision;
               data = next;
               popup.remove();
               redraw();
               interaction();
+              if (changed) load();
               if (focus)
                 map.easeTo({
                   center: [focus.longitude, focus.latitude],

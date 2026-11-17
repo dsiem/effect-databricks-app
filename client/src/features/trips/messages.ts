@@ -2,9 +2,13 @@ import { Dialog } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
+import { GridStatus, GridWindow } from "./grid-protocol";
 import { CommentDraft, Sort } from "./model";
 
 export const messages = {
+  TripGridStatus: GridStatus.fields,
+  TripGridWindow: GridWindow.fields,
+  TripGridSelected: { key: Schema.String, trip: D.Trip },
   CloseTrip: {},
   ResetTrips: {},
   InspectorDialog: { message: Dialog.Message },

@@ -257,7 +257,9 @@ test("closed helper finishes its answer and navigation updates visible records, 
     page: 2,
     sort: "fare",
     totalMatchingTrips: 2184,
-    visibleRows: [{ fare: 13.42 }],
+    scope: "page-subset",
+    visibleCount: 1,
+    visibleSample: [{ fare: 13.42 }],
   });
   await helper.getByRole("button", { name: "Close Genie" }).click();
   await page.reload();

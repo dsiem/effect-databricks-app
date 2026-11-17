@@ -68,6 +68,11 @@ Effect with `sql.withQueryTimeout`.
 
 Use `sql.ipcStream(statement)` for independent Arrow IPC chunks. Relay chunks
 separately. Do not concatenate them into one IPC stream.
+Use `sql.ipcStream(statement, { maxBytes })` to cap cumulative uncompressed IPC
+downloads. The adapter also submits this limit as the warehouse byte limit,
+rejects upstream truncation, and aborts a response body as soon as its streamed
+bytes exceed the remaining budget. Existing authentication, signed-link refresh,
+request deadlines, and query cancellation apply to bounded downloads too.
 
 Write independent Spark SQL statements. The adapter does not provide sessions or
 transactions. After a timeout, check the outcome before retrying a write.

@@ -2,7 +2,13 @@ import { Dialog, Menu, Tooltip } from "@foldkit/ui";
 import { Option } from "effect";
 import { Command, Update } from "foldkit";
 import type { Url } from "foldkit/url";
-import { filtersFromQuery, href, queryFor } from "../domain/filters";
+import {
+  filtersFromQuery,
+  href,
+  queryFor,
+  tripSortFromQuery,
+  withTripSort,
+} from "../domain/filters";
 import * as FilterDates from "../features/filters/dates";
 import * as Filters from "../features/filters/model";
 import { updateFilters } from "../features/filters/update";
@@ -15,6 +21,7 @@ import * as Overview from "../features/overview/model";
 import { updateOverview } from "../features/overview/update";
 import * as SavedViews from "../features/saved-views/model";
 import { updateSavedViews } from "../features/saved-views/update";
+import { RefreshTripGrid } from "../features/trips/grid-mount";
 import * as Trips from "../features/trips/model";
 import { updateTrips } from "../features/trips/update";
 import type { ApiClient } from "../lib/api-client";
@@ -48,7 +55,7 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
     user: null,
     filtersState: Filters.init(filters),
     overviewState: Overview.init(),
-    tripsState: Trips.init(),
+    tripsState: { ...Trips.init(), sort: tripSortFromQuery(query) },
     savedViewsState: SavedViews.init(),
     genieState: Genie.init(),
     gpsState: Gps.init(),
@@ -94,7 +101,7 @@ function updateApplication(
           model.metadata.data,
         ),
         savedViewsState: { ...model.savedViewsState, notice: "" },
-        tripsState: reset.model,
+        tripsState: { ...reset.model, sort: tripSortFromQuery(message.query) },
         genieState: { ...model.genieState, genieSelection: null },
       });
       return {
@@ -238,7 +245,15 @@ function updateApplication(
             model: next,
             commands: [
               AppCommands.Navigate({
-                href: href(model.path, changed.outMessage.query),
+                href: href(
+                  model.path,
+                  model.path === "/trips" || model.path === "/trips-preview"
+                    ? withTripSort(
+                        changed.outMessage.query,
+                        model.tripsState.sort,
+                      )
+                    : changed.outMessage.query,
+                ),
                 external: false,
               }),
             ],
@@ -262,6 +277,9 @@ function updateApplication(
       };
     }
     case "CloseTrip":
+    case "TripGridStatus":
+    case "TripGridWindow":
+    case "TripGridSelected":
     case "ResetTrips":
     case "InspectorDialog":
     case "SetPage":
@@ -278,10 +296,25 @@ function updateApplication(
     case "PostComment":
     case "PostedComment": {
       const changed = updateTrips(model.tripsState, message, {
+        preview: model.path === "/trips-preview",
         requestKey: requestKey(model),
       });
       const next = { ...model, tripsState: changed.model };
-      if (changed.outMessage?._tag === "Reload") return loadPage(next);
+      if (changed.outMessage?._tag === "Reload") {
+        if (message._tag !== "SortTrips") return loadPage(next);
+        const query = withTripSort(model.query, message.sort);
+        const loaded = loadPage({ ...next, query });
+        return {
+          ...loaded,
+          commands: [
+            ...(loaded.commands ?? []),
+            AppCommands.Navigate({
+              href: href(model.path, query),
+              external: false,
+            }),
+          ],
+        };
+      }
       return {
         model: changed.outMessage
           ? {
@@ -289,7 +322,27 @@ function updateApplication(
               genieState: { ...next.genieState, genieSelection: null },
             }
           : next,
-        commands: changed.commands ?? [],
+        commands: [
+          ...(changed.commands ?? []),
+          ...((model.path === "/trips-preview" &&
+            model.tripsState.selectedTrip?.trip_id !==
+              next.tripsState.selectedTrip?.trip_id) ||
+          (model.path === "/trips-preview" &&
+            model.tripsState.commentCountsVersion !==
+              next.tripsState.commentCountsVersion)
+            ? [
+                RefreshTripGrid({
+                  key: next.tripsState.gridKey,
+                  query: {
+                    filters: filtersFromQuery(next.query) ?? {},
+                    sort: next.tripsState.sort,
+                  },
+                  countsVersion: next.tripsState.commentCountsVersion,
+                  selectedId: next.tripsState.selectedTrip?.trip_id ?? null,
+                }),
+              ]
+            : []),
+        ],
       };
     }
     case "CloseSavedView":

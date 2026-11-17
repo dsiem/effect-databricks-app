@@ -41,8 +41,10 @@ test("warehouse analytics, filtering, sorting, pagination, CSV and geography", a
     timeout: 120_000,
   });
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export this page" }).click();
-  expect((await download).suggestedFilename()).toBe("taxi-trips-page-2.csv");
+  await page.getByRole("button", { name: "Export loaded page subset" }).click();
+  expect((await download).suggestedFilename()).toBe(
+    "taxi-trips-loaded-page-2.csv",
+  );
   await page.getByRole("link", { name: "Trip map", exact: true }).click();
   await expect(
     page.getByRole("region", { name: "GPS pickups density map" }),

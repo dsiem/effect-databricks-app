@@ -34,7 +34,7 @@ function trips(h: H, model: Model): Child[] {
         "Summarize the visible trips and point out unusual fares or distances.",
       ),
       button(h, {
-        label: "Export this page",
+        label: "Export loaded page subset",
         onClick: M.ExportTrips(),
         disabled: !data?.rows.length,
       }),

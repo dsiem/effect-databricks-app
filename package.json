@@ -27,6 +27,7 @@
     "deploy:dev": "npm run workspace:setup -- dev",
     "dev:server": "npm run build --workspaces --if-present && node --env-file-if-exists=.env --import tsx --watch src/main.ts",
     "dev:client": "vite --host 127.0.0.1",
+    "test:trip-grid": "node --import tsx --test test/trip-datasets.test.ts client/test/trip-grid.test.ts && npm run build && playwright test --config playwright.architecture.config.ts trip-grid.spec.ts --workers=1",
     "test:e2e": "playwright test",
     "data:check": "node --env-file-if-exists=.env --import tsx scripts/check-live.ts",
     "data:check:comments": "node --env-file-if-exists=.env --import tsx scripts/check-trip-comments.ts",
@@ -34,6 +35,7 @@
     "data:prepare": "node --env-file-if-exists=.env scripts/prepare-taxi-data.mjs",
     "data:boundaries": "node scripts/prepare-zcta.mjs",
     "maps:compare": "node --env-file-if-exists=.env scripts/compare-maps.mjs",
+    "data:check:trip-grid": "node --env-file-if-exists=.env --import tsx scripts/check-trip-grid.ts",
     "data:check:gps": "node --env-file-if-exists=.env --import tsx scripts/check-gps.ts",
     "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
     "workspace:setup": "node scripts/setup-workspace.mjs",
@@ -70,6 +72,7 @@
     "@playwright/test": "1.65.0",
     "ajv": "8.20.0",
     "tsx": "4.23.15",
-    "yaml": "2.9.1"
+    "yaml": "2.9.1",
+    "apache-arrow": "21.2.0"
   }
 }

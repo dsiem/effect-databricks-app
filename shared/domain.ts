@@ -145,6 +145,21 @@ export const Trip = Schema.Struct({
   details: Schema.optionalKey(TripDetails),
 });
 export type Trip = typeof Trip.Type;
+// Explorer summaries preserve source TIMESTAMP_NTZ values, without Date/UTC conversion.
+const SourceTimestamp = Schema.String.check(
+  Schema.isPattern(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$/),
+);
+export const TripSummary = Schema.Struct({
+  trip_id: Id,
+  pickup_at: SourceTimestamp,
+  dropoff_at: SourceTimestamp,
+  pickup_zip: Schema.NullOr(Zip),
+  dropoff_zip: Schema.NullOr(Zip),
+  distance: Schema.Finite,
+  fare: Schema.Finite,
+  duration: Schema.Finite,
+});
+export type TripSummary = typeof TripSummary.Type;
 export const Trips = Schema.Struct({
   rows: Schema.Array(Trip),
   total: Schema.Number,

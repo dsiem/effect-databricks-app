@@ -120,6 +120,15 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
       .handle("metadata", () => respond(analytics.metadata))
       .handle("overview", ({ query }) => respond(analytics.overview(query)))
       .handle("trips", ({ query }) => respond(analytics.trips(query)))
+      .handle("tripDataset", ({ payload }) =>
+        respond(analytics.tripDatasets.open(payload)),
+      )
+      .handle("tripWindow", ({ payload }) =>
+        respond(analytics.tripDatasets.scroll(payload)),
+      )
+      .handle("tripDetail", ({ payload }) =>
+        respond(analytics.tripDatasets.detail(payload)),
+      )
       .handle("tripMap", ({ query }) => respond(analytics.tripMap(query)))
       .handle("submitGenie", ({ payload }) => respond(genie.submit(payload)))
       .handle("pollGenie", ({ params }) => respond(genie.poll(params)))
@@ -181,7 +190,13 @@ const StaticRoutes = HttpRouter.use((router) =>
       "/theme-init.js",
       serveFile(resolve(webRoot, "theme-init.js")),
     );
-    for (const path of ["/", "/trips", "/trip-map", "/genie"] as const) {
+    for (const path of [
+      "/",
+      "/trips",
+      "/trips-preview",
+      "/trip-map",
+      "/genie",
+    ] as const) {
       yield* router.add("GET", path, serveFile(resolve(webRoot, "index.html")));
     }
   }),

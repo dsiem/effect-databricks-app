@@ -10,6 +10,11 @@ import {
 import { HttpApiClient } from "effect/http-api";
 import { ApiError, AppApi } from "../shared/api.js";
 import type { SavedView, SavedViewInput } from "../shared/domain.js";
+import {
+  defaultDatasetBudget,
+  type TripQuery,
+  tripQueryKey,
+} from "../shared/trip-dataset.js";
 import { Analytics } from "../src/analytics.js";
 import { Genie } from "../src/genie.js";
 import { Lakebase } from "../src/lakebase.js";
@@ -59,6 +64,66 @@ const fixture = () => {
             request: () => Effect.die("Unexpected workspace request"),
           }),
           Layer.succeed(Analytics, {
+            tripDatasets: {
+              open: (query) =>
+                record("tripDataset", query, {
+                  schemaVersion: 1 as const,
+                  scope: "complete" as const,
+                  query,
+                  queryKey: tripQueryKey(query),
+                  datasetKey: "v1:7:q",
+                  snapshot: "snapshot",
+                  total: 0,
+                  loaded: 0,
+                  budget: defaultDatasetBudget,
+                  retainedBytes: 8,
+                  rows: [],
+                }),
+              scroll: (input) =>
+                record("tripWindow", input, {
+                  schemaVersion: 1 as const,
+                  scope: "server-window" as const,
+                  query: input.query,
+                  queryKey: tripQueryKey(input.query),
+                  datasetKey: "v1:7:q",
+                  snapshot: "snapshot",
+                  total: 0,
+                  loaded: 0,
+                  budget: defaultDatasetBudget,
+                  retainedBytes: 8,
+                  rows: [],
+                  start: 0,
+                  previous: null,
+                  next: null,
+                }),
+              detail: (input) =>
+                record("tripDetail", input, {
+                  trip_id: input.tripId,
+                  pickup_at: "2016-01-01 10:00:00.000000",
+                  dropoff_at: "2016-01-01 10:10:00.000000",
+                  pickup_zip: "Unknown",
+                  dropoff_zip: "10001",
+                  distance: 2,
+                  fare: 10,
+                  duration: 10,
+                  details: {
+                    source_file: "test.csv",
+                    vendor_id: null,
+                    passenger_count: null,
+                    rate_code_id: null,
+                    store_and_fwd_flag: null,
+                    payment_type: null,
+                    pickup_location: null,
+                    dropoff_location: null,
+                    tip_amount: null,
+                    tolls_amount: null,
+                    extra: null,
+                    mta_tax: null,
+                    improvement_surcharge: null,
+                    total_amount: null,
+                  },
+                }),
+            },
             availability: Effect.succeed("unconfigured" as const),
             metadata: Effect.succeed(metadata),
             overview: (input) => record("overview", input, overview),
@@ -695,4 +760,32 @@ test("trip comment contract round-trips snapshots and attributes the request vie
     assert.equal(invalid.status, 400);
   }
   assert.equal(calls.length, count);
+});
+
+test("generated dataset client carries scope, continuations and snapshot detail identity", async (t) => {
+  const { app, client, calls } = fixture();
+  t.after(app.dispose);
+  const query: TripQuery = { filters: { to: "2016-01-31" }, sort: "fare" };
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const complete = yield* client.tripDataset({ payload: query });
+      assert.equal(complete.scope, "complete");
+      assert.equal(complete.schemaVersion, 1);
+      const window = yield* client.tripWindow({
+        payload: { query, cursor: "continuation" },
+      });
+      assert.equal(window.scope, "server-window");
+      const trip = yield* client.tripDetail({
+        payload: {
+          tripId: "00000000-0000-4000-8000-000000000001",
+          snapshot: complete.snapshot,
+        },
+      });
+      assert.equal(trip.pickup_zip, "Unknown");
+    }).pipe(Effect.scoped),
+  );
+  assert.deepEqual(
+    calls.map(([name]) => name),
+    ["tripDataset", "tripWindow", "tripDetail"],
+  );
 });

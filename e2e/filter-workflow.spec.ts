@@ -270,7 +270,9 @@ test("saved view management returns to the chooser after editing and deletion", 
   await expect(
     picker.getByRole("heading", { name: "No saved views", exact: true }),
   ).toBeVisible();
-  await expect(picker).toBeFocused();
+  await expect(
+    picker.getByRole("searchbox", { name: "Search all saved views" }),
+  ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(picker).not.toBeVisible();
   await expect(trigger).toBeFocused();
@@ -312,7 +314,12 @@ test("loading more views preserves keyboard focus and returns it to the chooser 
     name: "Load more views",
     exact: true,
   });
-  await expect(picker).toBeFocused();
+  await expect(
+    picker.getByRole("searchbox", { name: "Search all saved views" }),
+  ).toBeFocused();
+  await picker
+    .getByRole("button", { name: "Browse all views", exact: true })
+    .click();
   await expect(more).toBeVisible();
   await more.focus();
   await expect(more).toBeFocused();
@@ -330,7 +337,9 @@ test("loading more views preserves keyboard focus and returns it to the chooser 
       exact: true,
     }),
   ).toBeVisible();
-  await expect(picker).toBeFocused();
+  await expect(
+    picker.getByRole("searchbox", { name: "Search all saved views" }),
+  ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(picker).not.toBeVisible();
 });

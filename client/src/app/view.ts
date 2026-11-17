@@ -17,6 +17,7 @@ import {
   editorView,
   savedViewsView,
 } from "../features/saved-views/view";
+import { tripGridView } from "../features/trips/grid-view";
 import { inspectorView } from "../features/trips/inspector";
 import { tripsView } from "../features/trips/view";
 import { featureView } from "../lib/feature-view";
@@ -258,6 +259,17 @@ export function view(model: Model, h: H): Document {
           ),
         ];
         break;
+      case "/trips-preview":
+        content = [
+          featureView(
+            h,
+            "tripGridPreview",
+            tripGridView,
+            { ...model.tripsState, query: model.query },
+            exploreMessage,
+          ),
+        ];
+        break;
       case "/trips":
         content = [
           featureView(
@@ -312,7 +324,11 @@ export function view(model: Model, h: H): Document {
     }
   const current =
     navigation.find((item) => item.path === model.path)?.label ??
-    (model.path === "/genie" ? "Ask Genie" : "Workspace");
+    (model.path === "/genie"
+      ? "Ask Genie"
+      : model.path === "/trips-preview"
+        ? "Trip explorer preview"
+        : "Workspace");
   return {
     title: `NYC Taxi · ${current}`,
     body: h.div(

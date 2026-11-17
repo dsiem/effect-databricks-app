@@ -17,4 +17,4 @@ export class ApiClient extends Context.Service<
 }
 export const request = <A, E, R>(
   run: (client: ApiClient["Service"]) => Effect.Effect<A, E, R>,
-) => Effect.flatMap(ApiClient, run);
+) => Effect.flatMap(ApiClient, run).pipe(Effect.timeout("2 minutes"));

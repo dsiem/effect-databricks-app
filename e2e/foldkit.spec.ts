@@ -97,9 +97,9 @@ test("overview charts, navigation, paging, CSV download, and browser history wor
     animations: "disabled",
   });
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export this page" }).click();
+  await page.getByRole("button", { name: "Export loaded page subset" }).click();
   const csv = await download;
-  expect(csv.suggestedFilename()).toBe("taxi-trips-page-1.csv");
+  expect(csv.suggestedFilename()).toBe("taxi-trips-loaded-page-1.csv");
   const path = await csv.path();
   expect(path).not.toBeNull();
   const text = await readFile(path ?? "", "utf8");

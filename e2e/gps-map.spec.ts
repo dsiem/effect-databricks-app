@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { dataKey } from "../client/src/features/gps/model";
 import { gpsFixture } from "../client/test/gps-fixture";
 
 test.beforeEach(async ({ page }) => {
@@ -25,12 +26,17 @@ test.beforeEach(async ({ page }) => {
 const ready = async (
   page: import("@playwright/test").Page,
   endpoint = "pickups",
+  query = "",
 ) => {
   const map = page.getByRole("region", {
     name: `GPS ${endpoint} density map`,
     exact: true,
   });
   await expect(map).toHaveAttribute("data-gps-ready", "true");
+  await expect(map).toHaveAttribute(
+    "data-gps-key",
+    dataKey(query, endpoint === "pickups" ? "pickup" : "dropoff"),
+  );
   return map;
 };
 
@@ -118,7 +124,7 @@ test("date and pickup ZIP filters refresh GPS data and clear area selection", as
   await expect(page).toHaveURL(
     "/trip-map?from=2016-01-10&to=2016-01-10&zip=10001",
   );
-  await ready(page);
+  await ready(page, "pickups", "from=2016-01-10&to=2016-01-10&zip=10001");
   expect(requests.at(-1)?.searchParams.get("from")).toBe("2016-01-10");
   expect(requests.at(-1)?.searchParams.get("to")).toBe("2016-01-10");
   expect(requests.at(-1)?.searchParams.get("zip")).toBe("10001");
@@ -252,3 +258,64 @@ for (const width of [390, 1440])
       animations: "disabled",
     });
   });
+
+test("picking the second map cell selects its own identity and tooltip", async ({
+  page,
+}) => {
+  await page.goto("/trip-map");
+  const map = await ready(page);
+  const second = page.getByRole("button", {
+    name: "Area 2, 20 pickups",
+    exact: true,
+  });
+  await second.click();
+  await expect(page.getByText("$13.00", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await ready(page);
+  const bounds = await map.boundingBox();
+  if (!bounds) throw new Error("Missing GPS map");
+  const x = bounds.x + bounds.width / 2;
+  const y = bounds.y + bounds.height / 2;
+  await expect(async () => {
+    await page.mouse.move(x + 1, y);
+    await page.mouse.move(x, y);
+    await expect(page.locator(".gps-tooltip")).toContainText("20 pickups", {
+      timeout: 500,
+    });
+  }).toPass();
+  await page.mouse.click(x, y);
+  await expect(second).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("$13.00", { exact: true })).toBeVisible();
+});
+
+test("unmounting during a map request discards it and a remount can load again", async ({
+  page,
+}) => {
+  let release = () => {};
+  let started = () => {};
+  const pending = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let first = true;
+  await page.route("**/api/trip-map**", async (route) => {
+    if (first) {
+      first = false;
+      started();
+      await gate;
+    }
+    await route.fulfill({ json: gpsFixture() });
+  });
+  await page.goto("/trip-map");
+  await pending;
+  const nav = page.getByRole("navigation", { name: "Main navigation" });
+  await nav.getByRole("link", { name: "Trip explorer", exact: true }).click();
+  release();
+  await nav.getByRole("link", { name: "Trip map", exact: true }).click();
+  await ready(page);
+  await expect(
+    page.getByRole("button", { name: "Area 1, 60 pickups", exact: true }),
+  ).toBeVisible();
+});

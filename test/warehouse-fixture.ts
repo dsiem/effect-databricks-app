@@ -5,6 +5,11 @@ export const warehouseFetch = (
   beforeStatement: (
     sql: string,
     signal: AbortSignal,
+    parameters: ReadonlyArray<{
+      name: string;
+      type: string;
+      value: string | null;
+    }>,
   ) => Promise<void> | Promise<Table> = async () => {},
 ): typeof globalThis.fetch => {
   const chunks = new Map<string, Uint8Array>();
@@ -20,8 +25,15 @@ export const warehouseFetch = (
       throw new Error(
         `Unexpected warehouse request: ${request.method} ${request.url}`,
       );
-    const { statement } = (await request.json()) as { statement: string };
-    const result = await beforeStatement(statement, request.signal);
+    const { statement, parameters = [] } = (await request.json()) as {
+      statement: string;
+      parameters?: ReadonlyArray<{
+        name: string;
+        type: string;
+        value: string | null;
+      }>;
+    };
+    const result = await beforeStatement(statement, request.signal, parameters);
     const id = String(++sequence);
     const url = `https://results.invalid/${id}`;
     const table =
