@@ -26,7 +26,7 @@ const makeSavedViews = (sql: LakebaseSql) => {
       }),
       execute: () => sql`SELECT ${columns},
       to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_updated_at
-      FROM metrocab.saved_views AS saved_views
+      FROM app.saved_views AS saved_views
       WHERE ${sql.and([
         ...(search.cursor
           ? [
@@ -73,7 +73,7 @@ const makeSavedViews = (sql: LakebaseSql) => {
         "This saved view has been removed. Your draft has not been saved.",
     });
   const missingWrite = (id: string) =>
-    sql`SELECT id FROM metrocab.saved_views WHERE id = ${id}::uuid`.pipe(
+    sql`SELECT id FROM app.saved_views WHERE id = ${id}::uuid`.pipe(
       Effect.mapError(lakebaseUnavailable),
       Effect.flatMap((rows) =>
         Effect.fail(rows.length ? conflict(id) : notFound(id)),
@@ -93,10 +93,10 @@ const makeSavedViews = (sql: LakebaseSql) => {
   const save = (input: SavedViewInput) =>
     write(input.id, () =>
       input.version === null
-        ? sql`INSERT INTO metrocab.saved_views (id,title,body,filters)
+        ? sql`INSERT INTO app.saved_views (id,title,body,filters)
           VALUES (${input.id}::uuid,${input.title},${input.body},${sql.json(input.filters)})
           ON CONFLICT (id) DO NOTHING RETURNING ${columns}`
-        : sql`UPDATE metrocab.saved_views SET title=${input.title}, body=${input.body},
+        : sql`UPDATE app.saved_views SET title=${input.title}, body=${input.body},
           filters=${sql.json(input.filters)}, version=version+1, updated_at=now()
           WHERE id=${input.id}::uuid AND version=${input.version}
           RETURNING ${columns}`,
@@ -104,12 +104,12 @@ const makeSavedViews = (sql: LakebaseSql) => {
   const pin = (id: string, input: SavedViewPin) =>
     write(
       id,
-      () => sql`UPDATE metrocab.saved_views SET pinned=${input.pinned},
+      () => sql`UPDATE app.saved_views SET pinned=${input.pinned},
       version=version+1, updated_at=now()
       WHERE id=${id}::uuid AND version=${input.version} RETURNING ${columns}`,
     ).pipe(Effect.withSpan("savedViews.pin"));
   const remove = (id: string, version: number) =>
-    sql`DELETE FROM metrocab.saved_views WHERE id = ${id}::uuid AND version=${version} RETURNING id`.pipe(
+    sql`DELETE FROM app.saved_views WHERE id = ${id}::uuid AND version=${version} RETURNING id`.pipe(
       Effect.mapError(lakebaseUnavailable),
       Effect.flatMap((rows) => (rows.length ? Effect.void : missingWrite(id))),
     );

@@ -18,7 +18,7 @@ import { SqlError, UnknownError } from "effect/sql/SqlError";
 import type { SavedView, SavedViewSearch } from "../../shared/domain.js";
 import { type ServiceError, UpstreamError } from "../src/errors.js";
 import { Lakebase } from "../src/lakebase.js";
-import { migrateAppSchema } from "../src/migrations.js";
+import { initializeAppSchema } from "../src/lakebase-schema.js";
 import { pgPassword, restoreCredentialFailure } from "../src/pg-credentials.js";
 import { SavedViews } from "../src/saved-views.js";
 import { Settings } from "../src/settings.js";
@@ -240,8 +240,8 @@ test("versioned saved-view writes reject stale editors, pin conflicts, and delet
       const { savedViews, sql } = yield* lakebaseFixture;
       // Schema setup is repeatable and preserves existing rows.
       const created = yield* savedViews.save(input);
-      yield* migrateAppSchema(sql);
-      yield* migrateAppSchema(sql);
+      yield* initializeAppSchema(sql);
+      yield* initializeAppSchema(sql);
       assert.deepEqual((yield* savedViews.list({})).rows, [created]);
       assert.equal(created.version, 1);
       assert.equal(created.pinned, false);
@@ -346,7 +346,7 @@ test("saved views pages reach every saved view beyond 200, preserving pins, time
         title: String(index),
       }));
       yield* Effect.forEach(inputs, (savedView) => savedViews.save(savedView));
-      yield* sql`UPDATE metrocab.saved_views SET pinned = title::int < 26,
+      yield* sql`UPDATE app.saved_views SET pinned = title::int < 26,
         updated_at = '2026-11-13T10:00:00Z'::timestamptz +
           (title::int % 3) * INTERVAL '1 microsecond'`;
       const expected = [...inputs].sort(
@@ -391,7 +391,7 @@ test("continuation survives deletion of the boundary saved view and ignores newe
           title: String(index),
         });
       }
-      yield* sql`UPDATE metrocab.saved_views SET updated_at = '2026-11-13T10:00:00Z'::timestamptz
+      yield* sql`UPDATE app.saved_views SET updated_at = '2026-11-13T10:00:00Z'::timestamptz
         + title::int * INTERVAL '1 second'`;
       const first = yield* savedViews.list({});
       assert.ok(first.nextCursor);
@@ -404,7 +404,7 @@ test("continuation survives deletion of the boundary saved view and ignores newe
         id: randomUUID(),
         title: "New arrival",
       });
-      yield* sql`UPDATE metrocab.saved_views SET updated_at = '2026-11-14T00:00:00Z'::timestamptz WHERE id = ${arrival.id}::uuid`;
+      yield* sql`UPDATE app.saved_views SET updated_at = '2026-11-14T00:00:00Z'::timestamptz WHERE id = ${arrival.id}::uuid`;
       const last = yield* savedViews.list({ cursor: first.nextCursor });
       assert.deepEqual(
         last.rows.map((savedView) => savedView.title),
@@ -426,7 +426,7 @@ test("saved-view search finds older views across title, notes, dates and ZIP usi
         body: "Amber findings",
         filters: { from: "2016-01-03", to: "2016-02-27", zip: "10001" },
       });
-      yield* sql`UPDATE metrocab.saved_views SET updated_at = '2026-01-01T00:00:00Z'::timestamptz`;
+      yield* sql`UPDATE app.saved_views SET updated_at = '2026-01-01T00:00:00Z'::timestamptz`;
       for (let index = 0; index < 30; index++) {
         yield* savedViews.save({
           ...input,
@@ -502,7 +502,7 @@ test("saved-view search paginates only matching rows while preserving pins and m
         body: index % 2 === 0 ? "Matching notes" : "Other notes",
       }));
       yield* Effect.forEach(inputs, (view) => savedViews.save(view));
-      yield* sql`UPDATE metrocab.saved_views SET pinned = title::int < 30,
+      yield* sql`UPDATE app.saved_views SET pinned = title::int < 30,
         updated_at = '2026-11-13T10:00:00Z'::timestamptz +
           (title::int % 3) * INTERVAL '1 microsecond'`;
       const expected = inputs
@@ -543,7 +543,7 @@ test("saved-view IDs hydrate current versions beyond the first page and compose 
       });
       const removed = yield* savedViews.save({ ...input, id: randomUUID() });
       yield* savedViews.remove(removed.id, removed.version);
-      yield* sql`UPDATE metrocab.saved_views SET updated_at = '2026-01-01T00:00:00Z'::timestamptz`;
+      yield* sql`UPDATE app.saved_views SET updated_at = '2026-01-01T00:00:00Z'::timestamptz`;
       for (let index = 0; index < 30; index++) {
         yield* savedViews.save({
           ...input,

@@ -114,7 +114,7 @@ for (const storage of ["invalid", "blocked"] as const) {
     await page.emulateMedia({ colorScheme: "dark" });
     await page.addInitScript((storage) => {
       if (storage === "invalid")
-        localStorage.setItem("metrocab.theme.v1", "invalid");
+        localStorage.setItem("databricks-effect-app.theme.v1", "invalid");
       else {
         for (const method of ["getItem", "setItem"]) {
           Object.defineProperty(Storage.prototype, method, {

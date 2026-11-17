@@ -8,7 +8,7 @@ import {
   TripCommentInput,
   type TripCommentSearch,
 } from "../../shared/domain.js";
-import { migrateAppSchema } from "../src/migrations.js";
+import { initializeAppSchema } from "../src/lakebase-schema.js";
 import { lakebaseFixture } from "./lakebase-fixture.js";
 
 const trip: TripSnapshot = {
@@ -66,7 +66,7 @@ test("comments persist per trip ID, preserve snapshots and authors, and safely r
         },
       );
       const saved = yield* comments.add(input, author);
-      yield* migrateAppSchema(sql);
+      yield* initializeAppSchema(sql);
       assert.deepEqual(yield* comments.add(input, author), saved);
       assert.deepEqual((yield* comments.list({ trip })).rows, [saved]);
       assert.equal(saved.body, input.body);
@@ -126,13 +126,13 @@ test("older comments remain reachable with microsecond timestamp ties", async ()
           { id: randomUUID(), trip, body: String(index) },
           author,
         );
-      yield* sql`UPDATE metrocab.trip_comments SET created_at='2026-11-14T10:00:00Z'::timestamptz + (body::int % 3) * INTERVAL '1 microsecond'`;
+      yield* sql`UPDATE app.trip_comments SET created_at='2026-11-14T10:00:00Z'::timestamptz + (body::int % 3) * INTERVAL '1 microsecond'`;
       assert.deepEqual(yield* comments.counts({ tripIds: [trip.trip_id] }), {
         [trip.trip_id]: 53,
       });
       const expected = yield* sql<{
         id: string;
-      }>`SELECT id::text AS id FROM metrocab.trip_comments ORDER BY created_at DESC, id DESC`;
+      }>`SELECT id::text AS id FROM app.trip_comments ORDER BY created_at DESC, id DESC`;
       const ids: string[] = [];
       let search: TripCommentSearch = { trip };
       for (let page = 0; ; page++) {

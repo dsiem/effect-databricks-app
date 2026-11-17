@@ -22,7 +22,7 @@ const makeTripComments = (sql: LakebaseSql) => {
         count: TripCommentCounts.value,
       }),
       execute: () => sql`SELECT trip_key, count(*)::int AS count
-        FROM metrocab.trip_comments
+        FROM app.trip_comments
         WHERE ${sql.in("trip_key", tripIds)} GROUP BY trip_key`,
     })(undefined).pipe(
       Effect.mapError(lakebaseUnavailable),
@@ -43,7 +43,7 @@ const makeTripComments = (sql: LakebaseSql) => {
       }),
       execute: () => sql`SELECT ${columns},
         to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at
-        FROM metrocab.trip_comments AS comments
+        FROM app.trip_comments AS comments
         WHERE trip_key=${search.trip.trip_id}
         ${
           search.cursor
@@ -74,7 +74,7 @@ const makeTripComments = (sql: LakebaseSql) => {
       // A repeated submission of the same draft is safe after a lost response.
       // An existing ID can never replace another comment's content or author.
       execute:
-        () => sql`INSERT INTO metrocab.trip_comments AS existing (id,trip_key,trip,body,author)
+        () => sql`INSERT INTO app.trip_comments AS existing (id,trip_key,trip,body,author)
         VALUES (${input.id}::uuid,${input.trip.trip_id},${sql.json(input.trip)},${input.body},${author === null ? sql`'null'::jsonb` : sql.json(author)})
         ON CONFLICT (id) DO UPDATE SET id=existing.id
         WHERE existing.trip_key=EXCLUDED.trip_key AND existing.body=EXCLUDED.body

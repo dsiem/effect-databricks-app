@@ -1,8 +1,8 @@
 # Databricks Apps + Effect
 
-Metrocab is a TypeScript starter for Databricks Apps. The example uses historical
-NYC taxi trips to show how to query Databricks SQL, ask Genie about the current
-view, and save shared work in Lakebase.
+This TypeScript starter for Databricks Apps uses historical NYC taxi trips to
+show how to query Databricks SQL, ask Genie about the current view, and save
+shared work in Lakebase.
 
 [Deploy the example](DEPLOYMENT.md) ·
 [Use your own data](#use-your-own-data) ·

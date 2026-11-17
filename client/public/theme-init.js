@@ -2,7 +2,7 @@
 (() => {
   let preference;
   try {
-    preference = localStorage.getItem("metrocab.theme.v1");
+    preference = localStorage.getItem("databricks-effect-app.theme.v1");
   } catch {
     // Storage may be blocked; fall back to the system theme.
   }

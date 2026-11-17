@@ -50,7 +50,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: Deploy resources, migrate Lakebase, grant app access, and start
+      - name: Deploy and start the app
         run: npm run workspace:setup -- "$BUNDLE_TARGET"
       - name: Wait for the app to run
         run: |

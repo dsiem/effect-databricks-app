@@ -22,7 +22,7 @@ export type LakebaseSql = SqlClient.SqlClient & Pick<PgClient.PgClient, "json">;
 export const lakebaseUnavailable = (cause?: unknown) =>
   unavailable(
     "lakebase",
-    "Lakebase is unavailable. Check its connection settings, database grants, and run npm run db:migrate.",
+    "Lakebase is unavailable. Check its connection settings and run npm run db:setup to initialize it.",
     cause,
   );
 
@@ -76,7 +76,7 @@ export const makeLakebaseClient = Effect.gen(function* () {
     idleTimeout: "30 seconds",
     connectionTTL: "45 minutes",
     startupParameters: { statement_timeout: "15000" },
-    applicationName: "metrocab-effect",
+    applicationName: "databricks-effect-app",
   });
 });
 
@@ -99,7 +99,7 @@ export class Lakebase extends Context.Service<
       if (!configured) {
         const failure = unavailable(
           "lakebase",
-          "Configure Lakebase with PGHOST, PGUSER, and LAKEBASE_ENDPOINT, then run npm run db:migrate.",
+          "Configure Lakebase with PGHOST, PGUSER, and LAKEBASE_ENDPOINT, then run npm run db:setup.",
         );
         return {
           availability: capability.availability,

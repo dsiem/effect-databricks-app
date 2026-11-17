@@ -133,7 +133,9 @@ test("pending answers resume after reload without resubmission", async ({
   await send(page);
   await expect
     .poll(() =>
-      page.evaluate(() => sessionStorage.getItem("metrocab.genie.v1")),
+      page.evaluate(() =>
+        sessionStorage.getItem("databricks-effect-app.genie.v1"),
+      ),
     )
     .toContain('"state":"waiting"');
   complete = true;
@@ -173,7 +175,9 @@ test("submission responses are saved when navigating away before acceptance", as
   accept();
   await expect
     .poll(() =>
-      page.evaluate(() => sessionStorage.getItem("metrocab.genie.v1")),
+      page.evaluate(() =>
+        sessionStorage.getItem("databricks-effect-app.genie.v1"),
+      ),
     )
     .toContain('"messageId":"message"');
   await page

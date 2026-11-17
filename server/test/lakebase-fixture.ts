@@ -5,7 +5,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 import type { Connection } from "effect/sql/SqlConnection";
 import { SqlError, UnknownError } from "effect/sql/SqlError";
 import { Lakebase } from "../src/lakebase.js";
-import { migrateAppSchema } from "../src/migrations.js";
+import { initializeAppSchema } from "../src/lakebase-schema.js";
 import { SavedViews } from "../src/saved-views.js";
 import { TripComments } from "../src/trip-comments.js";
 
@@ -37,7 +37,7 @@ export const lakebaseFixture = Effect.gen(function* () {
     compiler: PgClient.makeCompiler(),
     acquirer: Effect.succeed(connection),
   });
-  yield* migrateAppSchema(sql);
+  yield* initializeAppSchema(sql);
   const client = Object.assign(sql, {
     // PgClient's top-level null is SQL NULL, not the JSON string "null".
     json: (value: unknown) =>

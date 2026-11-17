@@ -3,7 +3,6 @@ import { Command } from "foldkit";
 import * as D from "../../../../shared/domain";
 import { request } from "../../lib/api-client";
 import { result } from "../../lib/command-result";
-import { randomUuid } from "../../lib/uuid";
 import { Message as M } from "./messages";
 export const LoadTrips = Command.define("LoadTrips", {
   args: {
@@ -56,7 +55,7 @@ export const CommentDraft = Command.define("CreateCommentDraft", {
     Effect.sync(() =>
       M.CreatedCommentDraft({
         tripId,
-        draft: { id: randomUuid(), body },
+        draft: { id: crypto.randomUUID(), body },
       }),
     ),
 });

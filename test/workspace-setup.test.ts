@@ -28,7 +28,7 @@ childProcess.execFileSync = (file, args, options) => {
   if (args[0] === "apps") return JSON.stringify({ service_principal_client_id: "${principal}" });
   if (args[0] === "current-user") return JSON.stringify({ userName: "deployer@example.com" });
   if (process.env.SETUP_FAILURE === "seed" && args.includes("seed_trip_snapshot")) throw new Error("Fixture seed failed");
-  if (process.env.SETUP_FAILURE === "migration" && args.includes("scripts/migrate.ts")) throw new Error("Fixture migration failed");
+  if (process.env.SETUP_FAILURE === "Lakebase setup" && file === "npm" && args.includes("db:setup")) throw new Error("Fixture Lakebase setup failed");
   return "";
 };
 syncBuiltinESMExports();
@@ -39,10 +39,10 @@ await import(process.env.SETUP_ENTRY_POINT);
 for (const { failure, catalog, schema } of [
   { failure: "", catalog: "seed_catalog", schema: "seed-schema" },
   { failure: "seed", catalog: "seed_catalog", schema: "seed-schema" },
-  { failure: "migration", catalog: "seed_catalog", schema: "seed-schema" },
+  { failure: "Lakebase setup", catalog: "seed_catalog", schema: "seed-schema" },
 ]) {
-  test(`workspace setup ${failure ? `stops after a failed ${failure}` : `seeds, migrates, and starts with ${catalog}.${schema}.trips_2016`}`, async (t) => {
-    const directory = await mkdtemp(join(tmpdir(), "metrocab-setup-"));
+  test(`workspace setup ${failure ? `stops after a failed ${failure}` : `initializes and starts with ${catalog}.${schema}.trips_2016`}`, async (t) => {
+    const directory = await mkdtemp(join(tmpdir(), "workspace-setup-"));
     t.after(() => rm(directory, { recursive: true, force: true }));
     await writeFile(join(directory, ".env.example"), "DATABRICKS_HOST=\n");
     let stdout: string;
@@ -112,7 +112,10 @@ for (const { failure, catalog, schema } of [
       "failed setup must not start the app",
     );
     if (failure !== "seed")
-      assert.ok(calls.some((call) => call.principal === principal));
+      assert.deepEqual(
+        calls.find((call) => call.args.includes("db:setup")),
+        { file: "npm", args: ["run", "db:setup"], principal },
+      );
     if (failure === "seed")
       await assert.rejects(readFile(join(directory, ".env")), {
         code: "ENOENT",

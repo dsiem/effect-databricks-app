@@ -4,7 +4,6 @@ import * as Dom from "foldkit/dom";
 import * as D from "../../../../shared/domain";
 import { request } from "../../lib/api-client";
 import { result } from "../../lib/command-result";
-import { randomUuid } from "../../lib/uuid";
 import { Message as M } from "./messages";
 import { RecentIds } from "./browser-model";
 import { rememberRecent, searchId } from "./picker";
@@ -98,7 +97,8 @@ export const LoadSavedViewShortcuts = Command.define("LoadSavedViewShortcuts", {
 export const NewSavedView = Command.define("CreateSavedViewDraft", {
   args: {},
   messages: [M.CreatedSavedView],
-  execute: () => Effect.sync(() => M.CreatedSavedView({ id: randomUuid() })),
+  execute: () =>
+    Effect.sync(() => M.CreatedSavedView({ id: crypto.randomUUID() })),
 });
 export const SaveSavedView = Command.define("SaveSavedView", {
   args: { draft: D.SavedViewInput },

@@ -278,7 +278,7 @@ test("recovered Genie answers render Markdown safely and copy the generated SQL"
   await page.addInitScript(
     (reply) =>
       sessionStorage.setItem(
-        "metrocab.genie.v1",
+        "databricks-effect-app.genie.v1",
         JSON.stringify([
           {
             id: "saved-turn",

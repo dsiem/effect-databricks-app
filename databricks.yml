@@ -5,10 +5,10 @@ bundle:
 variables:
   app_name:
     description: Unique app name (lowercase letters, digits, hyphens; at most 30 characters).
-    default: metrocab-dev
+    default: ${bundle.name}-${bundle.target}
   data_name:
     description: Prefix for the data resources managed by this bundle target.
-    default: metrocab-${bundle.target}
+    default: ${bundle.name}-${bundle.target}
   data_catalog:
     description: Unity Catalog catalog for the processed NYC taxi dataset.
     default: workspace
@@ -17,7 +17,7 @@ variables:
     default: ${var.data_name}
 
   warehouse_name:
-    description: Display name of the managed warehouse; set when adopting an existing warehouse.
+    description: Display name of the SQL warehouse.
     default: ${var.data_name}-analytics
 
 include:
@@ -41,11 +41,9 @@ sync:
 targets:
   dev:
     default: true
-    variables:
-      app_name: metrocab-dev
   prod:
     mode: production
     variables:
-      app_name: databricks-effect-app
+      app_name: ${bundle.name}
     workspace:
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}

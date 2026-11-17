@@ -235,7 +235,9 @@ test("closed helper finishes its answer and navigation updates visible records, 
   complete = true;
   await expect
     .poll(() =>
-      page.evaluate(() => sessionStorage.getItem("metrocab.genie.v1")),
+      page.evaluate(() =>
+        sessionStorage.getItem("databricks-effect-app.genie.v1"),
+      ),
     )
     .toContain('"state":"complete"');
   expect(submissions).toHaveLength(1);

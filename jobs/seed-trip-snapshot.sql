@@ -1,5 +1,5 @@
 -- Databricks notebook source
--- Immutable Jan/Feb 2016 source snapshot. The old `trips` demo stays intact.
+-- January and February 2016 taxi snapshot.
 SELECT assert_true(
   :catalog RLIKE '^[A-Za-z_][A-Za-z0-9_-]{0,127}$'
     AND :schema RLIKE '^[A-Za-z_][A-Za-z0-9_-]{0,127}$'

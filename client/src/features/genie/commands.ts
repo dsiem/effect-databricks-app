@@ -3,16 +3,17 @@ import { Command } from "foldkit";
 import { ApiError } from "../../../../shared/api";
 import { request } from "../../lib/api-client";
 import { failure, result } from "../../lib/command-result";
-import { randomUuid } from "../../lib/uuid";
 import { Message as M } from "./messages";
 import { History, Turn, turnBase } from "./model";
+const genieStorageKey = "databricks-effect-app.genie.v1";
+
 export const RestoreConversation = Command.define("RestoreConversation", {
   messages: [M.RestoredConversation],
   execute: Effect.sync(() => {
     let turns: typeof History.Type = [];
     let persistenceError = "";
     try {
-      const stored = sessionStorage.getItem("metrocab.genie.v1");
+      const stored = sessionStorage.getItem(genieStorageKey);
       if (stored)
         turns = Schema.decodeUnknownSync(History)(JSON.parse(stored)).map(
           (turn) =>
@@ -36,7 +37,7 @@ export const CreateTurn = Command.define("CreateQuestion", {
   args: { question: Schema.String },
   messages: [M.CreatedTurn],
   execute: ({ question }) =>
-    Effect.sync(() => M.CreatedTurn({ id: randomUuid(), question })),
+    Effect.sync(() => M.CreatedTurn({ id: crypto.randomUUID(), question })),
 });
 export const SubmitQuestion = Command.define("SubmitQuestion", {
   args: { turn: Turn, conversationId: Schema.NullOr(Schema.String) },
@@ -166,7 +167,7 @@ export const PersistTurns = Command.define("PersistConversation", {
   execute: ({ turns }) =>
     Effect.sync(() => {
       try {
-        sessionStorage.setItem("metrocab.genie.v1", JSON.stringify(turns));
+        sessionStorage.setItem(genieStorageKey, JSON.stringify(turns));
         return M.Persisted({ error: "" });
       } catch {
         return M.Persisted({

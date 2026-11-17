@@ -4,7 +4,7 @@ import { Schema } from "effect";
 export const ThemePreference = Schema.Literals(["Dark", "Light", "System"]);
 export type ThemePreference = typeof ThemePreference.Type;
 export const ThemeMenu = Menu.create<ThemePreference>();
-export const themeStorageKey = "metrocab.theme.v1";
+export const themeStorageKey = "databricks-effect-app.theme.v1";
 export const systemThemeQuery = "(prefers-color-scheme: dark)";
 
 export function readThemePreference(): ThemePreference {

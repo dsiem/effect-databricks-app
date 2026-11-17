@@ -87,17 +87,11 @@ execFileSync(
   { stdio: "inherit" },
 );
 writeFileSync(".env", env, { mode: 0o600 });
-execFileSync(
-  process.execPath,
-  ["--env-file-if-exists=.env", "--import", "tsx", "scripts/migrate.ts"],
-  {
-    stdio: "inherit",
-    env: { ...process.env, APP_SERVICE_PRINCIPAL_ID: principal },
-  },
-);
+execFileSync("npm", ["run", "db:setup"], {
+  stdio: "inherit",
+  env: { ...process.env, APP_SERVICE_PRINCIPAL_ID: principal },
+});
 execFileSync("databricks", ["bundle", "run", "app", "-t", target], {
   stdio: "inherit",
 });
-console.log(
-  `Metrocab deployed: ${app.url ?? summary.resources?.apps?.app?.url ?? appName}`,
-);
+console.log("App deployed", app.url ?? resources.apps.app.url ?? appName);

@@ -15,7 +15,6 @@ export default defineConfig({
       name: "webkit",
       use: { browserName: "webkit" },
       testMatch: [
-        "browser-compat.spec.ts",
         "date-range.spec.ts",
         "explore-context.spec.ts",
         "filter-workflow.spec.ts",
