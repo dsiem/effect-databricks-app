@@ -7,6 +7,14 @@ import {
   HttpApiSchema,
 } from "effect/http-api";
 import {
+  AnalysisRun,
+  AnalysisRunIdFromString,
+  AnalysisRunReference,
+  AnalysisRunSummary,
+  AnalysisSubmission,
+  RouteReliabilityReport,
+} from "./analysis-runs.js";
+import {
   CurrentUser,
   Filters,
   GenieInput,
@@ -43,6 +51,14 @@ export const InvalidRequestBody = errorBody(
   400,
 );
 const NotFoundBody = errorBody(Schema.Literal("saved_view_not_found"), 404);
+const AnalysisRunNotFoundBody = errorBody(
+  Schema.Literal("analysis_run_not_found"),
+  404,
+);
+const AnalysisReportPendingBody = errorBody(
+  Schema.Literal("analysis_report_pending"),
+  409,
+);
 const SavedViewConflictBody = errorBody(
   Schema.Literal("saved_view_conflict"),
   409,
@@ -71,6 +87,8 @@ const TimeoutBody = errorBody(
 const errors = [
   InvalidRequestBody,
   NotFoundBody,
+  AnalysisRunNotFoundBody,
+  AnalysisReportPendingBody,
   SavedViewConflictBody,
   GenieFailedBody,
   UnavailableBody,
@@ -116,6 +134,21 @@ export const AppApi = HttpApi.make("taxi").add(
       HttpApiEndpoint.get("tripMap", "/api/trip-map", {
         query: GpsSearch,
         success: TripMap,
+      }),
+      HttpApiEndpoint.post("submitAnalysisRun", "/api/analysis-runs", {
+        payload: AnalysisSubmission,
+        success: AnalysisRunReference.pipe(HttpApiSchema.status(202)),
+      }),
+      HttpApiEndpoint.get("analysisRuns", "/api/analysis-runs", {
+        success: Schema.Array(AnalysisRunSummary),
+      }),
+      HttpApiEndpoint.get("analysisRun", "/api/analysis-runs/:id", {
+        params: { id: AnalysisRunIdFromString },
+        success: AnalysisRun,
+      }),
+      HttpApiEndpoint.get("analysisResult", "/api/analysis-runs/:id/result", {
+        params: { id: AnalysisRunIdFromString },
+        success: RouteReliabilityReport,
       }),
       HttpApiEndpoint.post("submitGenie", "/api/genie", {
         payload: GenieInput,

@@ -1,0 +1,75 @@
+import { Clock, Effect, Schema } from "effect";
+import { Command, Navigation } from "foldkit";
+import * as Dom from "foldkit/dom";
+import { AnalysisInput, AnalysisRunId } from "../../../../shared/analysis-runs";
+import { Id } from "../../../../shared/domain";
+import { request } from "../../lib/api-client";
+import { done, result } from "../../lib/command-result";
+import { Message as M } from "./messages";
+import { runHref, Selection } from "./model";
+
+export const Submit = Command.define("SubmitAnalysisRun", {
+  args: {
+    input: AnalysisInput,
+    retryId: Schema.NullOr(Id),
+    generation: Schema.Int,
+  },
+  messages: [M.AnalysisSubmitted],
+  execute: ({ input, retryId, generation }) =>
+    Effect.gen(function* () {
+      const requestId =
+        retryId ?? (yield* Effect.sync(() => crypto.randomUUID()));
+      const submitted = yield* result(
+        request((client) =>
+          client.submitAnalysisRun({ payload: { input, requestId } }),
+        ),
+      );
+      return M.AnalysisSubmitted({ ...submitted, requestId, generation });
+    }),
+});
+
+export const LoadHistory = Command.define("LoadAnalysisHistory", {
+  args: { generation: Schema.Int },
+  messages: [M.LoadedAnalysisHistory],
+  execute: ({ generation }) =>
+    result(request((client) => client.analysisRuns())).pipe(
+      Effect.map((loaded) =>
+        M.LoadedAnalysisHistory({ ...loaded, generation }),
+      ),
+    ),
+});
+
+export const loadStatus = (selection: typeof Selection.Type) =>
+  Effect.gen(function* () {
+    const loaded = yield* result(
+      request((client) => client.analysisRun({ params: { id: selection.id } })),
+    );
+    const observedAt = yield* Clock.currentTimeMillis;
+    return M.LoadedAnalysisStatus({ ...selection, ...loaded, observedAt });
+  });
+
+export const LoadReport = Command.define("LoadAnalysisReport", {
+  args: Selection.fields,
+  messages: [M.LoadedAnalysisReport],
+  execute: (selection) =>
+    result(
+      request((client) =>
+        client.analysisResult({ params: { id: selection.id } }),
+      ),
+    ).pipe(
+      Effect.map((loaded) =>
+        M.LoadedAnalysisReport({ ...selection, ...loaded }),
+      ),
+    ),
+});
+
+export const OpenRun = Command.define("OpenAnalysisRun", {
+  args: { id: AnalysisRunId, query: Schema.String },
+  messages: [M.Idle],
+  execute: ({ id, query }) => done(Navigation.pushUrl(runHref(id, query))),
+});
+
+export const FocusInputs = Command.define("FocusAnalysisInputs", {
+  messages: [M.Idle],
+  execute: done(Dom.focus("#analysis-baseline-week").pipe(Effect.ignore)),
+});

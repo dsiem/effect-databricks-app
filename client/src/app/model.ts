@@ -2,6 +2,7 @@ import { Dialog, Menu, Tooltip } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as D from "../../../shared/domain";
 import { href } from "../domain/filters";
+import * as AnalysisRuns from "../features/analysis-runs/model";
 import * as Filters from "../features/filters/model";
 import * as Genie from "../features/genie/model";
 import * as Gps from "../features/gps/model";
@@ -29,6 +30,7 @@ export const Model = Schema.Struct({
   savedViewsState: SavedViews.Model,
   genieState: Genie.Model,
   gpsState: Gps.Model,
+  analysisRunsState: AnalysisRuns.Model,
 });
 export type Model = typeof Model.Type;
 export const overviewRequestKey = ({ location }: Model) =>
@@ -37,4 +39,5 @@ export const navigation = [
   { path: paths.Overview, label: "Overview", icon: "layout-dashboard" },
   { path: paths.Trips, label: "Trip explorer", icon: "table-2" },
   { path: paths.TripMap, label: "Trip map", icon: "map" },
+  { path: paths.AnalysisRuns, label: "Analysis runs", icon: "activity" },
 ] as const;

@@ -40,6 +40,7 @@ const appFor = (
             overview: () => effect,
             trips: () => effect,
             tripMap: () => effect,
+            analysisReport: () => effect,
           }),
           Layer.succeed(
             Genie,

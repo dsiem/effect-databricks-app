@@ -10,6 +10,18 @@ export class SavedViewNotFound extends Data.TaggedError("SavedViewNotFound")<{
   readonly message: string;
 }> {}
 
+export class AnalysisRunNotFound extends Data.TaggedError(
+  "AnalysisRunNotFound",
+)<{
+  readonly message: string;
+}> {}
+
+export class AnalysisReportPending extends Data.TaggedError(
+  "AnalysisReportPending",
+)<{
+  readonly message: string;
+}> {}
+
 export class SavedViewConflict extends Data.TaggedError("SavedViewConflict")<{
   readonly id: string;
   readonly message: string;
@@ -41,6 +53,8 @@ export class GenieFailed extends Data.TaggedError("GenieFailed")<{
 export type ServiceError =
   | InvalidRequest
   | SavedViewNotFound
+  | AnalysisRunNotFound
+  | AnalysisReportPending
   | SavedViewConflict
   | ServiceUnavailable
   | UpstreamError

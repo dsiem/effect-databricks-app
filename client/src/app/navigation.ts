@@ -1,4 +1,5 @@
 import type { Update } from "foldkit";
+import { openAnalysisRuns } from "../features/analysis-runs/update";
 import { reloadGps } from "../features/gps/update";
 import * as OverviewCommands from "../features/overview/commands";
 import { reloadTrips } from "../features/trips/update";
@@ -10,6 +11,13 @@ export function loadPage(
   model: Model,
 ): Update.Return<Model, Message, ApiClient> {
   const { route, query, filters } = model.location;
+  if (route._tag === "AnalysisRuns") {
+    const opened = openAnalysisRuns(model.analysisRunsState, route.run);
+    return {
+      model: { ...model, analysisRunsState: opened.model },
+      commands: opened.commands ?? [],
+    };
+  }
   if (!filters) return { model };
   const genieState = { ...model.genieState, genieSelection: null };
   switch (route._tag) {

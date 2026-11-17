@@ -1,0 +1,68 @@
+import { Schema } from "effect";
+import { Day, Id, Zip } from "./domain.js";
+
+export const AnalysisRunId = Schema.Int.check(
+  Schema.isBetween({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
+).pipe(Schema.brand("AnalysisRunId"));
+export type AnalysisRunId = typeof AnalysisRunId.Type;
+
+export const AnalysisRunIdFromString = Schema.String.check(
+  Schema.isPattern(/^[1-9]\d*$/),
+).pipe(
+  Schema.decodeTo(Schema.NumberFromString),
+  Schema.decodeTo(AnalysisRunId),
+);
+
+export const AnalysisInput = Schema.Struct({
+  baselineWeek: Day,
+  comparisonWeek: Day,
+  minimumTrips: Schema.Int.check(
+    Schema.isBetween({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
+  ),
+});
+export type AnalysisInput = typeof AnalysisInput.Type;
+
+export const AnalysisSubmission = Schema.Struct({
+  input: AnalysisInput,
+  requestId: Id,
+});
+export const AnalysisRunReference = Schema.Struct({ id: AnalysisRunId });
+
+export const AnalysisRunState = Schema.Literals([
+  "queued",
+  "running",
+  "succeeded",
+  "failed",
+  "canceled",
+  "unknown",
+]);
+export type AnalysisRunState = typeof AnalysisRunState.Type;
+
+export const AnalysisRunSummary = Schema.Struct({
+  id: AnalysisRunId,
+  state: AnalysisRunState,
+  startedAt: Schema.NullOr(Schema.Int),
+  endedAt: Schema.NullOr(Schema.Int),
+});
+export type AnalysisRunSummary = typeof AnalysisRunSummary.Type;
+
+export const AnalysisRun = Schema.Struct({
+  ...AnalysisRunSummary.fields,
+  input: Schema.NullOr(AnalysisInput),
+  reason: Schema.NullOr(Schema.String),
+});
+
+export const RouteReliabilityRow = Schema.Struct({
+  pickupZip: Zip,
+  dropoffZip: Zip,
+  timeBand: Schema.Literals(["overnight", "morning", "afternoon", "evening"]),
+  baselineCount: Schema.Int.check(Schema.isGreaterThan(0)),
+  comparisonCount: Schema.Int.check(Schema.isGreaterThan(0)),
+  baselineP90Minutes: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)),
+  comparisonP90Minutes: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)),
+});
+
+export const RouteReliabilityReport = Schema.Struct({
+  input: AnalysisInput,
+  rows: Schema.Array(RouteReliabilityRow).check(Schema.isMaxLength(50)),
+});

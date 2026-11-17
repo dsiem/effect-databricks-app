@@ -20,6 +20,7 @@ childProcess.execFileSync = (file, args, options) => {
     apps: { app: { name: "test-app" } },
     sql_warehouses: { analytics: { id: "warehouse" } },
     schemas: { data: { catalog_name: process.env.SETUP_CATALOG, name: process.env.SETUP_SCHEMA } },
+    jobs: { route_reliability: { id: 123456 } },
     genie_spaces: { taxi: { id: "genie" } },
     postgres_endpoints: { notebook_endpoint: { id: "endpoint" } },
   } });
@@ -120,11 +121,17 @@ for (const { failure, catalog, schema } of [
       await assert.rejects(readFile(join(directory, ".env")), {
         code: "ENOENT",
       });
-    else
+    else {
+      const env = (await readFile(join(directory, ".env"), "utf8")).split("\n");
       assert.ok(
-        (await readFile(join(directory, ".env"), "utf8"))
-          .split("\n")
-          .includes(`TRIP_SNAPSHOT_TABLE=${catalog}.${schema}.trips_2016`),
+        env.includes(`TRIP_SNAPSHOT_TABLE=${catalog}.${schema}.trips_2016`),
       );
+      assert.ok(env.includes("ANALYSIS_JOB_ID=123456"));
+      assert.ok(
+        env.includes(
+          `ANALYSIS_RESULTS_TABLE=${catalog}.${schema}.route_reliability_runs`,
+        ),
+      );
+    }
   });
 }

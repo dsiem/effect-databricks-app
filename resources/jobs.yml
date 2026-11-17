@@ -17,3 +17,27 @@ resources:
           notebook_task:
             notebook_path: ../jobs/seed-trip-snapshot.sql
             warehouse_id: ${resources.sql_warehouses.analytics.id}
+    route_reliability:
+      name: ${var.data_name}-route-reliability
+      description: Compare p90 trip durations by pickup ZIP, drop-off ZIP, and time of day across two weeks.
+      max_concurrent_runs: 1
+      queue:
+        enabled: true
+      parameters:
+        - name: baseline_week
+          default: "2016-01-04"
+        - name: comparison_week
+          default: "2016-01-11"
+        - name: minimum_trips
+          default: "50"
+      tasks:
+        - task_key: compare_routes
+          sql_task:
+            warehouse_id: ${resources.sql_warehouses.analytics.id}
+            file:
+              path: ${workspace.file_path}/jobs/route-reliability.sql
+              source: WORKSPACE
+            parameters:
+              analysis_run_id: "{{job.run_id}}"
+              snapshot_table: "`${resources.schemas.data.catalog_name}`.`${resources.schemas.data.name}`.`trips_2016`"
+              results_table: "`${resources.schemas.data.catalog_name}`.`${resources.schemas.data.name}`.`route_reliability_runs`"

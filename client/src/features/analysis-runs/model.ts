@@ -1,0 +1,109 @@
+import { DatePicker } from "@foldkit/ui";
+import { Option, Schema } from "effect";
+import {
+  AnalysisRun,
+  AnalysisRunId,
+  AnalysisRunIdFromString,
+  type AnalysisRunState,
+  AnalysisRunSummary,
+  RouteReliabilityReport,
+} from "../../../../shared/analysis-runs";
+import { Id } from "../../../../shared/domain";
+import { empty, request } from "../../lib/request-state";
+
+export const Draft = Schema.Struct({
+  baselineWeek: Schema.String,
+  comparisonWeek: Schema.String,
+  minimumTrips: Schema.String,
+});
+export const WeekField = Schema.Literals(["baselineWeek", "comparisonWeek"]);
+export type WeekField = typeof WeekField.Type;
+
+export const Selection = Schema.Struct({
+  id: AnalysisRunId,
+  generation: Schema.Int,
+});
+
+const Ready = Schema.TaggedStruct("Ready", {
+  retryId: Schema.NullOr(Id),
+  error: Schema.String,
+});
+const Submission = Schema.Union([
+  Ready,
+  Schema.TaggedStruct("Submitting", { generation: Schema.Int }),
+]);
+
+export const AnalysisRunLink = Schema.Union([
+  Schema.TaggedStruct("NoRun", {}),
+  Schema.TaggedStruct("InvalidRun", {}),
+  Schema.TaggedStruct("SelectedRun", { id: AnalysisRunId }),
+]);
+export type AnalysisRunLink = typeof AnalysisRunLink.Type;
+
+export const readyToSubmit = (retryId: string | null = null, error = "") =>
+  Ready.make({ retryId, error });
+
+export const Model = Schema.Struct({
+  draft: Draft,
+  datePickers: Schema.NullOr(
+    Schema.Struct({
+      baselineWeek: DatePicker.Model,
+      comparisonWeek: DatePicker.Model,
+    }),
+  ),
+  submission: Submission,
+  generation: Schema.Int,
+  invalidLink: Schema.Boolean,
+  recent: request(Schema.Array(AnalysisRunSummary)),
+  selected: Schema.NullOr(
+    Schema.Struct({
+      ...Selection.fields,
+      detail: request(AnalysisRun),
+      report: request(RouteReliabilityReport),
+      observedAt: Schema.Int,
+    }),
+  ),
+});
+export type Model = typeof Model.Type;
+
+export const init = (): Model => ({
+  draft: {
+    baselineWeek: "2016-01-04",
+    comparisonWeek: "2016-01-11",
+    minimumTrips: "50",
+  },
+  datePickers: null,
+  submission: readyToSubmit(),
+  generation: 0,
+  invalidLink: false,
+  recent: empty,
+  selected: null,
+});
+
+export const analysisPath = "/analysis";
+export function parseRunLink(run: string | null): AnalysisRunLink {
+  if (run === null) return { _tag: "NoRun" };
+  const id = Schema.decodeUnknownOption(AnalysisRunIdFromString)(run);
+  return Option.isSome(id)
+    ? { _tag: "SelectedRun", id: id.value }
+    : { _tag: "InvalidRun" };
+}
+export const runHref = (id: AnalysisRunId, query: string) => {
+  const params = new URLSearchParams(query);
+  params.set("run", String(id));
+  return `${analysisPath}?${params}`;
+};
+export const isActive = (state: AnalysisRunState) =>
+  state === "queued" || state === "running";
+
+export const watchedRun = (model: Model): typeof Selection.Type | null => {
+  const selected = model.selected;
+  if (
+    selected &&
+    (selected.detail.loading ||
+      (selected.detail.data && isActive(selected.detail.data.state)))
+  ) {
+    return { id: selected.id, generation: selected.generation };
+  }
+  return null;
+};

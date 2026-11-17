@@ -6,6 +6,20 @@ const concurrency = (name: string, fallback: number) =>
   Config.schema(Schema.Int.check(Schema.isGreaterThan(0)), name).pipe(
     Config.withDefault(fallback),
   );
+const tableName = (name: string) =>
+  Config.schema(
+    Schema.String.check(
+      Schema.makeFilter(
+        (table) =>
+          table === "" ||
+          /^(?:[A-Za-z_][A-Za-z0-9_-]{0,127}\.){2}[A-Za-z_][A-Za-z0-9_-]{0,127}$/.test(
+            table,
+          ) ||
+          "Expected a three-part Unity Catalog table identifier",
+      ),
+    ),
+    name,
+  ).pipe(Config.withDefault(""));
 const config = Config.all({
   appName: text("DATABRICKS_APP_NAME"),
   host: Config.schema(
@@ -35,18 +49,17 @@ const config = Config.all({
     ),
   ),
   warehouseId: text("DATABRICKS_WAREHOUSE_ID"),
-  tripSnapshotTable: Config.schema(
-    Schema.String.check(
-      Schema.makeFilter(
-        (table) =>
-          table === "" ||
-          /^(?:[A-Za-z_][A-Za-z0-9_-]{0,127}\.){2}[A-Za-z_][A-Za-z0-9_-]{0,127}$/.test(
-            table,
-          ) ||
-          "Expected a three-part Unity Catalog table identifier",
+  tripSnapshotTable: tableName("TRIP_SNAPSHOT_TABLE"),
+  analysisResultsTable: tableName("ANALYSIS_RESULTS_TABLE"),
+  analysisJobId: Config.schema(
+    Schema.Union([
+      Schema.Literal(""),
+      Schema.NumberFromString.check(
+        Schema.isInt(),
+        Schema.isBetween({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
       ),
-    ),
-    "TRIP_SNAPSHOT_TABLE",
+    ]),
+    "ANALYSIS_JOB_ID",
   ).pipe(Config.withDefault("")),
   warehouseConcurrency: concurrency("WAREHOUSE_MAX_CONCURRENCY", 4),
   genieConcurrency: concurrency("GENIE_MAX_CONCURRENCY", 2),

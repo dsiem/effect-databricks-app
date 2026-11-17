@@ -13,6 +13,7 @@ import {
   AppApi,
   invalidRequestBody,
 } from "../../shared/api.js";
+import { makeAnalysisRuns } from "./analysis-runs.js";
 import { Analytics } from "./analytics.js";
 import { makeCurrentUser } from "./current-user.js";
 import type { ServiceError } from "./errors.js";
@@ -32,6 +33,10 @@ const toApiError = (error: ServiceError): typeof ApiError.Type => {
       return { error: { code: "saved_view_conflict", message } };
     case "SavedViewNotFound":
       return { error: { code: "saved_view_not_found", message } };
+    case "AnalysisRunNotFound":
+      return { error: { code: "analysis_run_not_found", message } };
+    case "AnalysisReportPending":
+      return { error: { code: "analysis_report_pending", message } };
     case "ServiceUnavailable":
       return { error: { code: `${error.service}_unavailable`, message } };
     case "UpstreamError":
@@ -83,6 +88,7 @@ const BoundaryLive = Layer.succeed(ApiBoundary, (effect) =>
 const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
   Effect.gen(function* () {
     const analytics = yield* Analytics;
+    const analysisRuns = yield* makeAnalysisRuns;
     const genie = yield* Genie;
     const savedViews = yield* SavedViews;
     const comments = yield* TripComments;
@@ -121,6 +127,16 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
       .handle("overview", ({ query }) => respond(analytics.overview(query)))
       .handle("trips", ({ query }) => respond(analytics.trips(query)))
       .handle("tripMap", ({ query }) => respond(analytics.tripMap(query)))
+      .handle("submitAnalysisRun", ({ payload }) =>
+        respond(analysisRuns.submit(payload)),
+      )
+      .handle("analysisRuns", () => respond(analysisRuns.list))
+      .handle("analysisRun", ({ params }) =>
+        respond(analysisRuns.get(params.id)),
+      )
+      .handle("analysisResult", ({ params }) =>
+        respond(analysisRuns.result(params.id)),
+      )
       .handle("submitGenie", ({ payload }) => respond(genie.submit(payload)))
       .handle("pollGenie", ({ params }) => respond(genie.poll(params)))
       .handle("genieResult", ({ params }) => respond(genie.result(params)))
@@ -181,7 +197,13 @@ const StaticRoutes = HttpRouter.use((router) =>
       "/theme-init.js",
       serveFile(resolve(webRoot, "theme-init.js")),
     );
-    for (const path of ["/", "/trips", "/trip-map", "/genie"] as const) {
+    for (const path of [
+      "/",
+      "/trips",
+      "/trip-map",
+      "/analysis",
+      "/genie",
+    ] as const) {
       yield* router.add("GET", path, serveFile(resolve(webRoot, "index.html")));
     }
   }),

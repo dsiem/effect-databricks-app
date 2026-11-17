@@ -1,6 +1,10 @@
 import { Cache, Context, Effect, Exit, Layer, Schema } from "effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import {
+  type AnalysisRunId,
+  RouteReliabilityReport,
+} from "../../shared/analysis-runs.js";
+import {
   type CapabilityAvailability,
   Daily,
   type Filters,
@@ -18,7 +22,8 @@ import {
   type Trips,
   Zone,
 } from "../../shared/domain.js";
-import type { ServiceError } from "./errors.js";
+import { type ServiceError, unavailable } from "./errors.js";
+import { Settings } from "./settings.js";
 import { tripDetailsProjection } from "./trip-sql.js";
 import { makeWarehouse } from "./warehouse.js";
 
@@ -36,12 +41,50 @@ export class Analytics extends Context.Service<
     readonly tripMap: (
       search: typeof GpsSearch.Type,
     ) => Effect.Effect<TripMap, ServiceError>;
+    readonly analysisReport: (
+      id: AnalysisRunId,
+    ) => Effect.Effect<typeof RouteReliabilityReport.Type, ServiceError>;
   }
 >()("app/Analytics") {
   static readonly layer = Layer.effect(
     Analytics,
     Effect.gen(function* () {
       const { sql, snapshot, read, error, availability } = yield* makeWarehouse;
+      const { analysisResultsTable } = yield* Settings;
+      const analysisReport = (id: AnalysisRunId) => {
+        const [catalog, schema, table] = analysisResultsTable.split(".");
+        if (!catalog || !schema || !table)
+          return Effect.fail(
+            unavailable("analysis", "Configure the analysis results table."),
+          );
+        return read(
+          Schema.Struct({
+            report_json: Schema.fromJsonString(RouteReliabilityReport),
+          }),
+          sql`SELECT report_json FROM ${sql(catalog)}.${sql(schema)}.${sql(table)}
+              WHERE run_id = CAST(${String(id)} AS BIGINT) LIMIT 1`,
+        ).pipe(
+          Effect.mapError((cause) =>
+            cause._tag === "ServiceUnavailable"
+              ? unavailable(
+                  "analysis",
+                  "The report could not be read. Check SELECT access to the results table.",
+                  cause,
+                )
+              : cause,
+          ),
+          Effect.flatMap(([row]) =>
+            row
+              ? Effect.succeed(row.report_json)
+              : Effect.fail(
+                  unavailable(
+                    "analysis",
+                    "The completed report is missing. Check the job's results table.",
+                  ),
+                ),
+          ),
+        );
+      };
       const where = (filters: Filters) => sql`WHERE 1 = 1
       ${filters.from ? sql`AND tpep_pickup_datetime >= CAST(${filters.from} AS TIMESTAMP)` : sql``}
       ${filters.to ? sql`AND tpep_pickup_datetime < CAST(${filters.to} AS TIMESTAMP) + INTERVAL 1 DAY` : sql``}
@@ -238,6 +281,7 @@ export class Analytics extends Context.Service<
       return {
         availability,
         metadata,
+        analysisReport,
         overview: (filters: Filters) =>
           Cache.get(
             overviewCache,

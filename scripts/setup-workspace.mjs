@@ -22,12 +22,14 @@ const resources = summary.resources;
 const appName = resources.apps.app.name;
 const warehouseId = resources.sql_warehouses.analytics.id;
 const snapshotSchema = resources.schemas.data;
+const analysisJobId = resources.jobs?.route_reliability?.id;
 const genieId = resources.genie_spaces.taxi.id;
 const endpointName = resources.postgres_endpoints.notebook_endpoint.id;
 if (
   !warehouseId ||
   !snapshotSchema?.catalog_name ||
   !snapshotSchema?.name ||
+  !analysisJobId ||
   !genieId ||
   !endpointName
 )
@@ -37,13 +39,16 @@ const app = cli(["apps", "get", appName]);
 const identity = cli(["current-user", "me"]);
 if (!endpoint?.status?.hosts?.host)
   throw new Error("Lakebase endpoint has no connection host.");
+const datasetSchema = `${snapshotSchema.catalog_name}.${snapshotSchema.name}`;
 const values = {
   DATABRICKS_HOST:
     process.env.DATABRICKS_HOST ||
     config.workspace.host ||
     cli(["auth", "describe"]).details.host,
   DATABRICKS_WAREHOUSE_ID: warehouseId,
-  TRIP_SNAPSHOT_TABLE: `${snapshotSchema.catalog_name}.${snapshotSchema.name}.trips_2016`,
+  TRIP_SNAPSHOT_TABLE: `${datasetSchema}.trips_2016`,
+  ANALYSIS_JOB_ID: String(analysisJobId),
+  ANALYSIS_RESULTS_TABLE: `${datasetSchema}.route_reliability_runs`,
   GENIE_SPACE_ID: genieId,
   LAKEBASE_ENDPOINT: endpointName,
   PGHOST: endpoint.status.hosts.host,

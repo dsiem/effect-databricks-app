@@ -275,6 +275,24 @@ test("comment counts from an older trip page cannot replace the current rows' co
   assert.equal(late.commentCounts.data?.[trip.trip_id], 3);
 });
 
+test("analysis links distinguish valid, malformed, and absent run IDs", () => {
+  const linked = app("/analysis?zip=invalid&run=123&run=invalid");
+  assert.equal(linked.analysisRunsState.selected?.id, 123);
+  assert.equal(linked.analysisRunsState.invalidLink, false);
+  const malformed = update(
+    linked,
+    AppMessage.Navigated({ path: "/analysis", query: "run=01" }),
+  ).model;
+  assert.equal(malformed.analysisRunsState.selected, null);
+  assert.equal(malformed.analysisRunsState.invalidLink, true);
+  const absent = update(
+    malformed,
+    AppMessage.Navigated({ path: "/analysis", query: "" }),
+  ).model;
+  assert.equal(absent.analysisRunsState.selected, null);
+  assert.equal(absent.analysisRunsState.invalidLink, false);
+});
+
 test("saved views own editor dismissal and prevent closing an in-flight save", () => {
   const context = { filters: {} };
   const created = updateSavedViews(

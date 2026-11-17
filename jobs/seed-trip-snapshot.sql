@@ -96,6 +96,13 @@ FROM IDENTIFIER('`' || :catalog || '`.`' || :schema || '`.`trips_2016`');
 
 -- COMMAND ----------
 
+CREATE TABLE IF NOT EXISTS IDENTIFIER('`' || :catalog || '`.`' || :schema || '`.`route_reliability_runs`') (
+  run_id BIGINT NOT NULL,
+  report_json STRING NOT NULL
+) USING DELTA;
+
+-- COMMAND ----------
+
 BEGIN
   DECLARE grant_sql STRING;
   SET grant_sql = 'GRANT USE CATALOG ON CATALOG `' || :catalog || '` TO `' || :app_service_principal_id || '`';
@@ -103,6 +110,8 @@ BEGIN
   SET grant_sql = 'GRANT USE SCHEMA ON SCHEMA `' || :catalog || '`.`' || :schema || '` TO `' || :app_service_principal_id || '`';
   EXECUTE IMMEDIATE grant_sql;
   SET grant_sql = 'GRANT SELECT ON TABLE `' || :catalog || '`.`' || :schema || '`.`trips_2016` TO `' || :app_service_principal_id || '`';
+  EXECUTE IMMEDIATE grant_sql;
+  SET grant_sql = 'GRANT SELECT ON TABLE `' || :catalog || '`.`' || :schema || '`.`route_reliability_runs` TO `' || :app_service_principal_id || '`';
   EXECUTE IMMEDIATE grant_sql;
   SET grant_sql = 'GRANT SELECT ON VIEW `' || :catalog || '`.`' || :schema || '`.`trip_quality_2016` TO `' || :app_service_principal_id || '`';
   EXECUTE IMMEDIATE grant_sql;

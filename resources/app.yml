@@ -11,6 +11,10 @@ resources:
             value_from: lakehouse
           - name: TRIP_SNAPSHOT_TABLE
             value: ${resources.schemas.data.catalog_name}.${resources.schemas.data.name}.trips_2016
+          - name: ANALYSIS_JOB_ID
+            value_from: route-reliability
+          - name: ANALYSIS_RESULTS_TABLE
+            value: ${resources.schemas.data.catalog_name}.${resources.schemas.data.name}.route_reliability_runs
           - name: GENIE_SPACE_ID
             value_from: genie
           - name: LAKEBASE_ENDPOINT
@@ -22,6 +26,10 @@ resources:
           sql_warehouse:
             id: ${resources.sql_warehouses.analytics.id}
             permission: CAN_USE
+        - name: route-reliability
+          job:
+            id: ${resources.jobs.route_reliability.id}
+            permission: CAN_MANAGE_RUN
         - name: genie
           genie_space:
             name: ${resources.genie_spaces.taxi.title}

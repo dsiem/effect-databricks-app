@@ -3,6 +3,9 @@ import { Option } from "effect";
 import { Command, Update } from "foldkit";
 import type { Url } from "foldkit/url";
 import { href, queryFor, withTripSort } from "../domain/filters";
+import * as AnalysisDates from "../features/analysis-runs/dates";
+import * as AnalysisRuns from "../features/analysis-runs/model";
+import { updateAnalysisRuns } from "../features/analysis-runs/update";
 import * as FilterDates from "../features/filters/dates";
 import * as Filters from "../features/filters/model";
 import { updateFilters } from "../features/filters/update";
@@ -55,6 +58,7 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
     savedViewsState: SavedViews.init(),
     genieState: Genie.init(),
     gpsState: Gps.init(),
+    analysisRunsState: AnalysisRuns.init(),
   };
   const loaded = loadPage(model);
   return {
@@ -198,6 +202,11 @@ function updateApplication(
       return {
         model: {
           ...model,
+          analysisRunsState: AnalysisDates.withMetadata(
+            model.analysisRunsState,
+            message.data,
+            message.today,
+          ),
           filtersState: FilterDates.withMetadata(
             model.filtersState,
             message.data,
@@ -224,6 +233,27 @@ function updateApplication(
       return { model: { ...model, user: message.user } };
     case "LoadPage":
       return loadPage(model);
+    case "AnalysisDatePicker":
+    case "AnalysisFieldChanged":
+    case "StartAnalysis":
+    case "AnalysisSubmitted":
+    case "RefreshAnalysisHistory":
+    case "LoadedAnalysisHistory":
+    case "RetryAnalysisStatus":
+    case "LoadedAnalysisStatus":
+    case "RetryAnalysisReport":
+    case "LoadedAnalysisReport":
+    case "ReuseAnalysisInputs": {
+      const updated = updateAnalysisRuns(
+        model.analysisRunsState,
+        message,
+        route._tag === "AnalysisRuns" ? query : null,
+      );
+      return {
+        model: { ...model, analysisRunsState: updated.model },
+        commands: updated.commands ?? [],
+      };
+    }
     case "FilterDatePicker":
     case "FilterChanged":
     case "ApplyFilters":

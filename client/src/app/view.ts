@@ -3,6 +3,7 @@ import { Array as Arr } from "effect";
 import type { Document } from "foldkit/html";
 import { filterSummary } from "../domain/filter-summary";
 import { filterError, href, queryFor } from "../domain/filters";
+import { analysisRunsView } from "../features/analysis-runs/view";
 import { filterFields } from "../features/filters/view";
 import { genieHelperView, genieView } from "../features/genie/view";
 import { gpsMapView } from "../features/gps/view";
@@ -26,6 +27,14 @@ import { themeSelector } from "./theme-view";
 import { initTooltip } from "./ui-state";
 import { exploreMessage } from "./view-messages";
 import type { H } from "./view-types";
+
+function workspaceHref(path: string, query: string) {
+  const params = new URLSearchParams(query);
+  if (path === paths.AnalysisRuns || !params.has("run"))
+    return href(path, query);
+  params.delete("run");
+  return href(path, params.toString());
+}
 
 function sidebar(h: H, model: Model) {
   const { route, query } = model.location;
@@ -66,7 +75,7 @@ function sidebar(h: H, model: Model) {
   return Nav.view({
     items: navigation.map((item) => item.path),
     ariaLabel: "Main navigation",
-    toHref: (path) => href(path, query),
+    toHref: (path) => workspaceHref(path, query),
     isItemCurrent: (path) => routePath(route) === path,
     toView: ({ nav, items }) =>
       h.nav(
@@ -79,7 +88,10 @@ function sidebar(h: H, model: Model) {
         ],
         [
           h.a(
-            [h.Href(href(paths.Overview, query)), h.Class("sidebar-brand")],
+            [
+              h.Href(workspaceHref(paths.Overview, query)),
+              h.Class("sidebar-brand"),
+            ],
             [
               h.span([h.Class("icon-tile")], [icon(h, "car-taxi-front")]),
               h.div(
@@ -224,7 +236,7 @@ export function view(model: Model, h: H): Document {
   const { route, query, filters: applied } = model.location;
   const explore = showsExplore(route);
   let content: Child[];
-  if (!applied)
+  if (route._tag !== "AnalysisRuns" && !applied)
     content = [
       card(
         h,
@@ -274,6 +286,16 @@ export function view(model: Model, h: H): Document {
             view: gpsMapView,
             model: { ...model.gpsState, query, filters: applied ?? {} },
             toParentMessage: exploreMessage,
+          }),
+        ];
+        break;
+      case "AnalysisRuns":
+        content = [
+          h.submodel({
+            slotId: "analysis-runs",
+            view: analysisRunsView,
+            model: { ...model.analysisRunsState, query },
+            toParentMessage: (message) => message,
           }),
         ];
         break;
@@ -346,7 +368,7 @@ export function view(model: Model, h: H): Document {
                 h.span([h.Class("h-4 border-l mx-2")], []),
                 h.a(
                   [
-                    h.Href(href(paths.Overview, query)),
+                    h.Href(workspaceHref(paths.Overview, query)),
                     h.Class("hidden sm:block muted text-sm"),
                   ],
                   ["NYC Taxi"],

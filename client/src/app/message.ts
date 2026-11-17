@@ -3,6 +3,7 @@ import { Schema } from "effect";
 import { Calendar } from "foldkit";
 import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../shared/domain";
+import * as AnalysisRuns from "../features/analysis-runs/messages";
 import * as Filters from "../features/filters/messages";
 import * as Genie from "../features/genie/messages";
 import * as Gps from "../features/gps/messages";
@@ -40,5 +41,6 @@ export const Message = defineMessageUnion({
   ...SavedViews.messages,
   ...Genie.messages,
   ...Gps.messages,
+  ...AnalysisRuns.messages,
 });
 export type Message = typeof Message.Type;

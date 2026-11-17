@@ -63,6 +63,8 @@ const fixture = () => {
             availability: Effect.succeed("unconfigured" as const),
             metadata: Effect.succeed(metadata),
             overview: (input) => record("overview", input, overview),
+            analysisReport: () =>
+              Effect.die("Unexpected analysis report request"),
             tripMap: (input) =>
               record("gps", input, {
                 endpoint: input.endpoint ?? "pickup",

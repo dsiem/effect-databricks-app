@@ -13,6 +13,7 @@ export const pageContext = (model: Model): GenieContext => {
     case "Trips":
       return tripsContext(model.tripsState, { filters, sort: route.sort });
     case "Genie":
+    case "AnalysisRuns":
     case "NotFound":
       return { page: "genie", title: "Taxi trip data" };
   }
