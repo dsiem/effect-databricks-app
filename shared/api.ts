@@ -22,7 +22,6 @@ import {
   SavedViewSearch,
   SavedViewsPage,
   Status,
-  Trip,
   TripComment,
   TripCommentCountSearch,
   TripCommentCounts,
@@ -33,12 +32,6 @@ import {
   TripSearch,
   Trips,
 } from "./domain.js";
-import {
-  TripDataset,
-  TripDetailInput,
-  TripQuery,
-  TripWindowInput,
-} from "./trip-dataset.js";
 
 const errorBody = <S extends Schema.Top>(code: S, status: number) =>
   Schema.Struct({
@@ -119,18 +112,6 @@ export const AppApi = HttpApi.make("taxi").add(
       HttpApiEndpoint.get("trips", "/api/trips", {
         query: TripSearch,
         success: Trips,
-      }),
-      HttpApiEndpoint.post("tripDataset", "/api/trip-datasets", {
-        payload: TripQuery,
-        success: TripDataset,
-      }),
-      HttpApiEndpoint.post("tripWindow", "/api/trip-datasets/window", {
-        payload: TripWindowInput,
-        success: TripDataset,
-      }),
-      HttpApiEndpoint.post("tripDetail", "/api/trip-datasets/detail", {
-        payload: TripDetailInput,
-        success: Trip,
       }),
       HttpApiEndpoint.get("tripMap", "/api/trip-map", {
         query: GpsSearch,

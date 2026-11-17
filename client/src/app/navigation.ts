@@ -34,11 +34,10 @@ export function loadPage(
         OverviewCommands.LoadOverview({ key: requestKey(model), filters }),
       ],
     };
-  if (model.path === "/trips" || model.path === "/trips-preview") {
+  if (model.path === "/trips") {
     const loaded = reloadTrips(model.tripsState, {
       requestKey: requestKey(model),
       filters,
-      preview: model.path === "/trips-preview",
     });
     return {
       model: {

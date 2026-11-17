@@ -64,28 +64,16 @@ for (const enriched of [false, true]) {
     const client = Effect.runSync(
       HttpApiClient.make(AppApi, { baseUrl: "http://fixture.test" }).pipe(
         Effect.provide(FetchHttpClient.layer),
-        Effect.provideService(FetchHttpClient.Fetch, async (input) => {
-          const url = input instanceof Request ? input.url : input.toString();
-          return Response.json(
-            url.includes("/detail")
-              ? trip
-              : { rows: [trip], total: 1, page: 1, pageSize: 25 },
-          );
-        }),
+        Effect.provideService(FetchHttpClient.Fetch, async () =>
+          Response.json({ rows: [trip], total: 1, page: 1, pageSize: 25 }),
+        ),
       ),
     ).app;
-    for (const request of [
-      client.trips({ query: {} }).pipe(Effect.asVoid),
-      client
-        .tripDetail({
-          payload: { tripId: historical.trip_id, snapshot: "snapshot" },
-        })
-        .pipe(Effect.asVoid),
-    ]) {
-      const result = await Effect.runPromise(Effect.result(request));
-      assert.equal(result._tag, enriched ? "Success" : "Failure");
-      if (result._tag === "Failure")
-        assert.ok(Schema.isSchemaError(result.failure));
-    }
+    const result = await Effect.runPromise(
+      Effect.result(client.trips({ query: {} })),
+    );
+    assert.equal(result._tag, enriched ? "Success" : "Failure");
+    if (result._tag === "Failure")
+      assert.ok(Schema.isSchemaError(result.failure));
   });
 }

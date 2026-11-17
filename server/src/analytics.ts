@@ -18,8 +18,6 @@ import {
   Zone,
 } from "../../shared/domain.js";
 import type { ServiceError } from "./errors.js";
-import { Settings } from "./settings.js";
-import { makeTripDatasets } from "./trip-datasets.js";
 import { tripDetailsProjection } from "./trip-sql.js";
 import { makeWarehouse } from "./warehouse.js";
 
@@ -34,7 +32,6 @@ export class Analytics extends Context.Service<
     readonly trips: (
       search: TripSearch,
     ) => Effect.Effect<typeof Trips.Type, ServiceError>;
-    readonly tripDatasets: ReturnType<typeof makeTripDatasets>;
     readonly tripMap: (
       search: typeof GpsSearch.Type,
     ) => Effect.Effect<TripMap, ServiceError>;
@@ -43,7 +40,6 @@ export class Analytics extends Context.Service<
   static readonly layer = Layer.effect(
     Analytics,
     Effect.gen(function* () {
-      const settings = yield* Settings;
       const { sql, snapshot, read, error, availability } = yield* makeWarehouse;
       const where = (filters: Filters) => sql`WHERE 1 = 1
       ${filters.from ? sql`AND tpep_pickup_datetime >= CAST(${filters.from} AS TIMESTAMP)` : sql``}
@@ -251,10 +247,6 @@ export class Analytics extends Context.Service<
             }),
           ),
         trips,
-        tripDatasets: makeTripDatasets(sql, snapshot, read, {
-          rows: settings.explorerRowBudget,
-          bytes: settings.explorerByteBudget,
-        }),
         tripMap: (search: typeof GpsSearch.Type) =>
           Cache.get(
             gpsCache,

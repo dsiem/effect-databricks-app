@@ -17,7 +17,6 @@ import {
   editorView,
 } from "../features/saved-views/dialogs-view";
 import { savedViewsView } from "../features/saved-views/view";
-import { tripGridView } from "../features/trips/grid-view";
 import { inspectorView } from "../features/trips/inspector";
 import { tripsView } from "../features/trips/view";
 import { dialog } from "../ui/dialog";
@@ -257,16 +256,6 @@ export function view(model: Model, h: H): Document {
           }),
         ];
         break;
-      case "/trips-preview":
-        content = [
-          h.submodel({
-            slotId: "tripGridPreview",
-            view: tripGridView,
-            model: { ...model.tripsState, query: model.query },
-            toParentMessage: exploreMessage,
-          }),
-        ];
-        break;
       case "/trips":
         content = [
           h.submodel({
@@ -318,11 +307,7 @@ export function view(model: Model, h: H): Document {
     }
   const current =
     navigation.find((item) => item.path === model.path)?.label ??
-    (model.path === "/genie"
-      ? "Ask Genie"
-      : model.path === "/trips-preview"
-        ? "Trip explorer preview"
-        : "Workspace");
+    (model.path === "/genie" ? "Ask Genie" : "Workspace");
   return {
     title: `NYC Taxi · ${current}`,
     body: h.div(

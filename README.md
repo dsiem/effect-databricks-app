@@ -85,11 +85,6 @@ rules for each viewer.
 Run `npm run check` after changes. The [verification guide](DEPLOYMENT.md#check-a-change)
 covers browser tests and live service checks.
 
-The JSON explorer preview is available at `/trips-preview`. It keeps bulk data in
-a worker and renders only the visible rows. The current `/trips` workflow remains
-available while device, browser, and accessibility validation continues. See the
-[dataset contract and verification commands](docs/trip-grid-boundary.md).
-
 The trip map owns its JSON dataset outside application state. See the
 [map contract and verification commands](docs/map-dataset-boundary.md).
 

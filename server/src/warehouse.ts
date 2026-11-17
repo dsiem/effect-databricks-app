@@ -4,14 +4,9 @@ import * as SqlSchema from "effect/sql/SqlSchema";
 import { DatabricksClient } from "effect-sql-databricks";
 import { makeAdmission } from "./admission.js";
 import { makeCapability } from "./capability.js";
-import { OperationTimeout, type ServiceError, unavailable } from "./errors.js";
+import { OperationTimeout, unavailable } from "./errors.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
-
-export type WarehouseRead = <A>(
-  schema: Schema.Decoder<A>,
-  statement: Effect.Effect<ReadonlyArray<unknown>, unknown>,
-) => Effect.Effect<ReadonlyArray<A>, ServiceError>;
 
 export const makeWarehouse = Effect.gen(function* () {
   const settings = yield* Settings;

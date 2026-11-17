@@ -20,7 +20,7 @@ import * as SavedViews from "../src/features/saved-views/model";
 import { updateSavedViews } from "../src/features/saved-views/update";
 import { Message as TripMessage } from "../src/features/trips/messages";
 import * as Trips from "../src/features/trips/model";
-import { reloadTrips, updateTrips } from "../src/features/trips/update";
+import { updateTrips } from "../src/features/trips/update";
 import { Message as TripViewMessage } from "../src/features/trips/view-messages";
 
 const app = (path: string) =>
@@ -124,102 +124,54 @@ test("navigation retains the trip feature's dialog cleanup commands", () => {
   );
 });
 
-test("preview reload gets a new identity and rejects the previous result", () => {
-  const context = {
-    requestKey: "preview",
-    preview: true as const,
-    filters: { zip: "10001" },
-  };
-  const first = reloadTrips({ ...Trips.init(), sort: "fare" }, context);
-  const next = reloadTrips(first.model, context);
-  assert.notEqual(next.model.gridKey, first.model.gridKey);
-  assert.equal(next.model.gridStatus.loading, true);
-  assert.equal(next.model.gridWindow, null);
-  const refresh = next.commands?.find(
-    (command) => command.name === "RefreshTripGrid",
+test("sort URLs survive reload and history; saved views restore global scope with default sort", () => {
+  const model = app("/trips?zip=10001&sort=fare");
+  assert.equal(model.tripsState.sort, "fare");
+  const sorted = update(model, AppMessage.SortTrips({ sort: "distance" }));
+  assert.equal(sorted.model.query, "zip=10001&sort=distance");
+  assert.ok(
+    sorted.commands?.some(
+      (command) => command.args?.href === "/trips?zip=10001&sort=distance",
+    ),
   );
-  assert.deepEqual(refresh?.args?.query, {
-    filters: { zip: "10001" },
-    sort: "fare",
-  });
-  const stale = updateTrips(
-    next.model,
-    TripMessage.TripGridStatus({
-      key: first.model.gridKey,
-      scope: "complete",
-      total: 100,
-      loaded: 100,
-      loading: false,
-      error: "",
-    }),
-    context,
+  const back = update(
+    sorted.model,
+    AppMessage.Navigated({ path: "/trips", query: "zip=10001&sort=fare" }),
+  ).model;
+  assert.equal(back.tripsState.sort, "fare");
+  const applied = update(back, AppMessage.ApplyFilters());
+  assert.ok(
+    applied.commands?.some(
+      (command) => command.args?.href === "/trips?zip=10001&sort=fare",
+    ),
   );
-  assert.deepEqual(stale.model.gridStatus, next.model.gridStatus);
-});
-
-test("standalone preview synchronizes selection and counts with its applied scope", () => {
-  const context = {
-    requestKey: "preview",
-    preview: true as const,
-    filters: { zip: "10001" },
-  };
-  const loaded = reloadTrips(Trips.init(), context);
-  const opened = updateTrips(
-    loaded.model,
-    TripMessage.InspectTrip({ trip }),
-    context,
-  );
-  const selected = opened.commands?.find(
-    (command) => command.name === "RefreshTripGrid",
-  );
-  assert.equal(selected?.args?.selectedId, trip.trip_id);
-  assert.deepEqual(selected?.args?.query, {
-    filters: context.filters,
-    sort: "newest",
-  });
-  const posted = updateTrips(
-    opened.model,
-    TripMessage.PostedComment({
-      input: {
-        id: "54a8c786-9678-4e82-8e17-b25bb7af289c",
-        body: "A finding",
-        trip,
+  const restoring = update(
+    back,
+    AppMessage.RestoreView({
+      savedView: {
+        id: "00000000-0000-4000-8000-000000000003",
+        title: "January pickups",
+        body: "",
+        filters: { from: "2016-01-01" },
+        version: 1,
+        pinned: false,
+        created_at: "2026-11-16T10:00:00Z",
+        updated_at: "2026-11-16T10:00:00Z",
       },
-      error: "",
     }),
-    context,
-  );
-  const refreshed = posted.commands?.find(
-    (command) => command.name === "RefreshTripGrid",
-  );
-  assert.equal(
-    refreshed?.args?.countsVersion,
-    opened.model.commentCountsVersion + 1,
-  );
-  const closed = updateTrips(posted.model, TripMessage.CloseTrip(), context);
-  assert.equal(
-    closed.commands?.find((command) => command.name === "RefreshTripGrid")?.args
-      ?.selectedId,
-    null,
-  );
-});
-
-test("leaving preview closes the inspector without refreshing the outgoing grid", () => {
-  const opened = update(
-    app("/trips-preview?zip=10001"),
-    AppMessage.InspectTrip({ trip }),
-  );
-  const navigated = update(
-    opened.model,
-    AppMessage.Navigated({ path: "/", query: "zip=10001" }),
-  );
-  assert.equal(navigated.model.tripsState.selectedTrip, null);
-  assert.ok(
-    navigated.commands?.some((command) => command.name === "CloseDialog"),
   );
   assert.ok(
-    !navigated.commands?.some((command) => command.name === "RefreshTripGrid"),
+    restoring.commands?.some(
+      (command) => command.args?.href === "/trips?from=2016-01-01",
+    ),
   );
+  const restored = update(
+    back,
+    AppMessage.Navigated({ path: "/trips", query: "from=2016-01-01" }),
+  ).model;
+  assert.equal(restored.tripsState.sort, "newest");
+  assert.equal(restored.filtersState.filterDraft.from, "2016-01-01");
+  assert.equal(app("/trips?sort=invalid").tripsState.sort, "newest");
 });
 
 test("comment counts from an older trip page cannot replace the current rows' counts", () => {

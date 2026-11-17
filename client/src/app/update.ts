@@ -247,7 +247,7 @@ function updateApplication(
               AppCommands.Navigate({
                 href: href(
                   model.path,
-                  model.path === "/trips" || model.path === "/trips-preview"
+                  model.path === "/trips"
                     ? withTripSort(
                         changed.outMessage.query,
                         model.tripsState.sort,
@@ -277,9 +277,6 @@ function updateApplication(
       };
     }
     case "CloseTrip":
-    case "TripGridStatus":
-    case "TripGridWindow":
-    case "TripGridSelected":
     case "ResetTrips":
     case "InspectorDialog":
     case "SetPage":
@@ -296,8 +293,6 @@ function updateApplication(
     case "PostComment":
     case "PostedComment": {
       const changed = updateTrips(model.tripsState, message, {
-        preview: model.path === "/trips-preview",
-        filters: filtersFromQuery(model.query) ?? {},
         requestKey: requestKey(model),
       });
       const next = { ...model, tripsState: changed.model };

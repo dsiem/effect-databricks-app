@@ -35,13 +35,6 @@ const appFor = (
             request: () => Effect.die("Unexpected workspace request"),
           }),
           Layer.succeed(Analytics, {
-            tripDatasets: {
-              open: () => Effect.fail(unavailable("warehouse", "Unavailable")),
-              scroll: () =>
-                Effect.fail(unavailable("warehouse", "Unavailable")),
-              detail: () =>
-                Effect.fail(unavailable("warehouse", "Unavailable")),
-            },
             availability: Effect.succeed("unconfigured" as const),
             metadata: effect,
             overview: () => effect,
