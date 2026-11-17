@@ -13,7 +13,7 @@ import type * as SqlClient from "effect/sql/SqlClient";
 import type { CapabilityAvailability } from "../shared/domain.js";
 import { makeCapability } from "./capability.js";
 import { type ServiceError, unavailable } from "./errors.js";
-import { pgPassword } from "./pg-credentials.js";
+import { pgPassword, restoreCredentialFailure } from "./pg-credentials.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
 
@@ -120,7 +120,12 @@ export class Lakebase extends Context.Service<
         availability: capability.availability,
         use: <A, R>(
           run: (sql: LakebaseSql) => Effect.Effect<A, ServiceError, R>,
-        ) => client.pipe(Effect.flatMap(run), capability.track),
+        ) =>
+          client.pipe(
+            Effect.flatMap(run),
+            restoreCredentialFailure,
+            capability.track,
+          ),
       };
     }).pipe(Effect.provide(Reactivity.layer)),
   );

@@ -1,8 +1,5 @@
 import { Cache, Context, Effect, Exit, Layer, Schema } from "effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
-import { AuthenticationError, SqlError } from "effect/sql/SqlError";
-import * as SqlSchema from "effect/sql/SqlSchema";
-import { DatabricksClient } from "effect-sql-databricks";
 import {
   type CapabilityAvailability,
   Daily,
@@ -20,12 +17,11 @@ import {
   type Trips,
   Zone,
 } from "../shared/domain.js";
-import { makeAdmission } from "./admission.js";
-import { makeCapability } from "./capability.js";
-import { OperationTimeout, type ServiceError, unavailable } from "./errors.js";
+import type { ServiceError } from "./errors.js";
 import { Settings } from "./settings.js";
 import { makeTripDatasets } from "./trip-datasets.js";
-import { Workspace } from "./workspace.js";
+import { tripDetailsProjection } from "./trip-sql.js";
+import { makeWarehouse } from "./warehouse.js";
 
 export class Analytics extends Context.Service<
   Analytics,
@@ -48,79 +44,7 @@ export class Analytics extends Context.Service<
     Analytics,
     Effect.gen(function* () {
       const settings = yield* Settings;
-      const workspace = yield* Workspace;
-      const configured = !!(
-        settings.warehouseId &&
-        settings.host &&
-        settings.tripSnapshotTable
-      );
-      const [catalog = "unconfigured", schema = "snapshot", table = "trips"] =
-        settings.tripSnapshotTable
-          ? settings.tripSnapshotTable.split(".")
-          : ["unconfigured", "snapshot", "trips"];
-      const capability = makeCapability(configured);
-      const admit = makeAdmission({
-        service: "warehouse",
-        concurrency: settings.warehouseConcurrency,
-        timeout: "90 seconds",
-      });
-      const error = unavailable(
-        "warehouse",
-        configured
-          ? "The NYC taxi query failed. Check warehouse access and SELECT permission on the configured trip snapshot."
-          : "Set DATABRICKS_WAREHOUSE_ID and TRIP_SNAPSHOT_TABLE to connect the NYC taxi dataset.",
-      );
-      const sql = yield* DatabricksClient.make({
-        host: settings.host || "https://unconfigured.invalid",
-        warehouseId: settings.warehouseId || "unconfigured",
-        accessToken: workspace.accessToken.pipe(
-          Effect.mapError(
-            (cause) =>
-              new SqlError({
-                reason: new AuthenticationError({
-                  cause,
-                  message: "Authentication unavailable",
-                  operation: "authenticate",
-                }),
-              }),
-          ),
-        ),
-        queryTimeout: "90 seconds",
-        allowDatabricksStorageProxy: !!settings.appName,
-      }).pipe(
-        Effect.tapError(() =>
-          Effect.logError("Invalid SQL client configuration", {
-            workspaceHost: settings.host,
-            warehouseConfigured: !!settings.warehouseId,
-          }),
-        ),
-        Effect.mapError((cause) =>
-          unavailable(error.service, error.message, cause),
-        ),
-      );
-      const snapshot = sql`${sql(catalog)}.${sql(schema)}.${sql(table)}`;
-      const read = <A>(
-        schema: Schema.Decoder<A>,
-        statement: Effect.Effect<ReadonlyArray<unknown>, unknown>,
-      ) =>
-        (configured
-          ? SqlSchema.findAll({
-              Request: Schema.Void,
-              Result: schema,
-              execute: () => statement,
-            })(undefined).pipe(admit)
-          : Effect.fail(error)
-        ).pipe(
-          Effect.tapError((cause) =>
-            Effect.logError("Warehouse operation failed", cause),
-          ),
-          Effect.mapError((cause) =>
-            cause instanceof OperationTimeout
-              ? cause
-              : unavailable(error.service, error.message, cause),
-          ),
-          capability.track,
-        );
+      const { sql, snapshot, read, error, availability } = yield* makeWarehouse;
       const where = (filters: Filters) => sql`WHERE 1 = 1
       ${filters.from ? sql`AND tpep_pickup_datetime >= CAST(${filters.from} AS TIMESTAMP)` : sql``}
       ${filters.to ? sql`AND tpep_pickup_datetime < CAST(${filters.to} AS TIMESTAMP) + INTERVAL 1 DAY` : sql``}
@@ -230,19 +154,7 @@ export class Analytics extends Context.Service<
           CAST(COALESCE(trip_distance,0) AS DOUBLE) AS distance,
           CAST(COALESCE(fare_amount,0) AS DOUBLE) AS fare,
           CAST(COALESCE(timestampdiff(SECOND,tpep_pickup_datetime,tpep_dropoff_datetime)/60.0,0) AS DOUBLE) AS duration,
-          to_json(named_struct(
-            'source_file', source_file, 'vendor_id', VendorID,
-            'passenger_count', passenger_count, 'rate_code_id', RatecodeID,
-            'store_and_fwd_flag', store_and_fwd_flag, 'payment_type', payment_type,
-            'pickup_location', CASE WHEN pickup_coordinates_valid THEN named_struct('longitude', pickup_longitude, 'latitude', pickup_latitude) END,
-            'dropoff_location', CASE WHEN dropoff_coordinates_valid THEN named_struct('longitude', dropoff_longitude, 'latitude', dropoff_latitude) END,
-            'tip_amount', CASE WHEN abs(tip_amount) < double('Infinity') THEN tip_amount END,
-            'tolls_amount', CASE WHEN abs(tolls_amount) < double('Infinity') THEN tolls_amount END,
-            'extra', CASE WHEN abs(extra) < double('Infinity') THEN extra END,
-            'mta_tax', CASE WHEN abs(mta_tax) < double('Infinity') THEN mta_tax END,
-            'improvement_surcharge', CASE WHEN abs(improvement_surcharge) < double('Infinity') THEN improvement_surcharge END,
-            'total_amount', CASE WHEN abs(total_amount) < double('Infinity') THEN total_amount END
-          ), map('ignoreNullFields', 'false')) AS details
+          ${tripDetailsProjection(sql)}
           FROM ${snapshot} ${predicate}
           ORDER BY ${order}, tpep_pickup_datetime DESC, tpep_dropoff_datetime DESC, pickup_zip, dropoff_zip, fare_amount, trip_distance, trip_id
           LIMIT 25 OFFSET ${sql.param("INT", String((page - 1) * 25))}`,
@@ -327,7 +239,7 @@ export class Analytics extends Context.Service<
         },
       );
       return {
-        availability: capability.availability,
+        availability,
         metadata,
         overview: (filters: Filters) =>
           Cache.get(

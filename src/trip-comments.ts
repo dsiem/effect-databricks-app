@@ -12,9 +12,8 @@ import {
 } from "../shared/domain.js";
 import { InvalidRequest } from "./errors.js";
 import { Lakebase, type LakebaseSql, lakebaseUnavailable } from "./lakebase.js";
-import { restoreCredentialFailure } from "./pg-credentials.js";
 
-export const makeTripComments = (sql: LakebaseSql) => {
+const makeTripComments = (sql: LakebaseSql) => {
   const counts = ({ tripIds }: TripCommentCountSearch) =>
     SqlSchema.findAll({
       Request: Schema.Void,
@@ -27,7 +26,6 @@ export const makeTripComments = (sql: LakebaseSql) => {
         WHERE ${sql.in("trip_key", tripIds)} GROUP BY trip_key`,
     })(undefined).pipe(
       Effect.mapError(lakebaseUnavailable),
-      restoreCredentialFailure,
       Effect.map((rows) => ({
         ...Object.fromEntries(tripIds.map((id) => [id, 0])),
         ...Object.fromEntries(rows.map((row) => [row.trip_key, row.count])),
@@ -56,7 +54,6 @@ export const makeTripComments = (sql: LakebaseSql) => {
         ORDER BY comments.created_at DESC, comments.id DESC LIMIT 26`,
     })(undefined).pipe(
       Effect.mapError(lakebaseUnavailable),
-      restoreCredentialFailure,
       Effect.map((results): TripCommentsPage => {
         const rows = results.slice(0, 25);
         const last = rows.at(-1);
@@ -85,7 +82,6 @@ export const makeTripComments = (sql: LakebaseSql) => {
         RETURNING ${columns}`,
     })(undefined).pipe(
       Effect.mapError(lakebaseUnavailable),
-      restoreCredentialFailure,
       Effect.flatMap((rows) =>
         rows[0]
           ? Effect.succeed(rows[0])
@@ -101,19 +97,21 @@ export const makeTripComments = (sql: LakebaseSql) => {
   return { list, add, counts };
 };
 
+const makeTripCommentsService = (database: typeof Lakebase.Service) => ({
+  counts: (search: TripCommentCountSearch) =>
+    database.use((sql) => makeTripComments(sql).counts(search)),
+  list: (search: TripCommentSearch) =>
+    database.use((sql) => makeTripComments(sql).list(search)),
+  add: (input: TripCommentInput, author: CurrentUser | null) =>
+    database.use((sql) => makeTripComments(sql).add(input, author)),
+});
+
 export class TripComments extends Context.Service<
   TripComments,
-  ReturnType<typeof makeTripComments>
+  ReturnType<typeof makeTripCommentsService>
 >()("app/TripComments") {
   static readonly layer = Layer.effect(
     TripComments,
-    Effect.map(Lakebase, (database) => ({
-      counts: (search: TripCommentCountSearch) =>
-        database.use((sql) => makeTripComments(sql).counts(search)),
-      list: (search: TripCommentSearch) =>
-        database.use((sql) => makeTripComments(sql).list(search)),
-      add: (input: TripCommentInput, author: CurrentUser | null) =>
-        database.use((sql) => makeTripComments(sql).add(input, author)),
-    })),
+    Effect.map(Lakebase, makeTripCommentsService),
   );
 }

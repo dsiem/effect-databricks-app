@@ -1,0 +1,92 @@
+import { Effect, Schema } from "effect";
+import { AuthenticationError, SqlError } from "effect/sql/SqlError";
+import * as SqlSchema from "effect/sql/SqlSchema";
+import { DatabricksClient } from "effect-sql-databricks";
+import { makeAdmission } from "./admission.js";
+import { makeCapability } from "./capability.js";
+import { OperationTimeout, type ServiceError, unavailable } from "./errors.js";
+import { Settings } from "./settings.js";
+import { Workspace } from "./workspace.js";
+
+export type WarehouseRead = <A>(
+  schema: Schema.Decoder<A>,
+  statement: Effect.Effect<ReadonlyArray<unknown>, unknown>,
+) => Effect.Effect<ReadonlyArray<A>, ServiceError>;
+
+export const makeWarehouse = Effect.gen(function* () {
+  const settings = yield* Settings;
+  const workspace = yield* Workspace;
+  const configured = !!(
+    settings.warehouseId &&
+    settings.host &&
+    settings.tripSnapshotTable
+  );
+  const [catalog = "unconfigured", schema = "snapshot", table = "trips"] =
+    settings.tripSnapshotTable
+      ? settings.tripSnapshotTable.split(".")
+      : ["unconfigured", "snapshot", "trips"];
+  const capability = makeCapability(configured);
+  const admit = makeAdmission({
+    service: "warehouse",
+    concurrency: settings.warehouseConcurrency,
+    timeout: "90 seconds",
+  });
+  const error = unavailable(
+    "warehouse",
+    configured
+      ? "The NYC taxi query failed. Check warehouse access and SELECT permission on the configured trip snapshot."
+      : "Set DATABRICKS_WAREHOUSE_ID and TRIP_SNAPSHOT_TABLE to connect the NYC taxi dataset.",
+  );
+  const sql = yield* DatabricksClient.make({
+    host: settings.host || "https://unconfigured.invalid",
+    warehouseId: settings.warehouseId || "unconfigured",
+    accessToken: workspace.accessToken.pipe(
+      Effect.mapError(
+        (cause) =>
+          new SqlError({
+            reason: new AuthenticationError({
+              cause,
+              message: "Authentication unavailable",
+              operation: "authenticate",
+            }),
+          }),
+      ),
+    ),
+    queryTimeout: "90 seconds",
+    allowDatabricksStorageProxy: !!settings.appName,
+  }).pipe(
+    Effect.tapError(() =>
+      Effect.logError("Invalid SQL client configuration", {
+        workspaceHost: settings.host,
+        warehouseConfigured: !!settings.warehouseId,
+      }),
+    ),
+    Effect.mapError((cause) =>
+      unavailable(error.service, error.message, cause),
+    ),
+  );
+  const snapshot = sql`${sql(catalog)}.${sql(schema)}.${sql(table)}`;
+  const read = <A>(
+    schema: Schema.Decoder<A>,
+    statement: Effect.Effect<ReadonlyArray<unknown>, unknown>,
+  ) =>
+    (configured
+      ? SqlSchema.findAll({
+          Request: Schema.Void,
+          Result: schema,
+          execute: () => statement,
+        })(undefined).pipe(admit)
+      : Effect.fail(error)
+    ).pipe(
+      Effect.tapError((cause) =>
+        Effect.logError("Warehouse operation failed", cause),
+      ),
+      Effect.mapError((cause) =>
+        cause instanceof OperationTimeout
+          ? cause
+          : unavailable(error.service, error.message, cause),
+      ),
+      capability.track,
+    );
+  return { sql, snapshot, read, error, availability: capability.availability };
+});

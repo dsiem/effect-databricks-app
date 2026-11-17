@@ -20,7 +20,7 @@ import { type ServiceError, UpstreamError } from "../src/errors.js";
 import { Lakebase } from "../src/lakebase.js";
 import { migrateAppSchema } from "../src/migrations.js";
 import { pgPassword, restoreCredentialFailure } from "../src/pg-credentials.js";
-import { makeSavedViews, SavedViews } from "../src/saved-views.js";
+import { SavedViews } from "../src/saved-views.js";
 import { Settings } from "../src/settings.js";
 import { Workspace } from "../src/workspace.js";
 import { lakebaseFixture } from "./lakebase-fixture.js";
@@ -147,12 +147,17 @@ const withRows = <A, E>(
         compiler: PgClient.makeCompiler(),
         acquirer: Effect.succeed(connection),
       });
-      return yield* use(
-        makeSavedViews(
-          Object.assign(sql, {
-            json: (value: unknown) => sql`${JSON.stringify(value)}`,
-          }),
-        ),
+      return yield* Effect.flatMap(SavedViews, use).pipe(
+        Effect.provide(SavedViews.layer),
+        Effect.provideService(Lakebase, {
+          availability: Effect.succeed("available" as const),
+          use: (run) =>
+            run(
+              Object.assign(sql, {
+                json: (value: unknown) => sql`${JSON.stringify(value)}`,
+              }),
+            ),
+        }),
       );
     }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
   );

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { Cause, ConfigProvider, Effect, Exit, Layer, Redacted } from "effect";
 import { unavailable } from "../src/errors.js";
 import { Lakebase } from "../src/lakebase.js";
+import { pgPassword } from "../src/pg-credentials.js";
 import { SavedViews } from "../src/saved-views.js";
 import { Settings } from "../src/settings.js";
 import { TripComments } from "../src/trip-comments.js";
@@ -178,5 +179,72 @@ for (const [name, operation] of [
       error._tag === "Some" && error.value._tag === "ServiceUnavailable",
     );
     assert.equal(error.value.service, "lakebase");
+  });
+}
+
+test("Lakebase restores credential failures before recording availability and preserves mixed causes", async () => {
+  const credentialError = unavailable("lakebase", "Credential refresh failed");
+  const sqlError = unavailable("lakebase", "SQL operation failed");
+  const defect = new Error("Unexpected operation defect");
+  const bridged = await Effect.runPromiseExit(
+    pgPassword(Effect.fail(credentialError)),
+  );
+  assert.ok(Exit.isFailure(bridged));
+  const compound = Cause.combine(
+    bridged.cause,
+    Cause.combine(
+      Cause.fail(sqlError),
+      Cause.combine(Cause.die(defect), Cause.interrupt(42)),
+    ),
+  );
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const database = yield* Lakebase;
+      const failed = yield* Effect.exit(
+        database.use(() => Effect.failCause(compound)),
+      );
+      assert.ok(Exit.isFailure(failed));
+      assert.equal(failed.cause.reasons.length, 4);
+      assert.deepEqual(
+        failed.cause.reasons
+          .filter(Cause.isFailReason)
+          .map((reason) => reason.error),
+        [credentialError, sqlError],
+      );
+      assert.ok(
+        failed.cause.reasons.some(
+          (reason) => Cause.isDieReason(reason) && reason.defect === defect,
+        ),
+      );
+      assert.deepEqual(Cause.interruptors(failed.cause), new Set([42]));
+      assert.equal(yield* database.availability, "unavailable");
+      yield* database.use(() => Effect.void);
+      assert.equal(yield* database.availability, "available");
+    }).pipe(
+      Effect.provide(databaseLayer(() => Effect.succeed(endpoint))),
+      Effect.scoped,
+    ),
+  );
+});
+
+for (const [name, operation] of [
+  ["ordinary defects", Effect.die(new Error("Unexpected operation defect"))],
+  ["interruption", Effect.interrupt],
+] as const) {
+  test(`Lakebase preserves ${name} without recording an availability failure`, async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const database = yield* Lakebase;
+        yield* database.use(() => Effect.void);
+        const original = yield* Effect.exit(operation);
+        const actual = yield* Effect.exit(database.use(() => operation));
+        assert.ok(Exit.isFailure(original) && Exit.isFailure(actual));
+        assert.deepEqual(actual.cause.reasons, original.cause.reasons);
+        assert.equal(yield* database.availability, "available");
+      }).pipe(
+        Effect.provide(databaseLayer(() => Effect.succeed(endpoint))),
+        Effect.scoped,
+      ),
+    );
   });
 }

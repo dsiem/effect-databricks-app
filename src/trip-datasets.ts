@@ -13,12 +13,10 @@ import {
   type TripWindowInput,
   tripQueryKey,
 } from "../shared/trip-dataset.js";
-import {
-  InvalidRequest,
-  OperationTimeout,
-  type ServiceError,
-  unavailable,
-} from "./errors.js";
+import { InvalidRequest, OperationTimeout, unavailable } from "./errors.js";
+
+import { tripDetailsProjection } from "./trip-sql.js";
+import type { WarehouseRead } from "./warehouse.js";
 
 const Snapshot = Schema.Struct({
   version: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
@@ -34,15 +32,11 @@ const Cursor = Schema.Struct({
   direction: Schema.Literals(["next", "previous"]),
 });
 type Cursor = typeof Cursor.Type;
-type Read = <A>(
-  schema: Schema.Decoder<A>,
-  statement: Effect.Effect<ReadonlyArray<unknown>, unknown>,
-) => Effect.Effect<ReadonlyArray<A>, ServiceError>;
 
 export function makeTripDatasets(
   sql: DatabricksClient.DatabricksClient,
   table: Fragment,
-  read: Read,
+  read: WarehouseRead,
   budget: DatasetBudget,
 ) {
   // Restart invalidates continuations; clients recover by opening a fresh dataset.
@@ -293,18 +287,7 @@ export function makeTripDatasets(
           details: Schema.fromJsonString(TripDetails),
         }),
         sql`SELECT ${projection()},
-      to_json(named_struct('source_file', source_file, 'vendor_id', VendorID,
-        'passenger_count', passenger_count, 'rate_code_id', RatecodeID,
-        'store_and_fwd_flag', store_and_fwd_flag, 'payment_type', payment_type,
-        'pickup_location', CASE WHEN pickup_coordinates_valid THEN named_struct('longitude', pickup_longitude, 'latitude', pickup_latitude) END,
-        'dropoff_location', CASE WHEN dropoff_coordinates_valid THEN named_struct('longitude', dropoff_longitude, 'latitude', dropoff_latitude) END,
-        'tip_amount', CASE WHEN abs(tip_amount) < double('Infinity') THEN tip_amount END,
-        'tolls_amount', CASE WHEN abs(tolls_amount) < double('Infinity') THEN tolls_amount END,
-        'extra', CASE WHEN abs(extra) < double('Infinity') THEN extra END,
-        'mta_tax', CASE WHEN abs(mta_tax) < double('Infinity') THEN mta_tax END,
-        'improvement_surcharge', CASE WHEN abs(improvement_surcharge) < double('Infinity') THEN improvement_surcharge END,
-        'total_amount', CASE WHEN abs(total_amount) < double('Infinity') THEN total_amount END
-      ), map('ignoreNullFields', 'false')) AS details
+      ${tripDetailsProjection(sql)}
       FROM ${source(state.version)} WHERE trip_id = ${input.tripId} LIMIT 1`,
       );
       const row = rows[0];

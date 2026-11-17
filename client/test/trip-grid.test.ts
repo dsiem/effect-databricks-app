@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Option, Schema } from "effect";
 import { Url } from "foldkit";
+import { pageContext } from "../src/app/analysis-context";
 import { Message as M } from "../src/app/message";
-import { pageContext } from "../src/app/model";
 import { init, update } from "../src/app/update";
 import { GridWindow } from "../src/features/trips/grid-protocol";
 

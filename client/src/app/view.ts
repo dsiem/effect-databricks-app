@@ -15,18 +15,18 @@ import { overviewView } from "../features/overview/view";
 import {
   deleteDialogView,
   editorView,
-  savedViewsView,
-} from "../features/saved-views/view";
+} from "../features/saved-views/dialogs-view";
+import { savedViewsView } from "../features/saved-views/view";
 import { tripGridView } from "../features/trips/grid-view";
 import { inspectorView } from "../features/trips/inspector";
 import { tripsView } from "../features/trips/view";
-import { featureView } from "../lib/feature-view";
 import { dialog } from "../ui/dialog";
 import { filterPanel } from "../ui/filter-panel";
 import { icon } from "../ui/icons";
 import { button, type Child, card } from "../ui/primitives";
+import { pageContext } from "./analysis-context";
 import { Message as M } from "./message";
-import { type Model, navigation, pageContext } from "./model";
+import { type Model, navigation } from "./model";
 import { themeSelector } from "./theme-view";
 import { initTooltip } from "./ui-state";
 import { exploreMessage } from "./view-messages";
@@ -184,17 +184,16 @@ function filters(h: H, model: Model) {
     !applied || queryFor(model.filtersState.filterDraft) !== queryFor(applied);
   return filterPanel(h, {
     label: "Trip filters",
-    viewPicker: featureView(
-      h,
-      "saved-views-picker",
-      savedViewsView,
-      {
+    viewPicker: h.submodel({
+      slotId: "saved-views-picker",
+      view: savedViewsView,
+      model: {
         ...model.savedViewsState,
         query: model.query,
         canSave: !!applied && !hasChanges,
       },
-      (message) => message,
-    ),
+      toParentMessage: (message) => message,
+    }),
     fields: filterFields(h, {
       draft: model.filtersState.filterDraft,
       datePickers: model.filtersState.datePickers,
@@ -246,69 +245,64 @@ export function view(model: Model, h: H): Document {
     switch (model.path) {
       case "/":
         content = [
-          featureView(
-            h,
-            "overview",
-            overviewView,
-            {
+          h.submodel({
+            slotId: "overview",
+            view: overviewView,
+            model: {
               ...model.overviewState,
               query: model.query,
               mobile: model.mobile,
             },
-            exploreMessage,
-          ),
+            toParentMessage: exploreMessage,
+          }),
         ];
         break;
       case "/trips-preview":
         content = [
-          featureView(
-            h,
-            "tripGridPreview",
-            tripGridView,
-            { ...model.tripsState, query: model.query },
-            exploreMessage,
-          ),
+          h.submodel({
+            slotId: "tripGridPreview",
+            view: tripGridView,
+            model: { ...model.tripsState, query: model.query },
+            toParentMessage: exploreMessage,
+          }),
         ];
         break;
       case "/trips":
         content = [
-          featureView(
-            h,
-            "trips",
-            tripsView,
-            {
+          h.submodel({
+            slotId: "trips",
+            view: tripsView,
+            model: {
               ...model.tripsState,
             },
-            exploreMessage,
-          ),
+            toParentMessage: exploreMessage,
+          }),
         ];
         break;
       case "/trip-map":
         content = [
-          featureView(
-            h,
-            "gpsMap",
-            gpsMapView,
-            { ...model.gpsState, query: model.query },
-            exploreMessage,
-          ),
+          h.submodel({
+            slotId: "gpsMap",
+            view: gpsMapView,
+            model: { ...model.gpsState, query: model.query },
+            toParentMessage: exploreMessage,
+          }),
         ];
         break;
       case "/genie":
         content = [
-          featureView(
-            h,
-            "genie",
-            genieView,
-            {
+          h.submodel({
+            slotId: "genie",
+            view: genieView,
+            model: {
               ...model.genieState,
               context: pageContext(model),
               mobile: model.mobile,
               query: model.query,
               status: model.status,
             },
-            (message) => message,
-          ),
+            toParentMessage: (message) => message,
+          }),
         ];
         break;
       default:
@@ -406,19 +400,18 @@ export function view(model: Model, h: H): Document {
         ),
         ...(model.genieState.genieOpen && model.path !== "/genie"
           ? [
-              featureView(
-                h,
-                "genie-helper",
-                genieHelperView,
-                {
+              h.submodel({
+                slotId: "genie-helper",
+                view: genieHelperView,
+                model: {
                   ...model.genieState,
                   context: pageContext(model),
                   mobile: model.mobile,
                   query: model.query,
                   status: model.status,
                 },
-                (message) => message,
-              ),
+                toParentMessage: (message) => message,
+              }),
             ]
           : []),
         ...(model.mobile && model.mobileNavigation
@@ -434,41 +427,38 @@ export function view(model: Model, h: H): Document {
           : []),
         ...(model.tripsState.selectedTrip
           ? [
-              featureView(
-                h,
-                "inspector",
-                inspectorView,
-                {
+              h.submodel({
+                slotId: "inspector",
+                view: inspectorView,
+                model: {
                   ...model.tripsState,
                 },
-                (message) => message,
-              ),
+                toParentMessage: (message) => message,
+              }),
             ]
           : []),
         ...(model.savedViewsState.deleting
           ? [
-              featureView(
-                h,
-                "deleteDialog",
-                deleteDialogView,
-                {
+              h.submodel({
+                slotId: "deleteDialog",
+                view: deleteDialogView,
+                model: {
                   ...model.savedViewsState,
                 },
-                (message) => message,
-              ),
+                toParentMessage: (message) => message,
+              }),
             ]
           : []),
         ...(model.savedViewsState.editor
           ? [
-              featureView(
-                h,
-                "editor",
-                editorView,
-                {
+              h.submodel({
+                slotId: "editor",
+                view: editorView,
+                model: {
                   ...model.savedViewsState,
                 },
-                (message) => message,
-              ),
+                toParentMessage: (message) => message,
+              }),
             ]
           : []),
       ],

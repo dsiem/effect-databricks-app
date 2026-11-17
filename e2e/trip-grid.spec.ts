@@ -507,3 +507,100 @@ test("sort survives browser reload and back navigation", async ({
   await page.goBack();
   await expect(select).toHaveValue("distance");
 });
+
+test("forced reload refreshes cell values for retained trip IDs", async ({
+  page,
+  context,
+}) => {
+  const source = tripRows(10);
+  const requests = await fixtures(context, false, source);
+  await page.goto("/trips-preview?sort=fare");
+  const first = page.locator("#trip-virtual-grid tr[data-trip-id]").first();
+  await expect(first).toHaveAttribute("data-trip-id", source[9]?.trip_id ?? "");
+  await expect(first.locator("td").nth(5)).toHaveText("$9.00");
+  const changed = source[9];
+  if (!changed) throw new Error("Missing fixture trip");
+  source[9] = { ...changed, fare: 1234, distance: 42 };
+  await page.getByRole("button", { name: "Reload query" }).click();
+  await expect(first.locator("td").nth(5)).toHaveText("$1,234.00");
+  await expect(first.locator("td").nth(3)).toHaveText("42.00 mi");
+  expect(
+    requests.filter((request) => request.path === "/api/trip-datasets"),
+  ).toHaveLength(2);
+});
+
+test("failed DOM mounting terminates its already-created worker", async ({
+  page,
+  context,
+}) => {
+  await fixtures(context);
+  await page.addInitScript(() => {
+    const audit = { started: 0, terminated: 0 };
+    Object.defineProperty(window, "gridWorkerAudit", { value: audit });
+    const OriginalWorker = window.Worker;
+    window.Worker = class extends OriginalWorker {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        audit.started++;
+      }
+      override terminate() {
+        audit.terminated++;
+        super.terminate();
+      }
+    };
+    const OriginalObserver = window.ResizeObserver;
+    window.ResizeObserver = class extends OriginalObserver {
+      override observe(target: Element, options?: ResizeObserverOptions) {
+        if (target.classList.contains("trip-grid-scroll"))
+          throw new Error("Simulated mount failure");
+        super.observe(target, options);
+      }
+    };
+  });
+  await page.goto("/trips-preview");
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Unable to mount the trip grid" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() => Reflect.get(window, "gridWorkerAudit")),
+  ).toEqual({ started: 1, terminated: 1 });
+});
+
+test("replacement worker construction failure stays visible and another reload recovers", async ({
+  page,
+  context,
+}) => {
+  await fixtures(context);
+  await page.addInitScript(() => {
+    const Original = window.Worker;
+    let attempts = 0;
+    window.Worker = class extends Original {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        if (++attempts === 2) throw new Error("Simulated constructor failure");
+        super(url, options);
+        Object.defineProperty(window, "activeGridWorker", {
+          value: this,
+          configurable: true,
+        });
+      }
+    };
+  });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/trips-preview");
+  const status = page.getByRole("status");
+  await expect(status.filter({ hasText: "Complete result" })).toBeVisible();
+  await page.evaluate(() => {
+    const worker: unknown = Reflect.get(window, "activeGridWorker");
+    if (!(worker instanceof Worker)) throw new Error("Missing worker");
+    worker.dispatchEvent(new ErrorEvent("error"));
+  });
+  await expect(status.filter({ hasText: "worker stopped" })).toBeVisible();
+  await page.getByRole("button", { name: "Reload query" }).click();
+  await expect(status.filter({ hasText: "worker stopped" })).toBeVisible();
+  await page.getByRole("button", { name: "Reload query" }).click();
+  await expect(status.filter({ hasText: "Complete result" })).toBeVisible();
+  expect(errors).toEqual([]);
+});

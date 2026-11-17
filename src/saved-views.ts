@@ -11,9 +11,8 @@ import {
 } from "../shared/domain.js";
 import { SavedViewConflict, SavedViewNotFound } from "./errors.js";
 import { Lakebase, type LakebaseSql, lakebaseUnavailable } from "./lakebase.js";
-import { restoreCredentialFailure } from "./pg-credentials.js";
 
-export const makeSavedViews = (sql: LakebaseSql) => {
+const makeSavedViews = (sql: LakebaseSql) => {
   const columns = sql`id::text AS id, title, body, filters, pinned, version,
       to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
       to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at`;
@@ -44,7 +43,6 @@ export const makeSavedViews = (sql: LakebaseSql) => {
       ORDER BY saved_views.pinned DESC, saved_views.updated_at DESC, saved_views.id DESC LIMIT ${pageSize + 1}`,
     })(undefined).pipe(
       Effect.mapError(lakebaseUnavailable),
-      restoreCredentialFailure,
       Effect.map((results): SavedViewsPage => {
         const rows = results.slice(0, pageSize);
         const last = rows.at(-1);
@@ -77,7 +75,6 @@ export const makeSavedViews = (sql: LakebaseSql) => {
   const missingWrite = (id: string) =>
     sql`SELECT id FROM metrocab.saved_views WHERE id = ${id}::uuid`.pipe(
       Effect.mapError(lakebaseUnavailable),
-      restoreCredentialFailure,
       Effect.flatMap((rows) =>
         Effect.fail(rows.length ? conflict(id) : notFound(id)),
       ),
@@ -89,7 +86,6 @@ export const makeSavedViews = (sql: LakebaseSql) => {
       execute,
     })(undefined).pipe(
       Effect.mapError(lakebaseUnavailable),
-      restoreCredentialFailure,
       Effect.flatMap((rows) =>
         rows[0] ? Effect.succeed(rows[0]) : missingWrite(id),
       ),
@@ -115,27 +111,28 @@ export const makeSavedViews = (sql: LakebaseSql) => {
   const remove = (id: string, version: number) =>
     sql`DELETE FROM metrocab.saved_views WHERE id = ${id}::uuid AND version=${version} RETURNING id`.pipe(
       Effect.mapError(lakebaseUnavailable),
-      restoreCredentialFailure,
       Effect.flatMap((rows) => (rows.length ? Effect.void : missingWrite(id))),
     );
   return { list, save, pin, remove };
 };
 
+const makeSavedViewsService = (database: typeof Lakebase.Service) => ({
+  list: (search: SavedViewSearch) =>
+    database.use((sql) => makeSavedViews(sql).list(search)),
+  save: (input: SavedViewInput) =>
+    database.use((sql) => makeSavedViews(sql).save(input)),
+  pin: (id: string, input: SavedViewPin) =>
+    database.use((sql) => makeSavedViews(sql).pin(id, input)),
+  remove: (id: string, version: number) =>
+    database.use((sql) => makeSavedViews(sql).remove(id, version)),
+});
+
 export class SavedViews extends Context.Service<
   SavedViews,
-  ReturnType<typeof makeSavedViews>
+  ReturnType<typeof makeSavedViewsService>
 >()("app/SavedViews") {
   static readonly layer = Layer.effect(
     SavedViews,
-    Effect.map(Lakebase, (database) => ({
-      list: (search: SavedViewSearch) =>
-        database.use((sql) => makeSavedViews(sql).list(search)),
-      save: (input: SavedViewInput) =>
-        database.use((sql) => makeSavedViews(sql).save(input)),
-      pin: (id: string, input: SavedViewPin) =>
-        database.use((sql) => makeSavedViews(sql).pin(id, input)),
-      remove: (id: string, version: number) =>
-        database.use((sql) => makeSavedViews(sql).remove(id, version)),
-    })),
+    Effect.map(Lakebase, makeSavedViewsService),
   );
 }
