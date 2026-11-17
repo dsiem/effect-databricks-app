@@ -1,4 +1,3 @@
-// biome-ignore-all lint/style/noNonNullAssertion: Row indices are built from this resource’s validated, fixed-length columns.
 import type { TripSummary } from "../../../../shared/domain";
 import {
   compareTrips,

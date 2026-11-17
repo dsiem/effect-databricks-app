@@ -29,21 +29,21 @@ import { Config, Effect } from "effect";
 import { DatabricksClient } from "effect-sql-databricks";
 
 const program = Effect.gen(function* () {
-	const host = yield* Config.String("DATABRICKS_HOST");
-	const warehouseId = yield* Config.String("DATABRICKS_WAREHOUSE_ID");
-	const token = yield* Config.Redacted("DATABRICKS_TOKEN");
-	return yield* Effect.gen(function* () {
-		const sql = yield* DatabricksClient.DatabricksClient;
-		return yield* sql.arrow(sql`SELECT ${42} AS answer`);
-	}).pipe(
-		Effect.provide(
-			DatabricksClient.layer({
-				host,
-				warehouseId,
-				accessToken: Effect.succeed(token),
-			}),
-		),
-	);
+  const host = yield* Config.String("DATABRICKS_HOST");
+  const warehouseId = yield* Config.String("DATABRICKS_WAREHOUSE_ID");
+  const token = yield* Config.Redacted("DATABRICKS_TOKEN");
+  return yield* Effect.gen(function* () {
+    const sql = yield* DatabricksClient.DatabricksClient;
+    return yield* sql.arrow(sql`SELECT ${42} AS answer`);
+  }).pipe(
+    Effect.provide(
+      DatabricksClient.layer({
+        host,
+        warehouseId,
+        accessToken: Effect.succeed(token),
+      }),
+    ),
+  );
 });
 
 const table = await Effect.runPromise(program);

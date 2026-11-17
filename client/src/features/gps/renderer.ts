@@ -106,8 +106,10 @@ export function mountGpsMap(
           map.boxZoom,
           map.keyboard,
           map.touchZoomRotate,
-        ])
-          enabled ? handler.enable() : handler.disable();
+        ]) {
+          if (enabled) handler.enable();
+          else handler.disable();
+        }
         if (!enabled) popup.remove();
       };
       const deck = new MapLibreOverlay({

@@ -94,8 +94,10 @@ test("a shared workspace identity can request the configured OAuth scope", async
       clientId: "app",
       clientSecret: Redacted.make("secret"),
       scope: "all-apis",
-      fetch: async (_url, init) => {
-        scope = new URLSearchParams(String(init?.body)).get("scope");
+      fetch: async (url, init) => {
+        scope = new URLSearchParams(await new Request(url, init).text()).get(
+          "scope",
+        );
         return Response.json({
           access_token: "token",
           token_type: "Bearer",

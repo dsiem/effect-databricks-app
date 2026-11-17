@@ -186,7 +186,8 @@ sync:
     - jobs/nyc-zcta.jsonl
     - README.md
     - DEPLOYMENT.md
-    - biome.json
+    - .oxlintrc.json
+    - .oxfmtrc.json
     - playwright.config.ts
 
 targets:

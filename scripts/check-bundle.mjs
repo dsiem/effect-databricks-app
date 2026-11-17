@@ -60,7 +60,9 @@ const genieTables = genie.data_sources.tables.map(
 );
 assert.deepEqual(
   genieTables,
-  [...genieTables].sort(),
+  [...genieTables].sort((left, right) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  ),
   "Genie API requires sorted source identifiers",
 );
 assert.ok(

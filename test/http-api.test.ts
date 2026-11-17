@@ -398,7 +398,7 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
     ),
     ["/api/saved-views?cursor=not-json", undefined],
     [
-      `/api/saved-views?${new URLSearchParams({ q: "x".repeat(201) })}`,
+      `/api/saved-views?${new URLSearchParams({ q: "x".repeat(201) }).toString()}`,
       undefined,
     ],
     ["/api/saved-views?ids=not-json", undefined],
@@ -414,7 +414,7 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
     ].map(
       (ids) =>
         [
-          `/api/saved-views?${new URLSearchParams({ ids: JSON.stringify(ids) })}`,
+          `/api/saved-views?${new URLSearchParams({ ids: JSON.stringify(ids) }).toString()}`,
           undefined,
         ] as const,
     ),
@@ -435,7 +435,7 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
     ].map(
       (cursor) =>
         [
-          `/api/saved-views?${new URLSearchParams({ cursor: JSON.stringify(cursor) })}`,
+          `/api/saved-views?${new URLSearchParams({ cursor: JSON.stringify(cursor) }).toString()}`,
           undefined,
         ] as const,
     ),
@@ -659,51 +659,55 @@ test("generated client rejects an unexpected success response", async () => {
     assert.ok(Schema.isSchemaError(result.failure));
 });
 
-test("UI cancellation aborts a generated-client response body after headers arrive", {
-  timeout: 5000,
-}, async () => {
-  let signal: AbortSignal | null | undefined;
-  let bodyStarted!: () => void;
-  const reading = new Promise<void>((resolve) => {
-    bodyStarted = resolve;
-  });
-  const fetch: typeof globalThis.fetch = async (_input, init) => {
-    signal = init?.signal;
-    return new Response(
-      new ReadableStream({
-        start(controller) {
-          signal?.addEventListener(
-            "abort",
-            () => controller.error(new Error("aborted")),
-            { once: true },
-          );
-          bodyStarted();
-        },
-      }),
-      { headers: { "Content-Type": "application/json" } },
-    );
-  };
-  const client = Effect.runSync(
-    Effect.gen(function* () {
-      return yield* HttpApiClient.makeWith(AppApi, {
-        baseUrl: "http://localhost",
-        httpClient: HttpClient.withScope(yield* HttpClient.HttpClient),
-      });
-    }).pipe(
-      Effect.provide(FetchHttpClient.layer),
-      Effect.provideService(FetchHttpClient.Fetch, fetch),
-    ),
-  ).app;
-  const controller = new AbortController();
-  const pending = Effect.runPromise(client.metadata().pipe(Effect.scoped), {
-    signal: controller.signal,
-  });
-  const rejected = assert.rejects(pending);
-  await reading;
-  controller.abort();
-  await rejected;
-  assert.equal(signal?.aborted, true);
-});
+test(
+  "UI cancellation aborts a generated-client response body after headers arrive",
+  {
+    timeout: 5000,
+  },
+  async () => {
+    let signal: AbortSignal | null | undefined;
+    let bodyStarted!: () => void;
+    const reading = new Promise<void>((resolve) => {
+      bodyStarted = resolve;
+    });
+    const fetch: typeof globalThis.fetch = async (_input, init) => {
+      signal = init?.signal;
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            signal?.addEventListener(
+              "abort",
+              () => controller.error(new Error("aborted")),
+              { once: true },
+            );
+            bodyStarted();
+          },
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    };
+    const client = Effect.runSync(
+      Effect.gen(function* () {
+        return yield* HttpApiClient.makeWith(AppApi, {
+          baseUrl: "http://localhost",
+          httpClient: HttpClient.withScope(yield* HttpClient.HttpClient),
+        });
+      }).pipe(
+        Effect.provide(FetchHttpClient.layer),
+        Effect.provideService(FetchHttpClient.Fetch, fetch),
+      ),
+    ).app;
+    const controller = new AbortController();
+    const pending = Effect.runPromise(client.metadata().pipe(Effect.scoped), {
+      signal: controller.signal,
+    });
+    const rejected = assert.rejects(pending);
+    await reading;
+    controller.abort();
+    await rejected;
+    assert.equal(signal?.aborted, true);
+  },
+);
 
 test("trip comment contract round-trips snapshots and attributes the request viewer", async (t) => {
   const { app, client, calls } = fixture();

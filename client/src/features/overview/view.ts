@@ -249,7 +249,7 @@ function overview(h: H, model: Model): Child[] {
                             href(
                               "/trips",
                               queryFor({
-                                ...(filtersFromQuery(model.query) ?? {}),
+                                ...filtersFromQuery(model.query),
                                 zip: zone.zip,
                               }),
                             ),

@@ -116,7 +116,7 @@ export function updateFilters(
         outMessage: {
           _tag: "Navigate",
           query: queryFor({
-            ...(filtersFromQuery(context.query) ?? {}),
+            ...filtersFromQuery(context.query),
             zip: message.zip,
           }),
         },

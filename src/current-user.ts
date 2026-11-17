@@ -15,12 +15,10 @@ export const makeCurrentUser = Effect.gen(function* () {
     workspace.request("/api/2.0/preview/scim/v2/Me"),
   ).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(WorkspaceUser)),
-    Effect.map(
-      (user): CurrentUser => ({
-        name: user.displayName?.trim() || user.userName,
-        email: user.userName,
-      }),
-    ),
+    Effect.map((user): CurrentUser => ({
+      name: user.displayName?.trim() || user.userName,
+      email: user.userName,
+    })),
     Effect.catch(() => Effect.succeed(null)),
     Effect.cachedWithTTL("5 minutes"),
   );

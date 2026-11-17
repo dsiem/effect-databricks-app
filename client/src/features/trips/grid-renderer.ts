@@ -84,7 +84,7 @@ export function mountTripGrid(
           },
         };
       }),
-      (renderer) => Effect.sync(renderer.dispose),
+      (renderer) => Effect.sync(() => renderer.dispose()),
     );
     yield* Stream.runForEach(SubscriptionRef.changes(inputs), (input) =>
       Effect.sync(() => renderer.update(input)),

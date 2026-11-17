@@ -33,11 +33,11 @@ Use a PostgreSQL role that can run the application migration and grant table acc
    ```
 
    ```json
-   	{
-   		"app_name": "your-app-dev",
-   		"data_name": "your-data-dev",
-   		"data_catalog": "workspace"
-   	}
+   {
+     "app_name": "your-app-dev",
+     "data_name": "your-data-dev",
+     "data_catalog": "workspace"
+   }
    ```
 
    Use an existing catalog in `data_catalog`. To choose a different schema, add
@@ -122,6 +122,9 @@ helpers. Change the palette and semantic tokens in
 [client/src/ui/theme.css](client/src/ui/theme.css).
 
 ## Check a change
+
+Run `npm run format` to format with Oxfmt and `npm run lint` for Oxlint
+with type-aware rules. Use `npm run lint:fix` for automatic lint fixes.
 
 Run the local checks, then the browser suites:
 

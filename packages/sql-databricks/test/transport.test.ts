@@ -86,61 +86,65 @@ for (const policy of ["workspace", "download", "oauth"] as const) {
 }
 
 for (const stop of ["interruption", "deadline"] as const) {
-  test(`OAuth ${stop} aborts the response body and releases refresh for retry`, {
-    timeout: 5000,
-  }, async () => {
-    let attempts = 0;
-    let signal: AbortSignal | null | undefined;
-    const started = Latch.makeUnsafe();
-    const provider = Credentials.clientCredentials({
-      host: "https://workspace.example",
-      clientId: "client",
-      clientSecret: Redacted.make("secret"),
-      fetch: async (_input, init) => {
-        attempts++;
-        assert.equal(init?.credentials, "omit");
-        assert.equal(init?.redirect, "error");
-        if (attempts > 1)
-          return Response.json({
-            access_token: "fresh-token",
-            token_type: "Bearer",
-            expires_in: 3600,
-          });
-        signal = init?.signal;
-        return new Response(
-          new ReadableStream({
-            start(controller) {
-              signal?.addEventListener(
-                "abort",
-                () => controller.error(new Error("aborted")),
-                { once: true },
-              );
-              started.openUnsafe();
-            },
-          }),
-          { headers: { "Content-Type": "application/json" } },
-        );
-      },
-    });
-    const exit = await Effect.runPromise(
-      Effect.gen(function* () {
-        const fiber = yield* provider.pipe(Effect.forkChild);
-        yield* started.await;
-        if (stop === "deadline") yield* TestClock.adjust("30 seconds");
-        else yield* Fiber.interrupt(fiber);
-        const exit = yield* Fiber.await(fiber);
-        assert.equal(Redacted.value(yield* provider), "fresh-token");
-        return exit;
-      }).pipe(Effect.provide(TestClock.layer())),
-    );
-    assert.ok(Exit.isFailure(exit));
-    if (stop === "interruption") assert.ok(Cause.hasInterrupts(exit.cause));
-    else {
-      const error = Cause.squash(exit.cause);
-      assert.ok(error instanceof SqlError);
-      assert.equal(error.reason._tag, "StatementTimeoutError");
-    }
-    assert.equal(signal?.aborted, true);
-    assert.equal(attempts, 2);
-  });
+  test(
+    `OAuth ${stop} aborts the response body and releases refresh for retry`,
+    {
+      timeout: 5000,
+    },
+    async () => {
+      let attempts = 0;
+      let signal: AbortSignal | null | undefined;
+      const started = Latch.makeUnsafe();
+      const provider = Credentials.clientCredentials({
+        host: "https://workspace.example",
+        clientId: "client",
+        clientSecret: Redacted.make("secret"),
+        fetch: async (_input, init) => {
+          attempts++;
+          assert.equal(init?.credentials, "omit");
+          assert.equal(init?.redirect, "error");
+          if (attempts > 1)
+            return Response.json({
+              access_token: "fresh-token",
+              token_type: "Bearer",
+              expires_in: 3600,
+            });
+          signal = init?.signal;
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                signal?.addEventListener(
+                  "abort",
+                  () => controller.error(new Error("aborted")),
+                  { once: true },
+                );
+                started.openUnsafe();
+              },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        },
+      });
+      const exit = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* provider.pipe(Effect.forkChild);
+          yield* started.await;
+          if (stop === "deadline") yield* TestClock.adjust("30 seconds");
+          else yield* Fiber.interrupt(fiber);
+          const exit = yield* Fiber.await(fiber);
+          assert.equal(Redacted.value(yield* provider), "fresh-token");
+          return exit;
+        }).pipe(Effect.provide(TestClock.layer())),
+      );
+      assert.ok(Exit.isFailure(exit));
+      if (stop === "interruption") assert.ok(Cause.hasInterrupts(exit.cause));
+      else {
+        const error = Cause.squash(exit.cause);
+        assert.ok(error instanceof SqlError);
+        assert.equal(error.reason._tag, "StatementTimeoutError");
+      }
+      assert.equal(signal?.aborted, true);
+      assert.equal(attempts, 2);
+    },
+  );
 }

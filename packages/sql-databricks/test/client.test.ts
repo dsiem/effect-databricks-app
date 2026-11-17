@@ -739,7 +739,9 @@ test("managed app storage proxy is explicitly scoped and never receives workspac
               accessToken: Effect.succeed(Redacted.make(token)),
               allowDatabricksStorageProxy: enabled,
               fetch: async (input, init) => {
-                if (new URL(String(input)).hostname !== "workspace.example") {
+                const url =
+                  input instanceof Request ? input.url : input.toString();
+                if (new URL(url).hostname !== "workspace.example") {
                   downloaded = true;
                   assert.equal(
                     new Headers(init?.headers).get("Authorization"),

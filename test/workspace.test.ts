@@ -41,7 +41,10 @@ test("workspace requests send bearer JSON with cookies and redirects disabled", 
     }).pipe(
       Effect.provide(workspace),
       Effect.provideService(FetchHttpClient.Fetch, async (url, init) => {
-        calls.push({ url: String(url), init });
+        calls.push({
+          url: url instanceof Request ? url.url : url.toString(),
+          init,
+        });
         return Response.json({ accepted: true });
       }),
     ),
@@ -60,7 +63,11 @@ test("workspace requests send bearer JSON with cookies and redirects disabled", 
   );
   assert.equal(init?.credentials, "omit");
   assert.equal(init?.redirect, "error");
-  assert.deepEqual(JSON.parse(String(init?.body)), { question: "Count trips" });
+  const call = calls[0];
+  assert.ok(call);
+  assert.deepEqual(await new Request(call.url, call.init).json(), {
+    question: "Count trips",
+  });
 });
 
 test("workspace HTTP failures retain status, release the body, and exclude upstream content", async () => {
@@ -115,60 +122,64 @@ test("workspace transport failures retain the diagnostic cause", async () => {
 
 for (const stage of ["request", "body"] as const) {
   for (const stop of ["interruption", "deadline"] as const) {
-    test(`workspace ${stop} aborts a stalled ${stage} without replaying`, {
-      timeout: 5000,
-    }, async () => {
-      const started = Latch.makeUnsafe();
-      let requests = 0;
-      let signal: AbortSignal | null | undefined;
-      const fetch: typeof globalThis.fetch = async (_url, init) => {
-        requests++;
-        signal = init?.signal;
-        if (stage === "request") {
-          return new Promise((_resolve, reject) => {
-            signal?.addEventListener(
-              "abort",
-              () => reject(new Error("aborted")),
-              { once: true },
-            );
-            started.openUnsafe();
-          });
-        }
-        return new Response(
-          new ReadableStream({
-            start(controller) {
+    test(
+      `workspace ${stop} aborts a stalled ${stage} without replaying`,
+      {
+        timeout: 5000,
+      },
+      async () => {
+        const started = Latch.makeUnsafe();
+        let requests = 0;
+        let signal: AbortSignal | null | undefined;
+        const fetch: typeof globalThis.fetch = async (_url, init) => {
+          requests++;
+          signal = init?.signal;
+          if (stage === "request") {
+            return new Promise((_resolve, reject) => {
               signal?.addEventListener(
                 "abort",
-                () => controller.error(new Error("aborted")),
+                () => reject(new Error("aborted")),
                 { once: true },
               );
               started.openUnsafe();
-            },
-          }),
-          { headers: { "Content-Type": "application/json" } },
+            });
+          }
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                signal?.addEventListener(
+                  "abort",
+                  () => controller.error(new Error("aborted")),
+                  { once: true },
+                );
+                started.openUnsafe();
+              },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        };
+        const exit = await Effect.runPromise(
+          Effect.gen(function* () {
+            const service = yield* Workspace;
+            const fiber = yield* service
+              .request("/api/example", "POST", {})
+              .pipe(Effect.forkChild);
+            yield* started.await;
+            if (stop === "deadline") yield* TestClock.adjust("30 seconds");
+            else yield* Fiber.interrupt(fiber);
+            return yield* Fiber.await(fiber);
+          }).pipe(
+            Effect.provide(workspace),
+            Effect.provideService(FetchHttpClient.Fetch, fetch),
+            Effect.provide(TestClock.layer()),
+          ),
         );
-      };
-      const exit = await Effect.runPromise(
-        Effect.gen(function* () {
-          const service = yield* Workspace;
-          const fiber = yield* service
-            .request("/api/example", "POST", {})
-            .pipe(Effect.forkChild);
-          yield* started.await;
-          if (stop === "deadline") yield* TestClock.adjust("30 seconds");
-          else yield* Fiber.interrupt(fiber);
-          return yield* Fiber.await(fiber);
-        }).pipe(
-          Effect.provide(workspace),
-          Effect.provideService(FetchHttpClient.Fetch, fetch),
-          Effect.provide(TestClock.layer()),
-        ),
-      );
-      assert.ok(Exit.isFailure(exit));
-      if (stop === "interruption") assert.ok(Cause.hasInterrupts(exit.cause));
-      else assert.ok(Cause.squash(exit.cause) instanceof OperationTimeout);
-      assert.equal(signal?.aborted, true);
-      assert.equal(requests, 1);
-    });
+        assert.ok(Exit.isFailure(exit));
+        if (stop === "interruption") assert.ok(Cause.hasInterrupts(exit.cause));
+        else assert.ok(Cause.squash(exit.cause) instanceof OperationTimeout);
+        assert.equal(signal?.aborted, true);
+        assert.equal(requests, 1);
+      },
+    );
   }
 }

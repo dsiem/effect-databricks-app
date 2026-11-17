@@ -79,7 +79,7 @@ test("all saved views remain reachable beyond 200 and pinning a later saved view
     path: "test-results/saved-views-pagination-load-more-mobile.png",
     animations: "disabled",
   });
-  for (let shown = 24; shown < 201; ) {
+  for (let shown = 24; shown < 201;) {
     await more.click();
     shown = Math.min(shown + 24, 201);
     await expect(headings).toHaveCount(shown);

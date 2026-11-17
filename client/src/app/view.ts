@@ -368,24 +368,22 @@ export function view(model: Model, h: H): Document {
                 h.span([h.Class("text-sm")], [current]),
                 h.div(
                   [h.Class("ml-auto flex items-center gap-2")],
-                  [
-                    ...(model.path !== "/genie"
-                      ? [
-                          button(h, {
-                            label: h.span(
-                              [h.Class("inline-flex items-center gap-2")],
-                              [icon(h, "sparkles"), "Ask Genie"],
-                            ),
-                            onClick: M.OpenGenie({
-                              context: null,
-                              question: null,
-                            }),
-                            disabled: !filtersFromQuery(model.query),
-                            attributes: [h.Id("genie-trigger")],
+                  model.path !== "/genie"
+                    ? [
+                        button(h, {
+                          label: h.span(
+                            [h.Class("inline-flex items-center gap-2")],
+                            [icon(h, "sparkles"), "Ask Genie"],
+                          ),
+                          onClick: M.OpenGenie({
+                            context: null,
+                            question: null,
                           }),
-                        ]
-                      : []),
-                  ],
+                          disabled: !filtersFromQuery(model.query),
+                          attributes: [h.Id("genie-trigger")],
+                        }),
+                      ]
+                    : [],
                 ),
               ],
             ),

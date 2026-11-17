@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "options": {
+    "typeAware": true
+  },
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "eslint/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_"
+      }
+    ],
+    "typescript/no-floating-promises": [
+      "error",
+      {
+        "allowForKnownSafeCalls": [
+          {
+            "from": "package",
+            "name": "test",
+            "package": "@types/node"
+          }
+        ]
+      }
+    ]
+  },
+  "ignorePatterns": [".audit/**"]
+}

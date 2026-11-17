@@ -1,7 +1,7 @@
 export interface IndexSource {
   readonly length: number;
-  matches(index: number): boolean;
-  compare(left: number, right: number): number;
+  matches(this: void, index: number): boolean;
+  compare(this: void, left: number, right: number): number;
 }
 
 export async function queryIndices(source: IndexSource, signal: AbortSignal) {

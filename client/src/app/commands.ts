@@ -48,7 +48,6 @@ export const PersistSidebar = Command.define("PersistSidebar", {
   execute: ({ open }) =>
     done(
       Effect.sync(() => {
-        // biome-ignore lint/suspicious/noDocumentCookie: persist the existing boolean sidebar preference across reloads.
         document.cookie = `sidebar_state=${open}; path=/; max-age=604800; SameSite=Lax`;
       }),
     ),

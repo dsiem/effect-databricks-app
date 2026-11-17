@@ -22,14 +22,13 @@ export const restoreCredentialFailure = <A, E, R>(
     Effect.catchCause((cause) =>
       Effect.failCause(
         Cause.fromReasons(
-          cause.reasons.map(
-            (reason): Cause.Reason<E | ServiceError> =>
-              Cause.isDieReason(reason) &&
-              reason.defect instanceof CredentialFailure
-                ? Cause.makeFailReason(reason.defect.cause).annotate(
-                    Cause.reasonAnnotations(reason),
-                  )
-                : reason,
+          cause.reasons.map((reason): Cause.Reason<E | ServiceError> =>
+            Cause.isDieReason(reason) &&
+            reason.defect instanceof CredentialFailure
+              ? Cause.makeFailReason(reason.defect.cause).annotate(
+                  Cause.reasonAnnotations(reason),
+                )
+              : reason,
           ),
         ),
       ),
