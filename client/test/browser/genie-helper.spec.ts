@@ -50,22 +50,6 @@ async function openHelper(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/status", (route) =>
-    route.fulfill({
-      json: {
-        dataset: "samples.nyctaxi.trips",
-        warehouse: true,
-        genie: true,
-        lakebase: false,
-        capabilities: {
-          warehouse: "available",
-          genie: "available",
-          lakebase: "unconfigured",
-        },
-        auth: "Test identity",
-      },
-    }),
-  );
   await page.route("**/api/metadata", (route) =>
     route.fulfill({
       json: { from: "2016-01-01", to: "2016-02-29", trips: 21932 },
@@ -377,31 +361,3 @@ for (const width of [360, 768, 1024]) {
     });
   });
 }
-
-test("unconfigured Genie explains availability and disables new submissions", async ({
-  page,
-}) => {
-  await page.route("**/api/status", (route) =>
-    route.fulfill({
-      json: {
-        dataset: "samples.nyctaxi.trips",
-        warehouse: true,
-        genie: false,
-        lakebase: false,
-        capabilities: {
-          warehouse: "available",
-          genie: "unconfigured",
-          lakebase: "unconfigured",
-        },
-        auth: "Test identity",
-      },
-    }),
-  );
-  await page.goto("/");
-  const helper = await openHelper(page);
-  await expect(helper).toContainText("Connect Genie to explore further");
-  await expect(helper.getByRole("textbox")).toBeDisabled();
-  await expect(
-    helper.getByRole("button", { name: "Send question", exact: true }),
-  ).toBeDisabled();
-});

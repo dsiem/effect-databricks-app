@@ -13,7 +13,6 @@ const services = Analytics.layer.pipe(
   Layer.provide(Settings.layer),
   Layer.provide(
     Layer.succeed(Workspace, {
-      authMode: "token",
       accessToken: Effect.succeed(Redacted.make("unused")),
       request: () => Effect.die("Unexpected workspace request"),
     }),

@@ -15,7 +15,6 @@ test("finishing one restored Genie wait preserves the others' polling cadence", 
   const context: Context = {
     filters: {},
     context: { page: "genie", title: "Genie" },
-    enabled: true,
   };
   const ids = ["first", "second"];
   const restored = updateGenie(

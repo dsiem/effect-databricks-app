@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ConfigProvider, Effect, Layer, Redacted, Schema } from "effect";
+import { ConfigProvider, Effect, Layer, Redacted } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
 import { OpenApi } from "effect/http-api";
 import { AppApi } from "../../shared/api.js";
-import { Status } from "../../shared/domain.js";
 import { Analytics } from "../src/analytics.js";
 import {
   GenieFailed,
@@ -16,7 +15,6 @@ import {
   unavailable,
 } from "../src/errors.js";
 import { Genie } from "../src/genie.js";
-import { Lakebase } from "../src/lakebase.js";
 import { Routes } from "../src/routes.js";
 import { SavedViews } from "../src/saved-views.js";
 import { Settings } from "../src/settings.js";
@@ -39,12 +37,10 @@ const appFor = (
       Layer.provide(
         Layer.mergeAll(
           Layer.succeed(Workspace, {
-            authMode: "token",
             accessToken: Effect.succeed(Redacted.make("unused")),
             request: () => Effect.die("Unexpected workspace request"),
           }),
           Layer.succeed(Analytics, {
-            availability: Effect.succeed("unconfigured" as const),
             metadata: effect,
             overview: () => effect,
             trips: () => effect,
@@ -53,15 +49,10 @@ const appFor = (
             ...overrides.analytics,
           }),
           Layer.succeed(Genie, {
-            availability: Effect.succeed("unconfigured" as const),
             submit: () => effect,
             poll: () => effect,
             result: () => effect,
             ...overrides.genie,
-          }),
-          Layer.succeed(Lakebase, {
-            availability: Effect.succeed("unconfigured" as const),
-            use: () => Effect.die("Unexpected database request"),
           }),
           Layer.succeed(TripComments, {
             counts: () => effect,
@@ -186,9 +177,6 @@ for (const { request, services, status, error } of [
 
 test("endpoints advertise their applicable failures", () => {
   const { paths } = OpenApi.fromApi(AppApi);
-  assert.deepEqual(Object.keys(paths["/health"]?.get?.responses ?? {}), [
-    "200",
-  ]);
   assert.deepEqual(Object.keys(paths["/api/overview"]?.get?.responses ?? {}), [
     "200",
     "400",
@@ -266,7 +254,6 @@ test("HTTP separates submission IDs from polling and result retrieval", async ()
   const calls: unknown[] = [];
   const app = appFor(undefined, {
     genie: {
-      availability: Effect.succeed("unknown" as const),
       submit: (input) =>
         Effect.sync(() => {
           calls.push(input);
@@ -340,28 +327,6 @@ test("current-user endpoint returns only each viewer's name/email and prevents c
         email: "viewer@example.com",
       });
     }
-  } finally {
-    await app.dispose();
-  }
-});
-
-test("a configured Genie remains configured after an observed outage", async () => {
-  const failure = Effect.fail(unavailable("genie", "Temporarily unavailable"));
-  const app = appFor(failure, {
-    genie: {
-      availability: Effect.succeed("unavailable"),
-      submit: () => failure,
-      poll: () => failure,
-      result: () => failure,
-    },
-  });
-  try {
-    const response = await app.handler(
-      new Request("http://localhost/api/status"),
-    );
-    const status = Schema.decodeUnknownSync(Status)(await response.json());
-    assert.equal(status.genie, true);
-    assert.equal(status.capabilities.genie, "unavailable");
   } finally {
     await app.dispose();
   }

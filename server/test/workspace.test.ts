@@ -24,6 +24,8 @@ const workspace = Workspace.layer.pipe(
           ConfigProvider.fromEnvRecord({
             DATABRICKS_HOST: "https://workspace.example",
             DATABRICKS_TOKEN: "workspace-secret",
+            DATABRICKS_CLIENT_ID: "client",
+            DATABRICKS_CLIENT_SECRET: "oauth-secret",
           }),
         ),
       ),

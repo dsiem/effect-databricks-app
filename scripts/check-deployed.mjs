@@ -33,7 +33,6 @@ const request = async (path, method = "GET", body) => {
   assert.equal(response.status, 200, `${path}: ${JSON.stringify(result)}`);
   return result;
 };
-assert.equal((await request("/health")).status, "ok");
 const metadata = await request("/api/metadata");
 const overview = await request("/api/overview");
 assert.ok(metadata.trips > 0);

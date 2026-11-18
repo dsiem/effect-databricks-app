@@ -43,7 +43,6 @@ for (const failure of [
         response.writeHead(status, { "Content-Type": "application/json" });
         response.end(JSON.stringify(value));
       };
-      if (url.pathname === "/health") return reply({ status: "ok" });
       if (url.pathname === "/api/metadata")
         return failure === "warehouse"
           ? reply({ error: { message: "Warehouse unavailable" } }, 503)

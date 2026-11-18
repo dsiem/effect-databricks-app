@@ -184,7 +184,7 @@ function composer(h: H, draft: string, enabled: boolean, working: boolean) {
 
 function genie(h: H, model: Model, floating = false) {
   const context = model.genieSelection ?? model.context;
-  const enabled = !!model.status.data?.genie && !!model.filters;
+  const enabled = model.filters !== null;
   const working = busy(model);
   const content: Child[] = [
     header(h, model, floating, working),

@@ -60,7 +60,6 @@ const runSavedViews = <A, E>(
           Layer.provide(Lakebase.layer),
           Layer.provide(
             Layer.succeed(Workspace, {
-              authMode: "token",
               accessToken: Effect.succeed(Redacted.make("unused")),
               request: () => credentials,
             }),
@@ -156,7 +155,6 @@ const withRows = <A, E>(
       return yield* Effect.flatMap(SavedViews, use).pipe(
         Effect.provide(SavedViews.layer),
         Effect.provideService(Lakebase, {
-          availability: Effect.succeed("available" as const),
           use: (run) =>
             run(
               Object.assign(sql, {

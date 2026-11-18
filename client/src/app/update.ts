@@ -65,7 +65,6 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
       focusSelector: "a",
     }),
     metadata: pending,
-    status: pending,
     user: null,
     filtersState: Filters.init(location.filters ?? {}),
     overviewState: Overview.init(),
@@ -83,7 +82,6 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
       AppCommands.Boot(),
       Command.mapMessage(GenieCommands.RestoreConversation(), genieMessage),
       AppCommands.LoadMetadata(),
-      AppCommands.LoadStatus(),
       AppCommands.LoadUser(),
     ],
   };
@@ -266,16 +264,6 @@ function updateApplication(
           },
         },
       };
-    case "LoadedStatus":
-      return {
-        model: {
-          ...model,
-          status: { data: message.data, error: message.error, loading: false },
-        },
-        commands: model.genieState.genieOpen
-          ? [AppCommands.Focus({ selector: "#genie-composer" })]
-          : [],
-      };
     case "LoadedUser":
       return { model: { ...model, user: message.user } };
     case "LoadPage":
@@ -397,7 +385,6 @@ function updateApplication(
           updateGenie(child, childMessage, {
             filters,
             context: pageContext(model),
-            enabled: !!model.status.data?.genie,
           }),
         read: (parent: Model) => Option.some(parent.genieState),
         write: (parent, child) =>

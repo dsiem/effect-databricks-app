@@ -17,7 +17,6 @@ import {
 } from "../../shared/domain.js";
 import { Analytics } from "../src/analytics.js";
 import { Genie } from "../src/genie.js";
-import { Lakebase } from "../src/lakebase.js";
 import { Routes } from "../src/routes.js";
 import { SavedViews } from "../src/saved-views.js";
 import { Settings } from "../src/settings.js";
@@ -73,12 +72,10 @@ const fixture = () => {
       Layer.provide(
         Layer.mergeAll(
           Layer.succeed(Workspace, {
-            authMode: "token",
             accessToken: Effect.succeed(Redacted.make("unused")),
             request: () => Effect.die("Unexpected workspace request"),
           }),
           Layer.succeed(Analytics, {
-            availability: Effect.succeed("unconfigured" as const),
             metadata: Effect.succeed(metadata),
             overview: (input) => record("overview", input, overview),
             analysisReport: () =>
@@ -103,7 +100,6 @@ const fixture = () => {
               }),
           }),
           Layer.succeed(Genie, {
-            availability: Effect.succeed("unconfigured" as const),
             submit: (input) => record("submit", input, operation),
             poll: (input) =>
               record("poll", input, {
@@ -117,10 +113,6 @@ const fixture = () => {
                 text: "Ten trips",
                 queries: [],
               }),
-          }),
-          Layer.succeed(Lakebase, {
-            availability: Effect.succeed("unconfigured" as const),
-            use: () => Effect.die("Unexpected database request"),
           }),
           Layer.succeed(TripComments, {
             counts: (search) => record("tripCommentCounts", search, {}),
@@ -206,19 +198,6 @@ test("generated client round-trips every endpoint through the real HTTP contract
   const { filters, sort } = tripCursor;
   await Effect.runPromise(
     Effect.gen(function* () {
-      assert.deepEqual(yield* client.health(), { status: "ok" });
-      assert.deepEqual(yield* client.status(), {
-        dataset: "samples.nyctaxi.trips",
-        warehouse: false,
-        genie: false,
-        lakebase: false,
-        capabilities: {
-          warehouse: "unconfigured",
-          genie: "unconfigured",
-          lakebase: "unconfigured",
-        },
-        auth: "Configured access token",
-      });
       assert.equal(yield* client.currentUser(), null);
       assert.deepEqual(yield* client.metadata(), metadata);
       assert.deepEqual(yield* client.overview({ query: filters }), overview);

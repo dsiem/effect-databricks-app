@@ -111,18 +111,6 @@ test.beforeEach(async ({ page }) => {
     const path = new URL(route.request().url()).pathname;
     const data: Record<string, unknown> = {
       "/api/me": { name: "Avery Morgan", email: "avery@example.com" },
-      "/api/status": {
-        dataset: "samples.nyctaxi.trips",
-        warehouse: true,
-        genie: true,
-        lakebase: true,
-        capabilities: {
-          warehouse: "available",
-          genie: "available",
-          lakebase: "available",
-        },
-        auth: "Visual review",
-      },
       "/api/metadata": { from: "2016-01-01", to: "2016-02-29", trips: total },
       "/api/overview": overview,
       "/api/trip-map": gpsFixture(),

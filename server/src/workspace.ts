@@ -18,7 +18,6 @@ const CliToken = Schema.Struct({ access_token: Schema.NonEmptyString });
 export class Workspace extends Context.Service<
   Workspace,
   {
-    readonly authMode: "token" | "oauth" | "cli";
     readonly accessToken: Effect.Effect<
       Redacted.Redacted<string>,
       ServiceUnavailable
@@ -63,23 +62,16 @@ export class Workspace extends Context.Service<
         Effect.mapError(authError),
         Effect.cachedWithTTL("30 seconds"),
       );
-      const {
-        authMode,
-        accessToken,
-      }: Pick<Workspace["Service"], "authMode" | "accessToken"> =
-        Redacted.value(settings.token)
-          ? { authMode: "token", accessToken: Effect.succeed(settings.token) }
-          : settings.clientId && Redacted.value(settings.clientSecret)
-            ? {
-                authMode: "oauth",
-                accessToken: Credentials.clientCredentials({
-                  host: settings.host,
-                  clientId: settings.clientId,
-                  clientSecret: settings.clientSecret,
-                  scope: "all-apis",
-                }).pipe(Effect.mapError(authError)),
-              }
-            : { authMode: "cli", accessToken: cli };
+      const accessToken = Redacted.value(settings.token)
+        ? Effect.succeed(settings.token)
+        : settings.clientId && Redacted.value(settings.clientSecret)
+          ? Credentials.clientCredentials({
+              host: settings.host,
+              clientId: settings.clientId,
+              clientSecret: settings.clientSecret,
+              scope: "all-apis",
+            }).pipe(Effect.mapError(authError))
+          : cli;
       const request = (
         path: string,
         method: "GET" | "POST" = "GET",
@@ -144,7 +136,7 @@ export class Workspace extends Context.Service<
               ),
           }),
         );
-      return { authMode, accessToken, request };
+      return { accessToken, request };
     }),
   ).pipe(Layer.provide(FetchHttpClient.layer));
 }

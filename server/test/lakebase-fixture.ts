@@ -51,7 +51,6 @@ export const lakebaseFixture = Effect.gen(function* () {
       Layer.mergeAll(SavedViews.layer, TripComments.layer).pipe(
         Layer.provide(
           Layer.succeed(Lakebase, {
-            availability: Effect.succeed("available" as const),
             use: (run) => run(client),
           }),
         ),

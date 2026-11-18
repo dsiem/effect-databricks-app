@@ -10,8 +10,6 @@ import {
 } from "effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import type * as SqlClient from "effect/sql/SqlClient";
-import type { CapabilityAvailability } from "../../shared/domain.js";
-import { makeCapability } from "./capability.js";
 import {
   type ServiceError,
   type ServiceUnavailable,
@@ -87,8 +85,7 @@ export const makeLakebaseClient = Effect.gen(function* () {
 export class Lakebase extends Context.Service<
   Lakebase,
   {
-    readonly availability: Effect.Effect<CapabilityAvailability>;
-    /** Run a feature operation on the shared client and record its outcome. */
+    /** Run a feature operation on the shared client. */
     readonly use: <A, E extends ServiceError, R>(
       run: (sql: LakebaseSql) => Effect.Effect<A, E, R>,
     ) => Effect.Effect<A, E | ServiceUnavailable, R>;
@@ -98,17 +95,12 @@ export class Lakebase extends Context.Service<
     Lakebase,
     Effect.gen(function* () {
       const settings = yield* Settings;
-      const configured = !!(settings.pgHost || settings.lakebaseEndpoint);
-      const capability = makeCapability(configured);
-      if (!configured) {
+      if (!settings.pgHost && !settings.lakebaseEndpoint) {
         const failure = unavailable(
           "lakebase",
           "Configure Lakebase with PGHOST, PGUSER, and LAKEBASE_ENDPOINT, then run npm run db:setup.",
         );
-        return {
-          availability: capability.availability,
-          use: () => Effect.fail(failure),
-        };
+        return { use: () => Effect.fail(failure) };
       }
       const context = yield* Effect.context<
         Settings | Workspace | Reactivity.Reactivity | Scope.Scope
@@ -121,15 +113,9 @@ export class Lakebase extends Context.Service<
         Effect.cachedWithTTL((exit) => (Exit.isSuccess(exit) ? Infinity : 0)),
       );
       return {
-        availability: capability.availability,
         use: <A, E extends ServiceError, R>(
           run: (sql: LakebaseSql) => Effect.Effect<A, E, R>,
-        ) =>
-          client.pipe(
-            Effect.flatMap(run),
-            restoreCredentialFailure,
-            capability.track,
-          ),
+        ) => client.pipe(Effect.flatMap(run), restoreCredentialFailure),
       };
     }).pipe(Effect.provide(Reactivity.layer)),
   );

@@ -33,7 +33,6 @@ export const Message = defineMessageUnion({
     error: Schema.String,
     today: Calendar.CalendarDate,
   },
-  LoadedStatus: { data: Schema.NullOr(D.Status), error: Schema.String },
   LoadedUser: { user: Schema.NullOr(D.CurrentUser) },
   ...Filters.messages,
   ...Overview.messages,

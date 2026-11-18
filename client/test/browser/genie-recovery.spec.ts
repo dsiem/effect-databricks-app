@@ -15,24 +15,6 @@ const reply = {
     },
   ],
 };
-async function mockStatus(page: Page) {
-  await page.route("**/api/status", (route) =>
-    route.fulfill({
-      json: {
-        dataset: "samples.nyctaxi.trips",
-        warehouse: false,
-        genie: true,
-        lakebase: false,
-        capabilities: {
-          warehouse: "unconfigured",
-          genie: "unconfigured",
-          lakebase: "unconfigured",
-        },
-        auth: "Test identity",
-      },
-    }),
-  );
-}
 async function send(page: Page) {
   await page.getByLabel("Ask a question about taxi data").fill("Count trips");
   await page
@@ -43,7 +25,6 @@ async function send(page: Page) {
 test("result retry survives navigation and reload, and follow-ups reuse the conversation", async ({
   page,
 }) => {
-  await mockStatus(page);
   const submissions: unknown[] = [];
   let downloads = 0;
   await page.route("**/api/genie", (route) => {
@@ -110,7 +91,6 @@ test("result retry survives navigation and reload, and follow-ups reuse the conv
 test("pending answers resume after reload without resubmission", async ({
   page,
 }) => {
-  await mockStatus(page);
   let submissions = 0;
   let complete = false;
   await page.route("**/api/genie", (route) => {
@@ -149,7 +129,6 @@ test("pending answers resume after reload without resubmission", async ({
 test("submission responses are saved when navigating away before acceptance", async ({
   page,
 }) => {
-  await mockStatus(page);
   let submissions = 0;
   let accept: () => void = () => {};
   const accepted = new Promise<void>((resolve) => {
@@ -193,7 +172,6 @@ test("submission responses are saved when navigating away before acceptance", as
 test("reload during an uncertain submission never silently resubmits", async ({
   page,
 }) => {
-  await mockStatus(page);
   let submissions = 0;
   await page.route("**/api/genie", (route) => {
     submissions++;
@@ -235,7 +213,6 @@ for (const { name, status, error } of [
   test(`${name} rejection survives reload and allows an explicit corrected submission`, async ({
     page,
   }) => {
-    await mockStatus(page);
     const submissions: unknown[] = [];
     await page.route("**/api/genie", (route) => {
       submissions.push(route.request().postDataJSON());
@@ -321,7 +298,6 @@ for (const { name, status, json } of [
   test(`${name} stays uncertain without replaying the question`, async ({
     page,
   }) => {
-    await mockStatus(page);
     let submissions = 0;
     await page.route("**/api/genie", (route) => {
       submissions++;

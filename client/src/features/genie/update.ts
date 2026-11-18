@@ -63,8 +63,7 @@ export function updateGenie(
       return { model: { ...model, genieDraft: message.value } };
     case "SendQuestion": {
       const question = message.question.trim();
-      if (busy(model) || !question || !context.filters || !context.enabled)
-        return { model };
+      if (busy(model) || !question || !context.filters) return { model };
       return {
         model,
         commands: [
@@ -182,7 +181,6 @@ function changeTurn(
 export type Context = {
   readonly filters: D.Filters | null;
   readonly context: D.GenieContext;
-  readonly enabled: boolean;
 };
 export type Out =
   | { readonly _tag: "Opened" }

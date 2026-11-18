@@ -26,7 +26,6 @@ test("Genie accepts ID-less text and visualization attachments and retains follo
     ],
   };
   const workspace = Layer.succeed(Workspace, {
-    authMode: "token",
     accessToken: Effect.succeed(Redacted.make("unused")),
     request: (path, method = "GET") => {
       calls.push({ path, method });
@@ -78,7 +77,10 @@ test("Genie accepts ID-less text and visualization attachments and retains follo
       ),
       Effect.provideService(
         ConfigProvider.ConfigProvider,
-        ConfigProvider.fromEnvRecord({ GENIE_SPACE_ID: "space" }),
+        ConfigProvider.fromEnvRecord({
+          DATABRICKS_HOST: "https://workspace.invalid",
+          GENIE_SPACE_ID: "space",
+        }),
       ),
     ),
   );
@@ -114,7 +116,6 @@ const provideGenie = (request: typeof Workspace.Service.request) =>
   Genie.layer.pipe(
     Layer.provide(
       Layer.succeed(Workspace, {
-        authMode: "token",
         accessToken: Effect.succeed(Redacted.make("unused")),
         request,
       }),
@@ -123,7 +124,10 @@ const provideGenie = (request: typeof Workspace.Service.request) =>
     Layer.provide(
       Layer.succeed(
         ConfigProvider.ConfigProvider,
-        ConfigProvider.fromEnvRecord({ GENIE_SPACE_ID: "space" }),
+        ConfigProvider.fromEnvRecord({
+          DATABRICKS_HOST: "https://workspace.invalid",
+          GENIE_SPACE_ID: "space",
+        }),
       ),
     ),
   );
@@ -312,7 +316,6 @@ test("Genie builds structured filter context server-side for initial and follow-
         Genie.layer.pipe(
           Layer.provide(
             Layer.succeed(Workspace, {
-              authMode: "token",
               accessToken: Effect.succeed(Redacted.make("unused")),
               request: (path, _method, body) =>
                 Effect.sync(() => {
@@ -335,6 +338,7 @@ test("Genie builds structured filter context server-side for initial and follow-
       Effect.provideService(
         ConfigProvider.ConfigProvider,
         ConfigProvider.fromEnvRecord({
+          DATABRICKS_HOST: "https://workspace.invalid",
           GENIE_SPACE_ID: "space",
           TRIP_SNAPSHOT_TABLE: "custom.taxi.trips_2016",
         }),

@@ -3,7 +3,6 @@ import { AuthenticationError, SqlError } from "effect/sql/SqlError";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import { DatabricksClient } from "effect-sql-databricks";
 import { makeAdmission } from "./admission.js";
-import { makeCapability } from "./capability.js";
 import { OperationTimeout, unavailable } from "./errors.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
@@ -20,7 +19,6 @@ export const makeWarehouse = Effect.gen(function* () {
     settings.tripSnapshotTable
       ? settings.tripSnapshotTable.split(".")
       : ["unconfigured", "snapshot", "trips"];
-  const capability = makeCapability(configured);
   const admit = makeAdmission({
     service: "warehouse",
     concurrency: settings.warehouseConcurrency,
@@ -81,7 +79,6 @@ export const makeWarehouse = Effect.gen(function* () {
           ? cause
           : unavailable(error.service, error.message, cause),
       ),
-      capability.track,
     );
-  return { sql, snapshot, read, error, availability: capability.availability };
+  return { sql, snapshot, read, error };
 });

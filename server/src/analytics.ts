@@ -5,7 +5,6 @@ import {
   RouteReliabilityReport,
 } from "../../shared/analysis-runs.js";
 import {
-  type CapabilityAvailability,
   Daily,
   type Filters,
   GpsCell,
@@ -41,7 +40,6 @@ type WarehouseError = ServiceUnavailable | OperationTimeout;
 export class Analytics extends Context.Service<
   Analytics,
   {
-    readonly availability: Effect.Effect<CapabilityAvailability>;
     readonly metadata: Effect.Effect<typeof Metadata.Type, WarehouseError>;
     readonly overview: (
       filters: Filters,
@@ -60,7 +58,7 @@ export class Analytics extends Context.Service<
   static readonly layer = Layer.effect(
     Analytics,
     Effect.gen(function* () {
-      const { sql, snapshot, read, error, availability } = yield* makeWarehouse;
+      const { sql, snapshot, read, error } = yield* makeWarehouse;
       const { analysisResultsTable } = yield* Settings;
       const analysisReport = (id: AnalysisRunId) => {
         const [catalog, schema, table] = analysisResultsTable.split(".");
@@ -280,7 +278,6 @@ export class Analytics extends Context.Service<
         },
       );
       return {
-        availability,
         metadata,
         analysisReport,
         overview: (filters: Filters) => Cache.get(overviewCache, filters),

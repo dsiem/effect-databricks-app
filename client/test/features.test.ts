@@ -513,7 +513,6 @@ test("Genie owns its modal presentation without discarding the conversation on r
   const context = {
     filters: {},
     context: { page: "trips" as const, title: "Trips" },
-    enabled: true,
   };
   const opened = updateGenie(
     Genie.init(),
@@ -537,31 +536,13 @@ test("Genie owns its modal presentation without discarding the conversation on r
 });
 
 test("Genie submits the filters and pinned chart from Send after navigation", async () => {
-  const ready = update(
-    app("/?zip=10001"),
-    AppMessage.LoadedStatus({
-      data: {
-        dataset: "fixtures",
-        warehouse: true,
-        genie: true,
-        lakebase: false,
-        capabilities: {
-          warehouse: "available",
-          genie: "available",
-          lakebase: "unconfigured",
-        },
-        auth: "Test identity",
-      },
-      error: "",
-    }),
-  ).model;
   const chart = {
     page: "overview" as const,
     title: "Pinned fare chart",
     data: "[]",
   };
   const pinned = update(
-    ready,
+    app("/?zip=10001"),
     genieMessage(GenieMessage.OpenGenie({ context: chart, question: null })),
   ).model;
   const sent = update(
@@ -600,7 +581,6 @@ test("Genie resumes restored reads without replaying conversation submissions", 
   const context = {
     filters: {},
     context: { page: "genie" as const, title: "Analysis" },
-    enabled: true,
   };
   const operation = { conversationId: "conversation", messageId: "message" };
   const restored = updateGenie(

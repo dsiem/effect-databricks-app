@@ -27,12 +27,13 @@ export default defineConfig({
   ],
   webServer: {
     command: "node dist/server/src/main.js",
-    url: `http://127.0.0.1:${port}/health`,
+    url: `http://127.0.0.1:${port}/`,
     env: {
       DATABRICKS_APP_PORT: port,
-      DATABRICKS_HOST: "",
+      DATABRICKS_HOST: "https://127.0.0.1:1",
+      DATABRICKS_TOKEN: "fixture-token",
       DATABRICKS_WAREHOUSE_ID: "",
-      GENIE_SPACE_ID: "",
+      GENIE_SPACE_ID: "fixture-space",
       PGHOST: "",
       LAKEBASE_ENDPOINT: "",
     },

@@ -66,11 +66,9 @@ it so subsequent navigation leaves the submitted question intact.
 [Genie update](../client/src/features/genie/update.ts) ·
 [Genie commands](../client/src/features/genie/commands.ts) · [Recovery tests](../client/test/browser/genie-recovery.spec.ts)
 
-The Genie layer checks `DATABRICKS_HOST` and `GENIE_SPACE_ID` at startup. If
-either setting is missing, the submit command displays `genie_unavailable` as
-a rejected question with setup instructions. With both settings present, the
-Databricks request checks the space and permissions. [Genie service](../server/src/genie.ts) ·
-[Genie commands](../client/src/features/genie/commands.ts)
+The taxi app requires Genie. The server fails startup if `DATABRICKS_HOST` or
+`GENIE_SPACE_ID` is missing. Each Databricks request checks access to the space.
+[Genie service](../server/src/genie.ts) · [Startup smoke test](../server/test/built/smoke.test.mjs)
 
 ## Assign permissions to the identity that uses them
 

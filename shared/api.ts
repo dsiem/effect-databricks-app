@@ -29,7 +29,6 @@ import {
   SavedViewPin,
   SavedViewSearch,
   SavedViewsPage,
-  Status,
   TripComment,
   TripCommentCountSearch,
   TripCommentCounts,
@@ -124,10 +123,6 @@ const savedViewWriteErrors = [
 export const AppApi = HttpApi.make("taxi").add(
   HttpApiGroup.make("app")
     .add(
-      HttpApiEndpoint.get("health", "/health", {
-        success: Schema.Struct({ status: Schema.Literal("ok") }),
-      }),
-      HttpApiEndpoint.get("status", "/api/status", { success: Status }),
       HttpApiEndpoint.get("currentUser", "/api/me", {
         success: Schema.NullOr(CurrentUser),
       }),

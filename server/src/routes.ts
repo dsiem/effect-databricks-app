@@ -18,11 +18,8 @@ import { Analytics } from "./analytics.js";
 import { makeCurrentUser } from "./current-user.js";
 import type { ServiceError } from "./errors.js";
 import { Genie } from "./genie.js";
-import { Lakebase } from "./lakebase.js";
 import { SavedViews } from "./saved-views.js";
-import { Settings } from "./settings.js";
 import { TripComments } from "./trip-comments.js";
-import { Workspace } from "./workspace.js";
 
 type ErrorByTag = { [E in ServiceError as E["_tag"]]: E };
 type ErrorTag = keyof ErrorByTag;
@@ -97,32 +94,8 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
     const genie = yield* Genie;
     const savedViews = yield* SavedViews;
     const comments = yield* TripComments;
-    const lakebase = yield* Lakebase;
-    const settings = yield* Settings;
-    const workspace = yield* Workspace;
     const currentUser = yield* makeCurrentUser;
     return handlers
-      .handle("health", () => Effect.succeed({ status: "ok" as const }))
-      .handle("status", () =>
-        Effect.all({
-          warehouse: analytics.availability,
-          genie: genie.availability,
-          lakebase: lakebase.availability,
-        }).pipe(
-          Effect.map((capabilities) => ({
-            dataset: settings.tripSnapshotTable || "samples.nyctaxi.trips",
-            warehouse: capabilities.warehouse !== "unconfigured",
-            genie: capabilities.genie !== "unconfigured",
-            lakebase: capabilities.lakebase !== "unconfigured",
-            capabilities,
-            auth: {
-              token: "Configured access token",
-              oauth: "App service principal",
-              cli: "Local development identity",
-            }[workspace.authMode],
-          })),
-        ),
-      )
       .handle("currentUser", () =>
         Effect.flatMap(HttpServerRequest.HttpServerRequest, (request) =>
           currentUser(request.headers),

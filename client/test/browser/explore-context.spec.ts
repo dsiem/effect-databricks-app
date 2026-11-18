@@ -15,22 +15,6 @@ const savedView: SavedView = {
 };
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/status", (route) =>
-    route.fulfill({
-      json: {
-        dataset: "samples.nyctaxi.trips",
-        warehouse: false,
-        genie: true,
-        lakebase: false,
-        capabilities: {
-          warehouse: "unconfigured",
-          genie: "unconfigured",
-          lakebase: "unconfigured",
-        },
-        auth: "Test identity",
-      },
-    }),
-  );
   await page.route("**/api/metadata", (route) =>
     route.fulfill({
       json: { from: "2016-01-01", to: "2016-02-29", trips: 21932 },

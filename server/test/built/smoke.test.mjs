@@ -1,19 +1,38 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
 
-const app = spawn(process.execPath, ["dist/server/src/main.js"], {
-  env: {
-    ...process.env,
-    DATABRICKS_APP_PORT: "0",
-    NO_COLOR: "1",
-    DATABRICKS_HOST: "",
-    DATABRICKS_WAREHOUSE_ID: "",
-    GENIE_SPACE_ID: "",
-    PGHOST: "",
-    LAKEBASE_ENDPOINT: "projects/offline/branches/main/endpoints/primary",
-  },
+const entryPoint = ["dist/server/src/main.js"];
+const env = {
+  ...process.env,
+  DATABRICKS_APP_PORT: "0",
+  NO_COLOR: "1",
+  DATABRICKS_HOST: "https://127.0.0.1:1",
+  DATABRICKS_TOKEN: "fixture-token",
+  DATABRICKS_WAREHOUSE_ID: "",
+  GENIE_SPACE_ID: "fixture-space",
+  PGHOST: "",
+  LAKEBASE_ENDPOINT: "projects/offline/branches/main/endpoints/primary",
+};
+for (const [key, value] of [
+  ["DATABRICKS_HOST", ""],
+  ["GENIE_SPACE_ID", ""],
+  ["GENIE_SPACE_ID", "   "],
+]) {
+  const failed = spawnSync(process.execPath, entryPoint, {
+    env: { ...env, [key]: value },
+    encoding: "utf8",
+    timeout: 10000,
+  });
+  const output = failed.stdout + failed.stderr;
+  assert.match(output, /Genie is required.*DATABRICKS_HOST.*GENIE_SPACE_ID/);
+  assert.ifError(failed.error);
+  assert.equal(failed.status, 1, output);
+}
+
+const app = spawn(process.execPath, entryPoint, {
+  env,
   stdio: ["ignore", "pipe", "pipe"],
 });
 const exited = once(app, "exit");
@@ -45,9 +64,6 @@ try {
     };
   };
 
-  const health = await request("/health");
-  assert.equal(health.status, 200);
-  assert.deepEqual(JSON.parse(health.body), { status: "ok" });
   const root = await request("/");
   assert.equal(root.status, 200);
   assert.match(root.body, /<div id="root"><\/div>/);
@@ -62,17 +78,9 @@ try {
   for (const path of ["/trips", "/trip-map", "/genie"]) {
     assert.equal((await request(path)).status, 200);
   }
-  const initialStatus = await request("/api/status");
-  assert.equal(initialStatus.status, 200);
-  assert.equal(JSON.parse(initialStatus.body).lakebase, true);
-  assert.equal(JSON.parse(initialStatus.body).capabilities.lakebase, "unknown");
-  assert.equal((await request("/api/saved-views")).status, 503);
-  const unavailableStatus = await request("/api/status");
-  assert.equal(
-    JSON.parse(unavailableStatus.body).capabilities.lakebase,
-    "unavailable",
-  );
-  assert.equal((await request("/health")).status, 200);
+  const savedViews = await request("/api/saved-views");
+  assert.equal(savedViews.status, 503);
+  assert.equal(JSON.parse(savedViews.body).error.code, "lakebase_unavailable");
   assert.equal((await request("/")).status, 200);
   assert.equal((await request("/api/metadata")).status, 503);
   assert.equal((await request("/missing")).status, 404);
@@ -87,7 +95,7 @@ try {
   assert.equal(signal, null, "App should handle SIGTERM");
   // Effect's default teardown reports a handled external interruption as 130.
   assert.equal(code, 130, `App shutdown failed:\n${output}`);
-  console.log("Root, health, 404, and graceful shutdown passed");
+  console.log("Root, dependency failure, 404, and graceful shutdown passed");
 } finally {
   if (app.exitCode === null && app.signalCode === null) {
     app.kill("SIGKILL");

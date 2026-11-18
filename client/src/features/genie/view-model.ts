@@ -4,9 +4,4 @@ export type ViewModel = Model & {
   readonly mobile: boolean;
   readonly filters: D.Filters | null;
   readonly context: D.GenieContext;
-  readonly status: {
-    readonly data: typeof D.Status.Type | null;
-    readonly loading: boolean;
-    readonly error: string;
-  };
 };

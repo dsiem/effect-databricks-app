@@ -79,12 +79,6 @@ export const LoadMetadata = Command.define("LoadMetadata", {
     Effect.map(({ result, today }) => M.LoadedMetadata({ ...result, today })),
   ),
 });
-export const LoadStatus = Command.define("LoadStatus", {
-  messages: [M.LoadedStatus],
-  execute: result(request((client) => client.status())).pipe(
-    Effect.map(M.LoadedStatus),
-  ),
-});
 export const LoadUser = Command.define("LoadUser", {
   messages: [M.LoadedUser],
   execute: result(request((client) => client.currentUser())).pipe(

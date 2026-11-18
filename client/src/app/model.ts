@@ -21,7 +21,6 @@ export const Model = Schema.Struct({
   tooltips: Schema.Record(Schema.String, Tooltip.Model),
   navigationDialog: Dialog.Model,
   metadata: request(D.Metadata),
-  status: request(D.Status),
   user: Schema.NullOr(D.CurrentUser),
   filtersState: Filters.Model,
   overviewState: Overview.Model,

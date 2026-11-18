@@ -1,14 +1,12 @@
 import { Context, Effect, Layer, Schema } from "effect";
 import { genieResultTimeoutMs } from "../../shared/api.js";
 import {
-  type CapabilityAvailability,
   type GenieInput,
   GenieOperation,
   type GenieProgress,
   type GenieReply,
 } from "../../shared/domain.js";
 import { makeAdmission } from "./admission.js";
-import { makeCapability } from "./capability.js";
 import {
   GenieFailed,
   OperationTimeout,
@@ -77,7 +75,6 @@ const Result = Schema.Struct({
 export class Genie extends Context.Service<
   Genie,
   {
-    readonly availability: Effect.Effect<CapabilityAvailability>;
     readonly submit: (
       input: typeof GenieInput.Type,
     ) => Effect.Effect<GenieOperation, WorkspaceRequestError>;
@@ -93,10 +90,15 @@ export class Genie extends Context.Service<
     Genie,
     Effect.gen(function* () {
       const settings = yield* Settings;
+      const spaceId = settings.genieSpaceId.trim();
+      if (!settings.host || !spaceId)
+        return yield* Effect.fail(
+          unavailable(
+            "genie",
+            "Genie is required. Set DATABRICKS_HOST and GENIE_SPACE_ID.",
+          ),
+        );
       const workspace = yield* Workspace;
-      const capability = makeCapability(
-        !!(settings.genieSpaceId && settings.host),
-      );
       const admitSubmission = makeAdmission({
         service: "genie",
         concurrency: settings.genieConcurrency,
@@ -114,15 +116,7 @@ export class Genie extends Context.Service<
               }),
           ),
         );
-      const configured = settings.genieSpaceId
-        ? Effect.void
-        : Effect.fail(
-            unavailable(
-              "genie",
-              "Set GENIE_SPACE_ID to a Genie space over the configured trip dataset.",
-            ),
-          );
-      const space = `/api/2.0/genie/spaces/${encodeURIComponent(settings.genieSpaceId)}`;
+      const space = `/api/2.0/genie/spaces/${encodeURIComponent(spaceId)}`;
       const path = (operation: GenieOperation) =>
         `${space}/conversations/${encodeURIComponent(operation.conversationId)}/messages/${encodeURIComponent(operation.messageId)}`;
       const progress = (message: typeof MessageStatus.Type): GenieProgress => ({
@@ -142,13 +136,11 @@ export class Genie extends Context.Service<
         operation: GenieOperation,
         schema: Schema.Decoder<A>,
       ) =>
-        configured.pipe(
-          Effect.andThen(workspace.request(path(operation))),
-          Effect.flatMap((data) => decode(schema, data)),
-        );
+        workspace
+          .request(path(operation))
+          .pipe(Effect.flatMap((data) => decode(schema, data)));
       const submit = (input: typeof GenieInput.Type) =>
         Effect.gen(function* () {
-          yield* configured;
           if (input.conversationId) {
             const message = yield* workspace
               .request(
@@ -179,15 +171,10 @@ export class Genie extends Context.Service<
             conversationId: started.conversation_id,
             messageId: started.message.message_id,
           };
-        }).pipe(
-          admitSubmission,
-          capability.track,
-          Effect.withSpan("genie.submit"),
-        );
+        }).pipe(admitSubmission, Effect.withSpan("genie.submit"));
       const poll = (operation: GenieOperation) =>
         readMessage(operation, MessageStatus).pipe(
           Effect.map(progress),
-          capability.track,
           Effect.withSpan("genie.poll"),
         );
       const result = (operation: GenieOperation) =>
@@ -256,9 +243,8 @@ export class Genie extends Context.Service<
               ),
           }),
           Effect.withSpan("genie.result"),
-          capability.track,
         );
-      return { availability: capability.availability, submit, poll, result };
+      return { submit, poll, result };
     }),
   );
 }

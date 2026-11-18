@@ -207,28 +207,6 @@ function conversationTurn(
   );
 }
 
-function connectionStatus(h: H, status: Model["status"]): Child[] {
-  if (status.loading)
-    return [h.p([h.Class("muted text-sm")], ["Connecting to Genie…"])];
-  if (status.error)
-    return [alert(h, `Unable to connect to Genie. ${status.error}`)];
-  if (status.data?.genie) return [];
-  return [
-    h.div(
-      [h.Class("py-5")],
-      [
-        h.h3([], ["Connect Genie to explore further"]),
-        h.p(
-          [h.Class("muted text-sm leading-6 mt-2")],
-          [
-            "Configure a Databricks Genie space for this workspace to ask questions about your taxi data.",
-          ],
-        ),
-      ],
-    ),
-  ];
-}
-
 export function history(
   h: H,
   model: Model,
@@ -240,7 +218,6 @@ export function history(
     [h.Class("genie-messages")],
     [
       ...(model.persistenceError ? [alert(h, model.persistenceError)] : []),
-      ...connectionStatus(h, model.status),
       ...(!model.turns.length && enabled ? [suggestions(h, page)] : []),
       h.div(
         [h.AriaLive("polite"), h.Class("space-y-6")],
