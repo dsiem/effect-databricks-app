@@ -242,14 +242,19 @@
     align-items: center;
     min-height: 12rem;
   }
-  .loading::before {
-    content: "";
+  .loading::before,
+  .spinner {
+    display: inline-block;
     width: 1rem;
     height: 1rem;
+    flex-shrink: 0;
     border: 2px solid var(--color-brand-100);
     border-top-color: var(--color-brand-600);
     border-radius: 50%;
     animation: spin 800ms linear infinite;
+  }
+  .loading::before {
+    content: "";
   }
   @media (max-width: 767px) {
     .page-title {
@@ -286,7 +291,8 @@
     .btn {
       transition: none;
     }
-    .loading::before {
+    .loading::before,
+    .spinner {
       animation: none;
     }
   }

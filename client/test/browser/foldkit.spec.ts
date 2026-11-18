@@ -65,8 +65,16 @@ test("overview charts, navigation, paging, and browser history work through the 
     [trip.trip_id, { rows: [middle], nextCursor: secondCursor }],
     [middle.trip_id, { rows: [last], nextCursor: null }],
   ]);
+  let pendingPage = Promise.resolve();
+  function holdPage() {
+    let release = () => {};
+    pendingPage = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return release;
+  }
   const requested: Array<TripCursor | null> = [];
-  await page.route("**/api/trips**", (route) => {
+  await page.route("**/api/trips**", async (route) => {
     const params = new URL(route.request().url()).searchParams;
     expect(params.has("page")).toBe(false);
     const { cursor } = Schema.decodeUnknownSync(TripSearch)(
@@ -75,6 +83,7 @@ test("overview charts, navigation, paging, and browser history work through the 
     requested.push(cursor ?? null);
     const result = byPreviousTrip.get(cursor?.after.trip_id ?? "");
     if (!result) throw new Error("Unexpected trip cursor");
+    await pendingPage;
     return route.fulfill({ json: { ...result, total: 3, pageSize: 1 } });
   });
   await page.goto("/?zip=10001");
@@ -114,11 +123,26 @@ test("overview charts, navigation, paging, and browser history work through the 
   const previous = page.getByRole("button", { name: "Previous page" });
   const next = page.getByRole("button", { name: "Next page" });
   await expect(previous).toBeDisabled();
-  await next.click();
+  const releaseNextPage = holdPage();
+  try {
+    await next.click();
+    await expect(next).toHaveAttribute("aria-busy", "true");
+    await expect(next.locator(".spinner")).toHaveCSS("animation-name", "spin");
+    await expect(previous.locator(".spinner")).toHaveCount(0);
+    await expect(
+      page.getByRole("cell", { name: "$12.00", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("Page 1", { exact: true })).toBeVisible();
+    await expect(page.getByText("1–1 of 3", { exact: true })).toBeVisible();
+    await expect(next).toBeDisabled();
+  } finally {
+    releaseNextPage();
+  }
   await expect(page.getByText("Page 2", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("cell", { name: "$18.00", exact: true }),
   ).toBeVisible();
+  await expect(next.locator(".spinner")).toHaveCount(0);
   await next.click();
   await expect(page.getByText("Page 3", { exact: true })).toBeVisible();
   await expect(page.getByText("3–3 of 3", { exact: true })).toBeVisible();
@@ -130,7 +154,23 @@ test("overview charts, navigation, paging, and browser history work through the 
   await expect(
     page.getByRole("cell", { name: "$18.00", exact: true }),
   ).toBeVisible();
-  await previous.click();
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const releasePreviousPage = holdPage();
+  try {
+    await previous.press("Enter");
+    await expect(previous).toBeFocused();
+    await expect(previous).toHaveAttribute("aria-busy", "true");
+    await expect(previous.locator(".spinner")).toBeVisible();
+    await expect(previous.locator(".spinner")).toHaveCSS(
+      "animation-name",
+      "none",
+    );
+    await expect(next.locator(".spinner")).toHaveCount(0);
+    await expect(next).toBeDisabled();
+    await expect(page.getByText("Page 2", { exact: true })).toBeVisible();
+  } finally {
+    releasePreviousPage();
+  }
   await expect(
     page.getByRole("cell", { name: "$12.00", exact: true }),
   ).toBeVisible();

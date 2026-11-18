@@ -19,23 +19,27 @@ import type { H } from "./view-messages";
 import { Message as M } from "./view-messages";
 
 function trips(h: H, model: Model, sort: typeof Sort.Type): Child[] {
-  const data = model.trips.data;
-  const page = tripPageNumber(model);
+  const { data, loading: isLoading } = model.trips;
+  const requestedPage = tripPageNumber(model);
   const heading = title(
     h,
     "Trip records",
     "Explore individual trips. Open a record to inspect its details and discuss it with your team.",
   );
-  if (model.trips.loading) return [heading, loading(h)];
+  if (isLoading && !data) return [heading, loading(h)];
   if (model.trips.error)
     return [
       heading,
       error(h, model.trips.error, M.Reload()),
-      ...(page > 1
+      ...(requestedPage > 1
         ? [button(h, { label: "Previous page", onClick: M.PreviousPage() })]
         : []),
     ];
   if (!data) return [heading];
+  const page = model.displayedPage;
+  const loadingPrevious = isLoading && requestedPage < page;
+  const loadingNext = isLoading && requestedPage > page;
+  const spinner = h.span([h.Class("spinner"), h.AriaHidden(true)], []);
   const precedingRows = (page - 1) * data.pageSize;
   return [
     heading,
@@ -182,20 +186,27 @@ function trips(h: H, model: Model, sort: typeof Sort.Type): Child[] {
                   : "0 records",
               ],
             ),
+            h.span(
+              [h.Class("sr-only"), h.Role("status")],
+              [isLoading ? `Loading page ${requestedPage}…` : ""],
+            ),
             h.div(
               [h.Class("flex items-center gap-3")],
               [
                 button(h, {
-                  label: icon(h, "chevron-left"),
+                  label: loadingPrevious ? spinner : icon(h, "chevron-left"),
                   onClick: M.PreviousPage(),
-                  disabled: page === 1,
+                  disabled: page === 1 || (isLoading && !loadingPrevious),
+                  busy: loadingPrevious,
                   attributes: [h.AriaLabel("Previous page")],
                 }),
                 h.span([], [`Page ${page}`]),
                 button(h, {
-                  label: icon(h, "chevron-right"),
+                  label: loadingNext ? spinner : icon(h, "chevron-right"),
                   onClick: M.NextPage(),
-                  disabled: data.nextCursor === null,
+                  disabled:
+                    data.nextCursor === null || (isLoading && !loadingNext),
+                  busy: loadingNext,
                   attributes: [h.AriaLabel("Next page")],
                 }),
               ],

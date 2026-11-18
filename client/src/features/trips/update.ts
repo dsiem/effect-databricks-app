@@ -4,10 +4,10 @@ import { Command } from "foldkit";
 import type { Filters } from "../../../../shared/domain";
 import { syncDialog } from "../../lib/dialog";
 import type { FeatureUpdate } from "../../lib/feature-update";
-import { empty, pending } from "../../lib/request-state";
+import { empty } from "../../lib/request-state";
 import * as TripsCommands from "./commands";
 import { Message as M, type Message } from "./messages";
-import type { Model, Sort } from "./model";
+import { type Model, type Sort, tripPageNumber } from "./model";
 
 function countComments(model: Model): FeatureUpdate<Model, Message, Out> {
   const tripIds = model.trips.data?.rows.map((trip) => trip.trip_id) ?? [];
@@ -59,6 +59,7 @@ function updateTripsState(
           ...model,
           loadGeneration: model.loadGeneration + 1,
           pageCursors: [],
+          trips: empty,
           selectedTrip: null,
         },
       };
@@ -88,6 +89,7 @@ function updateTripsState(
             ...countComments({
               ...model,
               commentCounts: empty,
+              displayedPage: tripPageNumber(model),
               trips: {
                 data: message.data,
                 error: message.error,
@@ -124,7 +126,7 @@ function updateTripsState(
       };
     case "SortTrips":
       return {
-        model: { ...model, pageCursors: [] },
+        model: { ...model, pageCursors: [], trips: empty },
         outMessage: { _tag: "SortChanged", sort: message.sort },
       };
     case "InspectTrip":
@@ -247,7 +249,11 @@ export function reloadTrips(
 ): FeatureUpdate<Model, Message> {
   const generation = model.loadGeneration + 1;
   return {
-    model: { ...model, loadGeneration: generation, trips: pending },
+    model: {
+      ...model,
+      loadGeneration: generation,
+      trips: { ...model.trips, error: "", loading: true },
+    },
     commands: [
       TripsCommands.LoadTrips({
         generation,
