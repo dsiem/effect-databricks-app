@@ -1,5 +1,5 @@
 import { resolve, sep } from "node:path";
-import { Effect, Layer, type Types } from "effect";
+import { Effect, Layer } from "effect";
 import {
   HttpEffect,
   HttpRouter,
@@ -24,41 +24,46 @@ import { Settings } from "./settings.js";
 import { TripComments } from "./trip-comments.js";
 import { Workspace } from "./workspace.js";
 
-const toApiError = (error: ServiceError): typeof ApiError.Type => {
-  const message = error.message;
-  switch (error._tag) {
-    case "InvalidRequest":
-      return { error: { code: "invalid_request", message } };
-    case "SavedViewConflict":
-      return { error: { code: "saved_view_conflict", message } };
-    case "SavedViewNotFound":
-      return { error: { code: "saved_view_not_found", message } };
-    case "AnalysisRunNotFound":
-      return { error: { code: "analysis_run_not_found", message } };
-    case "AnalysisReportPending":
-      return { error: { code: "analysis_report_pending", message } };
-    case "ServiceUnavailable":
-      return { error: { code: `${error.service}_unavailable`, message } };
-    case "UpstreamError":
-      return {
-        error: {
-          code: `${error.service}_request_failed`,
-          message,
-          ...(error.upstreamStatus === undefined
-            ? {}
-            : { upstreamStatus: error.upstreamStatus }),
-        },
-      };
-    case "OperationTimeout":
-      return { error: { code: `${error.service}_timeout`, message } };
-    case "GenieFailed":
-      return { error: { code: "genie_message_unavailable", message } };
-  }
-};
-const respond = <A, R>(effect: Effect.Effect<A, ServiceError, R>) =>
+type ErrorByTag = { [E in ServiceError as E["_tag"]]: E };
+type ErrorTag = keyof ErrorByTag;
+
+const body = <const Code extends string>(code: Code, message: string) => ({
+  error: { code, message },
+});
+
+const errorResponses = {
+  InvalidRequest: ({ message }) => body("invalid_request", message),
+  SavedViewConflict: ({ message }) => body("saved_view_conflict", message),
+  SavedViewNotFound: ({ message }) => body("saved_view_not_found", message),
+  AnalysisRunNotFound: ({ message }) => body("analysis_run_not_found", message),
+  AnalysisReportPending: ({ message }) =>
+    body("analysis_report_pending", message),
+  ServiceUnavailable: ({ service, message }) =>
+    body(`${service}_unavailable`, message),
+  OperationTimeout: ({ service, message }) =>
+    body(`${service}_timeout`, message),
+  GenieFailed: ({ message }) => body("genie_message_unavailable", message),
+  UpstreamError: ({ service, message, upstreamStatus }) => ({
+    error: {
+      code: `${service}_request_failed` as const,
+      message,
+      ...(upstreamStatus === undefined ? {} : { upstreamStatus }),
+    },
+  }),
+} satisfies { [K in ErrorTag]: (error: ErrorByTag[K]) => typeof ApiError.Type };
+
+const toResponse: {
+  [K in ErrorTag]: (
+    error: ErrorByTag[K],
+  ) => ReturnType<(typeof errorResponses)[K]>;
+} = errorResponses;
+
+const respond = <A, K extends ErrorTag, R>(
+  effect: Effect.Effect<A, ErrorByTag[K] & { readonly _tag: K }, R>,
+) =>
   effect.pipe(
     Effect.tapCause((cause) => Effect.logError("API operation failed", cause)),
-    Effect.mapError(toApiError),
+    Effect.mapError((error) => toResponse[error._tag](error)),
   );
 
 const BoundaryLive = Layer.succeed(ApiBoundary, (effect) =>
@@ -69,18 +74,18 @@ const BoundaryLive = Layer.succeed(ApiBoundary, (effect) =>
       ),
     );
     return yield* effect.pipe(
-      Effect.catch(
-        (
-          error,
-        ): Effect.Effect<never, Types.unhandled | typeof ApiError.Type> => {
-          if (!HttpApiError.HttpApiSchemaError.is(error))
-            return Effect.fail(error);
-          // Invalid service output is a defect, never a client validation error.
-          return ["Params", "Query", "Headers", "Payload"].includes(error.kind)
-            ? Effect.fail(invalidRequestBody())
-            : Effect.die(error);
-        },
-      ),
+      Effect.catch((error) => {
+        if (!HttpApiError.HttpApiSchemaError.is(error))
+          return Effect.fail(error);
+        // Invalid service output is a defect, never a client validation error.
+        return ["Params", "Query", "Headers", "Payload"].includes(error.kind)
+          ? Effect.succeed(
+              HttpServerResponse.jsonUnsafe(invalidRequestBody(), {
+                status: 400,
+              }),
+            )
+          : Effect.die(error);
+      }),
     );
   }),
 );

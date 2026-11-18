@@ -1,4 +1,6 @@
-import { tripDetails } from "../trip-fixture";
+import { Schema } from "effect";
+import { TripSearch } from "../../../shared/domain";
+import { tripCursorFor, tripDetails } from "../trip-fixture";
 import { expect, type Page, test } from "@playwright/test";
 import { gpsFixture } from "../gps-fixture";
 
@@ -75,30 +77,31 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/overview**", (route) =>
     route.fulfill({ json: overview }),
   );
-  await page.route("**/api/trips**", (route) =>
-    route.fulfill({
+  await page.route("**/api/trips**", (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    const { cursor, sort, ...filters } = Schema.decodeUnknownSync(TripSearch)(
+      Object.fromEntries(query),
+    );
+    const trip = {
+      trip_id: "1a2f4670-fcd5-4ac1-9232-2d6b5b91664a",
+      pickup_at: "2016-01-11 18:00:00",
+      dropoff_at: "2016-01-11 18:14:00",
+      pickup_zip: "10001",
+      dropoff_zip: "10003",
+      distance: 2.8,
+      duration: 14,
+      details: { ...tripDetails, store_and_fwd_flag: "x".repeat(25_000) },
+      fare: 13.42,
+    };
+    return route.fulfill({
       json: {
-        rows: [
-          {
-            trip_id: "1a2f4670-fcd5-4ac1-9232-2d6b5b91664a",
-            pickup_at: "2016-01-11 18:00:00",
-            dropoff_at: "2016-01-11 18:14:00",
-            pickup_zip: "10001",
-            dropoff_zip: "10003",
-            distance: 2.8,
-            duration: 14,
-            details: tripDetails,
-            fare: 13.42,
-          },
-        ],
+        rows: [trip],
         total: 2184,
-        page: Number(
-          new URL(route.request().url()).searchParams.get("page") ?? 1,
-        ),
         pageSize: 25,
+        nextCursor: cursor ? null : tripCursorFor(trip, filters, sort),
       },
-    }),
-  );
+    });
+  });
   await page.route("**/api/genie", (route) =>
     route.fulfill({ json: operation }),
   );
@@ -276,7 +279,7 @@ test("closed helper finishes its answer and navigation updates visible records, 
   ).toBeVisible();
 });
 
-test("an open helper follows navigation to the map and includes geographic coverage", async ({
+test("the page helper and map action send the same filtered geographic coverage", async ({
   page,
 }) => {
   let submitted:
@@ -303,12 +306,32 @@ test("an open helper follows navigation to the map and includes geographic cover
     .click();
   await expect.poll(() => submitted?.context.page).toBe("map");
   expect(submitted?.filters).toEqual(filters);
-  expect(JSON.parse(submitted?.context.data ?? "{}")).toMatchObject({
+  const pageData = JSON.parse(submitted?.context.data ?? "{}");
+  expect(pageData).toMatchObject({
+    query: { endpoint: "pickup", filters },
     endpoint: "pickup",
     locatedTrips: 80,
     shownTrips: 80,
     resolution: 10,
   });
+  await expect(
+    helper.getByRole("cell", { name: "2184", exact: true }),
+  ).toBeVisible();
+  await helper.getByRole("button", { name: "Close Genie" }).click();
+  await page
+    .getByRole("button", { name: "Ask Genie about trip hotspots" })
+    .click();
+  const mapRequest = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/api/genie",
+  );
+  await helper
+    .getByRole("button", { name: "Send question", exact: true })
+    .click();
+  const chart = (await mapRequest).postDataJSON();
+  expect(chart.filters).toEqual(filters);
+  expect(JSON.parse(chart.context.data)).toEqual(pageData);
 });
 
 for (const width of [360, 768, 1024]) {

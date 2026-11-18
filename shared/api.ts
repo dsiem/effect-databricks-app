@@ -107,10 +107,19 @@ export const invalidRequestBody = (): typeof InvalidRequestBody.Type => ({
 // Server-only middleware implementation lives at the HTTP boundary in routes.ts.
 export class ApiBoundary extends HttpApiMiddleware.Service<ApiBoundary>()(
   "app/ApiBoundary",
-  {
-    error: errors,
-  },
+  {},
 ) {}
+
+export const genieResultTimeoutMs = 180_000;
+
+const warehouseErrors = [UnavailableBody, TimeoutBody] as const;
+const workspaceErrors = [UnavailableBody, UpstreamBody, TimeoutBody] as const;
+const savedViewWriteErrors = [
+  InvalidRequestBody,
+  NotFoundBody,
+  SavedViewConflictBody,
+  UnavailableBody,
+] as const;
 
 export const AppApi = HttpApi.make("taxi").add(
   HttpApiGroup.make("app")
@@ -122,37 +131,57 @@ export const AppApi = HttpApi.make("taxi").add(
       HttpApiEndpoint.get("currentUser", "/api/me", {
         success: Schema.NullOr(CurrentUser),
       }),
-      HttpApiEndpoint.get("metadata", "/api/metadata", { success: Metadata }),
+      HttpApiEndpoint.get("metadata", "/api/metadata", {
+        success: Metadata,
+        error: warehouseErrors,
+      }),
       HttpApiEndpoint.get("overview", "/api/overview", {
         query: Filters,
         success: Overview,
+        error: [InvalidRequestBody, ...warehouseErrors],
       }),
       HttpApiEndpoint.get("trips", "/api/trips", {
         query: TripSearch,
         success: Trips,
-      }),
+        error: [InvalidRequestBody, ...warehouseErrors],
+      }).annotate(HttpApi.QueryParseOptions, { onExcessProperty: "error" }),
       HttpApiEndpoint.get("tripMap", "/api/trip-map", {
         query: GpsSearch,
         success: TripMap,
+        error: [InvalidRequestBody, ...warehouseErrors],
       }),
       HttpApiEndpoint.post("submitAnalysisRun", "/api/analysis-runs", {
         payload: AnalysisSubmission,
         success: AnalysisRunReference.pipe(HttpApiSchema.status(202)),
+        error: [InvalidRequestBody, ...workspaceErrors],
       }),
       HttpApiEndpoint.get("analysisRuns", "/api/analysis-runs", {
         success: Schema.Array(AnalysisRunSummary),
+        error: workspaceErrors,
       }),
       HttpApiEndpoint.get("analysisRun", "/api/analysis-runs/:id", {
         params: { id: AnalysisRunIdFromString },
         success: AnalysisRun,
+        error: [
+          InvalidRequestBody,
+          AnalysisRunNotFoundBody,
+          ...workspaceErrors,
+        ],
       }),
       HttpApiEndpoint.get("analysisResult", "/api/analysis-runs/:id/result", {
         params: { id: AnalysisRunIdFromString },
         success: RouteReliabilityReport,
+        error: [
+          InvalidRequestBody,
+          AnalysisRunNotFoundBody,
+          AnalysisReportPendingBody,
+          ...workspaceErrors,
+        ],
       }),
       HttpApiEndpoint.post("submitGenie", "/api/genie", {
         payload: GenieInput,
         success: GenieOperation,
+        error: [InvalidRequestBody, ...workspaceErrors],
       }),
       HttpApiEndpoint.get(
         "pollGenie",
@@ -160,6 +189,7 @@ export const AppApi = HttpApi.make("taxi").add(
         {
           params: GenieOperation,
           success: GenieProgress,
+          error: [InvalidRequestBody, ...workspaceErrors],
         },
       ),
       HttpApiEndpoint.get(
@@ -168,32 +198,39 @@ export const AppApi = HttpApi.make("taxi").add(
         {
           params: GenieOperation,
           success: GenieReply,
+          error: [InvalidRequestBody, GenieFailedBody, ...workspaceErrors],
         },
       ),
       HttpApiEndpoint.get("savedViews", "/api/saved-views", {
         query: SavedViewSearch,
         success: SavedViewsPage,
+        error: [InvalidRequestBody, UnavailableBody],
       }),
       HttpApiEndpoint.get("tripComments", "/api/trip-comments", {
         query: TripCommentSearch,
         success: TripComments,
-      }),
+        error: [InvalidRequestBody, UnavailableBody],
+      }).annotate(HttpApi.QueryParseOptions, { onExcessProperty: "error" }),
       HttpApiEndpoint.get("tripCommentCounts", "/api/trip-comment-counts", {
         query: TripCommentCountSearch,
         success: TripCommentCounts,
+        error: [InvalidRequestBody, UnavailableBody],
       }),
       HttpApiEndpoint.post("addTripComment", "/api/trip-comments", {
         payload: TripCommentInput,
         success: TripComment,
+        error: [InvalidRequestBody, UnavailableBody],
       }),
       HttpApiEndpoint.put("saveSavedView", "/api/saved-views", {
         payload: SavedViewInput,
         success: SavedView,
+        error: savedViewWriteErrors,
       }),
       HttpApiEndpoint.patch("pinSavedView", "/api/saved-views/:id/pin", {
         params: { id: SavedViewInput.fields.id },
         payload: SavedViewPin,
         success: SavedView,
+        error: savedViewWriteErrors,
       }),
       HttpApiEndpoint.delete("removeSavedView", "/api/saved-views/:id", {
         params: { id: SavedViewInput.fields.id },
@@ -204,6 +241,7 @@ export const AppApi = HttpApi.make("taxi").add(
           ),
         },
         success: Schema.Struct({ deleted: Schema.Literal(true) }),
+        error: savedViewWriteErrors,
       }),
     )
     .middleware(ApiBoundary),

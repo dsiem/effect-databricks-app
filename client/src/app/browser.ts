@@ -2,7 +2,12 @@ import { Effect, Option, Queue, Stream } from "effect";
 import { Subscription } from "foldkit";
 import { subscriptions as analysisSubscriptions } from "../features/analysis-runs/subscription";
 import { subscriptions as genieSubscriptions } from "../features/genie/subscription";
-import { analysisRunsMessage, Message as M, type Message } from "./message";
+import {
+  analysisRunsMessage,
+  genieMessage,
+  Message as M,
+  type Message,
+} from "./message";
 import type { Model } from "./model";
 import { systemThemeQuery } from "./theme";
 
@@ -55,6 +60,6 @@ export const subscriptions = Subscription.aggregate(
   }),
   Subscription.lift(genieSubscriptions)<Model, Message>({
     read: (model) => Option.some(model.genieState),
-    toParentMessage: (message) => message,
+    toParentMessage: genieMessage,
   }),
 );

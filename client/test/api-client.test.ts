@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Cause, Effect, Exit, Fiber, Latch } from "effect";
-import { FetchHttpClient, HttpClient } from "effect/http";
+import { FetchHttpClient, HttpClient, HttpClientResponse } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
 import * as TestClock from "effect/testing/TestClock";
 import { AppApi } from "../../shared/api";
+import { RetrieveQuestion } from "../src/features/genie/commands";
 import { ApiClient, request } from "../src/lib/api-client";
 
 for (const phase of ["headers", "body"] as const) {
@@ -80,3 +81,54 @@ for (const phase of ["headers", "body"] as const) {
     );
   });
 }
+
+test("Genie retrieval receives a slow answer and the server's own timeout", async () => {
+  const operation = { conversationId: "conversation", messageId: "message" };
+  const turn = {
+    state: "retrieving",
+    operation,
+    id: "turn",
+    question: "Trips?",
+  } as const;
+  for (const status of [200, 504]) {
+    const delay = status === 200 ? "145 seconds" : "181 seconds";
+    const body =
+      status === 200
+        ? { ...operation, text: "An answer", queries: [] }
+        : {
+            error: {
+              code: "genie_timeout",
+              message: "Retrieval timed out on the server.",
+            },
+          };
+    const httpClient = HttpClient.make((request) =>
+      Effect.sleep(delay).pipe(
+        Effect.as(
+          HttpClientResponse.fromWeb(request, Response.json(body, { status })),
+        ),
+      ),
+    );
+    const message = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* RetrieveQuestion({ turn }).effect.pipe(
+          Effect.forkChild,
+        );
+        yield* TestClock.adjust(delay);
+        return yield* Fiber.join(fiber);
+      }).pipe(
+        Effect.provideServiceEffect(
+          ApiClient,
+          HttpApiClient.makeWith(AppApi, {
+            httpClient,
+            baseUrl: "http://fixture.test",
+          }).pipe(Effect.map(({ app }) => app)),
+        ),
+        Effect.provide(TestClock.layer()),
+      ),
+    );
+    assert.equal(message._tag, "ChangedTurn");
+    assert.equal(message.turn.state, status === 200 ? "complete" : "paused");
+    if (message.turn.state === "paused")
+      assert.equal(message.turn.error, "Retrieval timed out on the server.");
+  }
+});

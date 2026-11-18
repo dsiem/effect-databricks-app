@@ -3,27 +3,34 @@ import { Schema } from "effect";
 import * as D from "../../../../shared/domain";
 import { empty, request } from "../../lib/request-state";
 export const Sort = D.TripSort;
-export const CommentDraft = Schema.Struct({
-  id: Schema.String,
-  body: Schema.String,
-});
+const CommentDraft = Schema.Union([
+  Schema.Struct({
+    state: Schema.Literals(["editing", "posting"]),
+    body: Schema.String,
+  }),
+  Schema.Struct({
+    state: Schema.Literal("retry"),
+    ...D.TripCommentInput.fields,
+  }),
+]);
 export const Model = Schema.Struct({
   inspectorDialog: Dialog.Model,
   trips: request(D.Trips),
   loadGeneration: Schema.Int,
-  page: Schema.Number,
+  pageCursors: Schema.Array(D.TripCursor),
   selectedTrip: Schema.NullOr(D.TripSnapshot),
   comments: request(D.TripComments),
   commentLoadGeneration: Schema.Int,
   commentCounts: request(D.TripCommentCounts),
   commentCountsVersion: Schema.Number,
   commentDrafts: Schema.Record(Schema.String, CommentDraft),
-  posting: Schema.NullOr(D.TripCommentInput),
+  postingTripId: Schema.NullOr(D.TripSnapshot.fields.trip_id),
   postError: Schema.String,
   posted: Schema.String,
 });
 
 export type Model = typeof Model.Type;
+export const tripPageNumber = (model: Model) => model.pageCursors.length + 1;
 
 export const init = (): Model => ({
   inspectorDialog: Dialog.init({
@@ -32,14 +39,14 @@ export const init = (): Model => ({
   }),
   trips: empty,
   loadGeneration: 0,
-  page: 1,
+  pageCursors: [],
   selectedTrip: null,
   comments: empty,
   commentLoadGeneration: 0,
   commentCounts: empty,
   commentCountsVersion: 0,
   commentDrafts: {},
-  posting: null,
+  postingTripId: null,
   postError: "",
   posted: "",
 });

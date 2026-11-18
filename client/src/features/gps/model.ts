@@ -14,6 +14,8 @@ export const Model = Schema.Struct({
   mapError: Schema.String,
 });
 export type Model = typeof Model.Type;
+export const endpointName = (endpoint: D.GpsEndpoint) =>
+  endpoint === "pickup" ? "pickups" : "drop-offs";
 export const dataKey = (query: string, endpoint: D.GpsEndpoint, revision = 0) =>
   JSON.stringify([query, endpoint, revision]);
 export const frameKey = (

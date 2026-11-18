@@ -1,4 +1,5 @@
 import { Context, Effect, Layer, Schema } from "effect";
+import { genieResultTimeoutMs } from "../../shared/api.js";
 import {
   type CapabilityAvailability,
   type GenieInput,
@@ -11,7 +12,7 @@ import { makeCapability } from "./capability.js";
 import {
   GenieFailed,
   OperationTimeout,
-  type ServiceError,
+  type WorkspaceRequestError,
   UpstreamError,
   unavailable,
 } from "./errors.js";
@@ -79,13 +80,13 @@ export class Genie extends Context.Service<
     readonly availability: Effect.Effect<CapabilityAvailability>;
     readonly submit: (
       input: typeof GenieInput.Type,
-    ) => Effect.Effect<GenieOperation, ServiceError>;
+    ) => Effect.Effect<GenieOperation, WorkspaceRequestError>;
     readonly poll: (
       operation: GenieOperation,
-    ) => Effect.Effect<GenieProgress, ServiceError>;
+    ) => Effect.Effect<GenieProgress, WorkspaceRequestError>;
     readonly result: (
       operation: GenieOperation,
-    ) => Effect.Effect<GenieReply, ServiceError>;
+    ) => Effect.Effect<GenieReply, WorkspaceRequestError | GenieFailed>;
   }
 >()("app/Genie") {
   static readonly layer = Layer.effect(
@@ -244,7 +245,7 @@ export class Genie extends Context.Service<
           };
         }).pipe(
           Effect.timeoutOrElse({
-            duration: "3 minutes",
+            duration: genieResultTimeoutMs,
             orElse: () =>
               Effect.fail(
                 new OperationTimeout({

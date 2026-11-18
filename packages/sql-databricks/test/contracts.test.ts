@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Int64, Table, tableToIPC, vectorFromArray } from "apache-arrow";
 import { Effect, Fiber, Latch, Redacted, Schema, Stream } from "effect";
-import type { SqlError } from "effect/sql/SqlError";
+import { SqlError } from "effect/sql/SqlError";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import * as Statement from "effect/sql/Statement";
 import * as TestClock from "effect/testing/TestClock";
@@ -116,17 +116,18 @@ test("all native Arrow APIs apply the statement transformer and SQL tracing", as
       yield* Stream.runCollect(sql.arrowChunks(statement));
       yield* Stream.runCollect(sql.arrowStream(statement));
       yield* Stream.runCollect(sql.ipcStream(statement));
+      yield* Stream.runCollect(sql.ipcStream(statement, { maxBytes: 4096 }));
     }).pipe(
       Effect.provideService(Statement.CurrentTransformer, transformer),
       Effect.provide(clientLayer(server.fetch)),
     ),
   );
-  assert.equal(server.submitted.length, 5);
+  assert.equal(server.submitted.length, 6);
   for (const { statement, parameters } of server.submitted) {
     assert.equal(statement, "SELECT :p1 AS id /* transformed */");
     assert.deepEqual(parameters, [{ name: "p1", type: "BIGINT", value: "7" }]);
   }
-  assert.equal(spans.length, 5);
+  assert.equal(spans.length, 6);
   for (const span of spans) {
     assert.equal(span.kind, "client");
     assert.equal(span.attributes.get("db.system.name"), "databricks");
@@ -281,6 +282,9 @@ test(
           );
         }).pipe(Effect.provide(clientLayer(fetch))),
       ),
+      (error) =>
+        error instanceof SqlError &&
+        error.reason.message === "Arrow result exceeds the byte limit",
     );
     assert.equal(cancelled, true);
   },

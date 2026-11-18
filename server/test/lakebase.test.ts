@@ -135,16 +135,6 @@ test("interrupted discovery leaves Lakebase retryable", async () => {
   );
 });
 
-const trip = {
-  trip_id: "test-trip",
-  pickup_at: "2016-01-01 10:00:00",
-  dropoff_at: "2016-01-01 10:10:00",
-  pickup_zip: "10001",
-  dropoff_zip: "10019",
-  distance: 1,
-  fare: 10,
-  duration: 10,
-};
 for (const [name, operation] of [
   [
     "saved views",
@@ -155,10 +145,9 @@ for (const [name, operation] of [
   ],
   [
     "trip comments",
-    Effect.flatMap(TripComments, (comments) => comments.list({ trip })).pipe(
-      Effect.provide(TripComments.layer),
-      Effect.asVoid,
-    ),
+    Effect.flatMap(TripComments, (comments) =>
+      comments.list({ tripId: "test-trip" }),
+    ).pipe(Effect.provide(TripComments.layer), Effect.asVoid),
   ],
 ] as const) {
   test(`${name} can be constructed independently with unconfigured Lakebase`, async () => {

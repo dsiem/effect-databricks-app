@@ -53,7 +53,7 @@ test("comments persist per trip ID, preserve snapshots and authors, and safely r
         trip,
         body: "Check this fare against similar trips.",
       };
-      assert.deepEqual(yield* comments.list({ trip }), {
+      assert.deepEqual(yield* comments.list({ tripId: trip.trip_id }), {
         rows: [],
         nextCursor: null,
       });
@@ -68,7 +68,9 @@ test("comments persist per trip ID, preserve snapshots and authors, and safely r
       const saved = yield* comments.add(input, author);
       yield* initializeAppSchema(sql);
       assert.deepEqual(yield* comments.add(input, author), saved);
-      assert.deepEqual((yield* comments.list({ trip })).rows, [saved]);
+      assert.deepEqual((yield* comments.list({ tripId: trip.trip_id })).rows, [
+        saved,
+      ]);
       assert.equal(saved.body, input.body);
       assert.deepEqual(saved.author, author);
       assert.deepEqual(saved.trip, trip);
@@ -82,25 +84,24 @@ test("comments persist per trip ID, preserve snapshots and authors, and safely r
           result._tag === "Failure" && result.failure._tag === "InvalidRequest",
         );
       }
-      assert.deepEqual(yield* comments.list({ trip: { ...trip, fare: 25 } }), {
-        rows: [saved],
-        nextCursor: null,
-      });
       assert.deepEqual(
         yield* comments.add({ ...input, trip: { ...trip, fare: 25 } }, author),
         saved,
       );
-      assert.deepEqual(
-        yield* comments.list({ trip: { ...trip, trip_id: randomUUID() } }),
-        { rows: [], nextCursor: null },
-      );
+      assert.deepEqual(yield* comments.list({ tripId: randomUUID() }), {
+        rows: [],
+        nextCursor: null,
+      });
       const anonymous = yield* comments.add(
         { ...input, id: randomUUID() },
         null,
       );
       assert.equal(anonymous.author, null);
       assert.deepEqual(yield* comments.add(anonymous, null), anonymous);
-      assert.equal((yield* comments.list({ trip })).rows.length, 2);
+      assert.equal(
+        (yield* comments.list({ tripId: trip.trip_id })).rows.length,
+        2,
+      );
       assert.deepEqual(
         yield* comments.counts({ tripIds: [trip.trip_id, otherTripId] }),
         {
@@ -109,8 +110,9 @@ test("comments persist per trip ID, preserve snapshots and authors, and safely r
         },
       );
       assert.equal(
-        (yield* comments.list({ trip })).rows.find((row) => row.id === saved.id)
-          ?.body,
+        (yield* comments.list({ tripId: trip.trip_id })).rows.find(
+          (row) => row.id === saved.id,
+        )?.body,
         input.body,
       );
     }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
@@ -134,13 +136,13 @@ test("older comments remain reachable with microsecond timestamp ties", async ()
         id: string;
       }>`SELECT id::text AS id FROM app.trip_comments ORDER BY created_at DESC, id DESC`;
       const ids: string[] = [];
-      let search: TripCommentSearch = { trip };
+      let search: TripCommentSearch = { tripId: trip.trip_id };
       for (let page = 0; ; page++) {
         assert.ok(page < 3, "cursor must advance");
         const result = yield* comments.list(search);
         ids.push(...result.rows.map((row) => row.id));
         if (!result.nextCursor) break;
-        search = { trip, cursor: result.nextCursor };
+        search = { tripId: trip.trip_id, cursor: result.nextCursor };
       }
       assert.deepEqual(
         ids,

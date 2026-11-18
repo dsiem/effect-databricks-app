@@ -50,9 +50,9 @@ test("historical comment snapshots remain valid without current enrichment", () 
   assert.deepEqual(Schema.decodeUnknownSync(TripCommentInput)(input), input);
   assert.deepEqual(
     Schema.decodeUnknownSync(TripCommentSearch)({
-      trip: JSON.stringify(historical),
-    }).trip,
-    historical,
+      tripId: historical.trip_id,
+    }).tripId,
+    historical.trip_id,
   );
   assert.deepEqual(Schema.decodeUnknownSync(Trip)(current), current);
   assert.throws(() => Schema.decodeUnknownSync(Trip)(historical));
@@ -65,7 +65,12 @@ for (const enriched of [false, true]) {
       HttpApiClient.make(AppApi, { baseUrl: "http://fixture.test" }).pipe(
         Effect.provide(FetchHttpClient.layer),
         Effect.provideService(FetchHttpClient.Fetch, async () =>
-          Response.json({ rows: [trip], total: 1, page: 1, pageSize: 25 }),
+          Response.json({
+            rows: [trip],
+            total: 1,
+            pageSize: 25,
+            nextCursor: null,
+          }),
         ),
       ),
     ).app;

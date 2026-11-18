@@ -15,6 +15,11 @@ import {
   table,
   title,
 } from "../../ui/primitives";
+import {
+  dailyChartContext,
+  hourlyChartContext,
+  zonesChartContext,
+} from "./context";
 import { MetricTabs } from "./metric-tabs";
 import type { H } from "./view-messages";
 import { Message as M } from "./view-messages";
@@ -103,15 +108,7 @@ function overview(h: H, model: Model): Child[] {
                                 (context, question) =>
                                   M.Analyze({ context, question }),
                                 `Ask Genie about ${dailyTitle.toLowerCase()}`,
-                                {
-                                  page: "overview",
-                                  title: dailyTitle,
-                                  data: JSON.stringify({
-                                    metric: series,
-                                    daily,
-                                    queriedAt,
-                                  }),
-                                },
+                                dailyChartContext(dailyTitle, data, series),
                                 "Explain the pattern in this chart and highlight any unusual days.",
                               ),
                               h.div(
@@ -170,11 +167,7 @@ function overview(h: H, model: Model): Child[] {
                       h,
                       (context, question) => M.Analyze({ context, question }),
                       "Ask Genie about pickup hours",
-                      {
-                        page: "overview",
-                        title: "Trips by pickup hour",
-                        data: JSON.stringify({ hourly, queriedAt }),
-                      },
+                      hourlyChartContext(data),
                       "Explain this hourly pickup pattern. Which hours stand out?",
                     ),
                   ],
@@ -207,14 +200,7 @@ function overview(h: H, model: Model): Child[] {
                       h,
                       (context, question) => M.Analyze({ context, question }),
                       "Ask Genie about top pickup ZIP codes",
-                      {
-                        page: "overview",
-                        title: "Top pickup ZIP codes",
-                        data: JSON.stringify({
-                          topPickupZIPs: zones.slice(0, 5),
-                          queriedAt,
-                        }),
-                      },
+                      zonesChartContext(data),
                       "Compare these pickup ZIP codes by trip volume and average fare.",
                     ),
                     h.a(

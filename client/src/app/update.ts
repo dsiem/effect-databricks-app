@@ -24,6 +24,7 @@ import {
   closeSavedViewsPicker,
   updateSavedViews,
 } from "../features/saved-views/update";
+import { Message as TripMessage } from "../features/trips/messages";
 import * as Trips from "../features/trips/model";
 import { updateTrips } from "../features/trips/update";
 import type { ApiClient } from "../lib/api-client";
@@ -33,14 +34,16 @@ import { pageContext } from "./analysis-context";
 import * as AppCommands from "./commands";
 import {
   analysisRunsMessage,
+  genieMessage,
+  tripsMessage,
   gpsMessage,
   Message as M,
   type Message,
   savedViewsMessage,
 } from "./message";
 import type { Model } from "./model";
-import { loadPage } from "./navigation";
-import { AppRoute, parseLocation, routePath, showsExplore } from "./route";
+import { loadPage, sortTrips } from "./navigation";
+import { parseLocation, routePath, showsExplore } from "./route";
 import { ThemeMenu } from "./theme";
 import { initTooltip } from "./ui-state";
 
@@ -78,7 +81,7 @@ export function init(url: Url): Update.Return<Model, Message, ApiClient> {
     commands: [
       ...(loaded.commands ?? []),
       AppCommands.Boot(),
-      GenieCommands.RestoreConversation(),
+      Command.mapMessage(GenieCommands.RestoreConversation(), genieMessage),
       AppCommands.LoadMetadata(),
       AppCommands.LoadStatus(),
       AppCommands.LoadUser(),
@@ -110,7 +113,7 @@ function updateApplication(
             : model,
         };
       const location = parseLocation(message.path, message.query);
-      const reset = updateTrips(model.tripsState, M.ResetTrips());
+      const reset = updateTrips(model.tripsState, TripMessage.ResetTrips());
       const analysis = closeAnalysisForm(model.analysisRunsState);
       const savedViews =
         showsExplore(route) && !showsExplore(location.route)
@@ -134,7 +137,9 @@ function updateApplication(
       return {
         ...loaded,
         commands: [
-          ...(reset.commands ?? []),
+          ...(reset.commands ?? []).map((command) =>
+            Command.mapMessage(command, tripsMessage),
+          ),
           ...(analysis.commands ?? []).map((command) =>
             Command.mapMessage(command, analysisRunsMessage),
           ),
@@ -333,54 +338,28 @@ function updateApplication(
         commands: changed.commands ?? [],
       };
     }
-    case "CloseTrip":
-    case "ResetTrips":
-    case "InspectorDialog":
-    case "SetPage":
-    case "SortTrips":
-    case "LoadedTrips":
-    case "InspectTrip":
-    case "InspectComments":
-    case "LoadedCommentCounts":
-    case "LoadComments":
-    case "LoadedComments":
-    case "CommentChanged":
-    case "CreatedCommentDraft":
-    case "PostComment":
-    case "PostedComment": {
-      const changed = updateTrips(model.tripsState, message);
-      const next =
-        changed.model === model.tripsState
-          ? model
-          : { ...model, tripsState: changed.model };
-      if (changed.outMessage?._tag === "Reload") {
-        if (message._tag !== "SortTrips") return loadPage(next);
-        if (route._tag !== "Trips") return { model };
-        const sortedQuery = withTripSort(query, message.sort);
-        const loaded = loadPage({
-          ...next,
-          location: {
-            ...model.location,
-            route: AppRoute.Trips({ sort: message.sort }),
-            query: sortedQuery,
-          },
-        });
-        return {
-          ...loaded,
-          commands: [
-            ...(loaded.commands ?? []),
-            AppCommands.Navigate({
-              href: href(routePath(route), sortedQuery),
-              external: false,
-            }),
-          ],
-        };
-      }
-      return {
-        model: changed.outMessage ? invalidateGenieSelection(next) : next,
-        commands: changed.commands ?? [],
-      };
-    }
+    case "Trips":
+      return Update.foldChild({
+        update: updateTrips,
+        read: (parent: Model) => Option.some(parent.tripsState),
+        write: (parent, child) =>
+          parent.tripsState === child
+            ? parent
+            : { ...parent, tripsState: child },
+        toParentMessage: tripsMessage,
+        foldOutMessage: (out) => (parent) => {
+          switch (out._tag) {
+            case "Reload":
+              return loadPage(parent);
+            case "SortChanged":
+              return route._tag === "Trips"
+                ? sortTrips(parent, out.sort)
+                : { model };
+            case "SelectionInvalidated":
+              return { model: invalidateGenieSelection(parent) };
+          }
+        },
+      })(model, message.message);
     case "SavedViews":
       return Update.foldChild({
         update: (
@@ -412,45 +391,28 @@ function updateApplication(
             ],
           }),
       })(model, message.message);
-    case "CloseGenie":
-    case "GenieDialog":
-    case "RestoredConversation":
-    case "OpenGenie":
-    case "ExpandGenie":
-    case "ClearSelection":
-    case "GenieDraft":
-    case "SendQuestion":
-    case "CreatedTurn":
-    case "ChangedTurn":
-    case "PolledQuestion":
-    case "ResumeTurn":
-    case "EditQuestion":
-    case "NewConversation":
-    case "Persisted":
-    case "CopySql":
-    case "CopiedSql": {
-      const changed = updateGenie(model.genieState, message, {
-        filters,
-        context: pageContext(model),
-        enabled: !!model.status.data?.genie,
-      });
-      const next =
-        changed.model === model.genieState
-          ? model
-          : { ...model, genieState: changed.model };
-      return {
-        model:
-          changed.outMessage?._tag === "Opened" && next.mobileNavigation
-            ? { ...next, mobileNavigation: false }
-            : next,
-        commands: [
-          ...(changed.commands ?? []),
-          ...(changed.outMessage
-            ? [AppCommands.Focus({ selector: "#genie-composer" })]
-            : []),
-        ],
-      };
-    }
+    case "Genie":
+      return Update.foldChild({
+        update: (child: Genie.Model, childMessage: typeof message.message) =>
+          updateGenie(child, childMessage, {
+            filters,
+            context: pageContext(model),
+            enabled: !!model.status.data?.genie,
+          }),
+        read: (parent: Model) => Option.some(parent.genieState),
+        write: (parent, child) =>
+          parent.genieState === child
+            ? parent
+            : { ...parent, genieState: child },
+        toParentMessage: genieMessage,
+        foldOutMessage: (out) => (parent) => ({
+          model:
+            out._tag === "Opened" && parent.mobileNavigation
+              ? { ...parent, mobileNavigation: false }
+              : parent,
+          commands: [AppCommands.Focus({ selector: "#genie-composer" })],
+        }),
+      })(model, message.message);
     case "Gps":
       if (route._tag !== "TripMap" || !filters) return { model };
       return Update.foldChild({
@@ -509,7 +471,9 @@ export function update(
           M.NavigationDialog({ message }),
         ),
       ),
-      ...(genie.commands ?? []),
+      ...(genie.commands ?? []).map((command) =>
+        Command.mapMessage(command, genieMessage),
+      ),
     ],
   };
 }

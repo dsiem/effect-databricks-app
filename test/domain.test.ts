@@ -8,6 +8,7 @@ import {
   SavedView,
   SavedViewInput,
   TripSearch,
+  type TripCursor,
 } from "../shared/domain.js";
 
 test("accepts real historical dates and rejects impossible dates", () => {
@@ -19,18 +20,55 @@ test("rejects unsafe filters and pagination before SQL execution", () => {
   assert.throws(() =>
     Schema.decodeUnknownSync(Filters)({ zip: "10001' OR 1=1" }),
   );
-  assert.throws(() => Schema.decodeUnknownSync(TripSearch)({ page: "0" }));
+  assert.throws(() => Schema.decodeUnknownSync(TripSearch)({ cursor: "bad" }));
   assert.throws(() =>
     Schema.decodeUnknownSync(TripSearch)({ sort: "fare; DROP TABLE trips" }),
   );
-  assert.deepEqual(
-    Schema.decodeUnknownSync(TripSearch)({
-      zip: "10001",
-      page: "2",
-      sort: "fare",
-    }),
-    { zip: "10001", page: 2, sort: "fare" },
-  );
+});
+test("trip cursors round-trip raw order keys and belong to one filter and sort", () => {
+  const cursor: TripCursor = {
+    filters: { zip: "10001", from: "2016-01-01", to: "2016-02-29" },
+    sort: "fare",
+    after: {
+      trip_id: "trip-25",
+      pickup_at: "2016-02-29 00:00:00.000001",
+      dropoff_at: "2016-02-29 00:00:01.123456",
+      pickup_zip: "10001",
+      dropoff_zip: "Unknown",
+      distance: 0,
+      fare: 18.000000000000004,
+    },
+  };
+  const query = { ...cursor.filters, sort: cursor.sort, cursor };
+  const encoded = Schema.encodeSync(TripSearch)(query);
+  assert.deepEqual(Schema.decodeUnknownSync(TripSearch)(encoded), query);
+  for (const change of [
+    { sort: "distance" },
+    { zip: "10002" },
+    { from: "2016-01-02" },
+    { to: "2016-02-28" },
+  ]) {
+    assert.throws(() =>
+      Schema.decodeUnknownSync(TripSearch)({ ...encoded, ...change }),
+    );
+  }
+  for (const after of [
+    { pickup_at: "2016-02-30 12:00:00" },
+    { dropoff_at: "2016-02-29 24:12:45" },
+    { pickup_at: "2016-02-29 12:11:10.1234567" },
+    { trip_id: "" },
+    { distance: "2.3" },
+  ]) {
+    assert.throws(() =>
+      Schema.decodeUnknownSync(TripSearch)({
+        ...encoded,
+        cursor: JSON.stringify({
+          ...cursor,
+          after: { ...cursor.after, ...after },
+        }),
+      }),
+    );
+  }
 });
 test("bounds saved-view writes and conversational input", () => {
   const savedView = {

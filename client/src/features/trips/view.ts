@@ -14,12 +14,13 @@ import {
   title,
 } from "../../ui/primitives";
 import type { Model } from "./model";
-import { Sort } from "./model";
+import { Sort, tripPageNumber } from "./model";
 import type { H } from "./view-messages";
 import { Message as M } from "./view-messages";
 
 function trips(h: H, model: Model, sort: typeof Sort.Type): Child[] {
   const data = model.trips.data;
+  const page = tripPageNumber(model);
   const heading = title(
     h,
     "Trip records",
@@ -27,8 +28,15 @@ function trips(h: H, model: Model, sort: typeof Sort.Type): Child[] {
   );
   if (model.trips.loading) return [heading, loading(h)];
   if (model.trips.error)
-    return [heading, error(h, model.trips.error, M.Reload())];
+    return [
+      heading,
+      error(h, model.trips.error, M.Reload()),
+      ...(page > 1
+        ? [button(h, { label: "Previous page", onClick: M.PreviousPage() })]
+        : []),
+    ];
   if (!data) return [heading];
+  const precedingRows = (page - 1) * data.pageSize;
   return [
     heading,
     card(
@@ -155,7 +163,11 @@ function trips(h: H, model: Model, sort: typeof Sort.Type): Child[] {
           ? [
               h.p(
                 [h.Class("p-14 muted text-center")],
-                ["No trips match these filters."],
+                [
+                  page === 1
+                    ? "No trips match these filters."
+                    : "No trips remain on this page.",
+                ],
               ),
             ]
           : []),
@@ -165,8 +177,8 @@ function trips(h: H, model: Model, sort: typeof Sort.Type): Child[] {
             h.span(
               [h.Class("muted text-xs")],
               [
-                data.total
-                  ? `${number((model.page - 1) * data.pageSize + 1)}–${number(Math.min(model.page * data.pageSize, data.total))} of ${number(data.total)}`
+                data.rows.length
+                  ? `${number(precedingRows + 1)}–${number(precedingRows + data.rows.length)} of ${number(data.total)}`
                   : "0 records",
               ],
             ),
@@ -175,15 +187,15 @@ function trips(h: H, model: Model, sort: typeof Sort.Type): Child[] {
               [
                 button(h, {
                   label: icon(h, "chevron-left"),
-                  onClick: M.SetPage({ page: model.page - 1 }),
-                  disabled: model.page === 1,
+                  onClick: M.PreviousPage(),
+                  disabled: page === 1,
                   attributes: [h.AriaLabel("Previous page")],
                 }),
-                h.span([], [`Page ${model.page}`]),
+                h.span([], [`Page ${page}`]),
                 button(h, {
                   label: icon(h, "chevron-right"),
-                  onClick: M.SetPage({ page: model.page + 1 }),
-                  disabled: model.page * data.pageSize >= data.total,
+                  onClick: M.NextPage(),
+                  disabled: data.nextCursor === null,
                   attributes: [h.AriaLabel("Next page")],
                 }),
               ],

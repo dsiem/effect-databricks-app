@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ConfigProvider, Effect, Layer, Redacted, Schema } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
+import { OpenApi } from "effect/http-api";
+import { AppApi } from "../../shared/api.js";
 import { Status } from "../../shared/domain.js";
 import { Analytics } from "../src/analytics.js";
 import {
@@ -9,7 +11,7 @@ import {
   OperationTimeout,
   SavedViewConflict,
   SavedViewNotFound,
-  type ServiceError,
+  type ServiceUnavailable,
   UpstreamError,
   unavailable,
 } from "../src/errors.js";
@@ -21,9 +23,16 @@ import { Settings } from "../src/settings.js";
 import { TripComments } from "../src/trip-comments.js";
 import { Workspace } from "../src/workspace.js";
 
+type Services = {
+  genie?: Partial<typeof Genie.Service>;
+  analytics?: Partial<typeof Analytics.Service>;
+  savedViews?: Partial<typeof SavedViews.Service>;
+};
 const appFor = (
-  effect: Effect.Effect<never, ServiceError>,
-  genie?: typeof Genie.Service,
+  effect: Effect.Effect<never, ServiceUnavailable> = Effect.die(
+    "Unexpected service call",
+  ),
+  overrides: Services = {},
 ) =>
   HttpRouter.toWebHandler(
     Routes.pipe(
@@ -41,16 +50,15 @@ const appFor = (
             trips: () => effect,
             tripMap: () => effect,
             analysisReport: () => effect,
+            ...overrides.analytics,
           }),
-          Layer.succeed(
-            Genie,
-            genie ?? {
-              availability: Effect.succeed("unconfigured" as const),
-              submit: () => effect,
-              poll: () => effect,
-              result: () => effect,
-            },
-          ),
+          Layer.succeed(Genie, {
+            availability: Effect.succeed("unconfigured" as const),
+            submit: () => effect,
+            poll: () => effect,
+            result: () => effect,
+            ...overrides.genie,
+          }),
           Layer.succeed(Lakebase, {
             availability: Effect.succeed("unconfigured" as const),
             use: () => Effect.die("Unexpected database request"),
@@ -65,6 +73,7 @@ const appFor = (
             save: () => effect,
             pin: () => effect,
             remove: () => effect,
+            ...overrides.savedViews,
           }),
           Settings.layer.pipe(
             Layer.provide(
@@ -81,88 +90,120 @@ const appFor = (
     { disableLogger: true },
   );
 
-const cases: ReadonlyArray<{
-  error: ServiceError;
-  status: number;
-  code: string;
-  upstreamStatus?: number;
-}> = [
+const removeView = new Request(
+  "http://localhost/api/saved-views/00000000-0000-4000-8000-000000000001?version=1",
+  { method: "DELETE" },
+);
+const getGenieResult = new Request(
+  "http://localhost/api/genie/conversation/messages/message/result",
+);
+const conflict = new SavedViewConflict({
+  id: "id",
+  message: "Reload the latest saved view",
+});
+const missing = new SavedViewNotFound({ id: "id", message: "Already removed" });
+const outage = unavailable(
+  "lakebase",
+  "Lakebase unavailable",
+  new Error("private diagnostic"),
+);
+const denied = new UpstreamError({
+  service: "workspace",
+  upstreamStatus: 403,
+  message: "Permission denied",
+  cause: new Error("private diagnostic"),
+});
+const genieTimeout = new OperationTimeout({
+  service: "genie",
+  message: "Resume this answer",
+});
+const warehouseTimeout = new OperationTimeout({
+  service: "warehouse",
+  message: "Admission deadline expired",
+});
+const genieFailed = new GenieFailed({
+  status: "FAILED",
+  message: "Question failed",
+});
+
+for (const { request, services, status, error } of [
   {
-    error: new SavedViewConflict({
-      id: "id",
-      message: "Reload the latest saved view",
-    }),
+    request: removeView,
+    services: { savedViews: { remove: () => Effect.fail(conflict) } },
     status: 409,
-    code: "saved_view_conflict",
+    error: { code: "saved_view_conflict", message: conflict.message },
   },
   {
-    error: unavailable(
-      "lakebase",
-      "Lakebase unavailable",
-      new Error("private diagnostic"),
-    ),
-    status: 503,
-    code: "lakebase_unavailable",
-  },
-  {
-    error: new UpstreamError({
-      service: "workspace",
-      upstreamStatus: 403,
-      message: "Permission denied",
-      cause: new Error("private diagnostic"),
-    }),
-    status: 502,
-    code: "workspace_request_failed",
-    upstreamStatus: 403,
-  },
-  {
-    error: new OperationTimeout({
-      service: "genie",
-      message: "Resume this answer",
-    }),
-    status: 504,
-    code: "genie_timeout",
-  },
-  {
-    error: new SavedViewNotFound({ id: "id", message: "Already removed" }),
+    request: removeView,
+    services: { savedViews: { remove: () => Effect.fail(missing) } },
     status: 404,
-    code: "saved_view_not_found",
+    error: { code: "saved_view_not_found", message: missing.message },
   },
   {
-    error: new OperationTimeout({
-      service: "warehouse",
-      message: "Admission deadline expired",
-    }),
+    request: new Request("http://localhost/api/saved-views"),
+    services: { savedViews: { list: () => Effect.fail(outage) } },
+    status: 503,
+    error: { code: "lakebase_unavailable", message: outage.message },
+  },
+  {
+    request: getGenieResult,
+    services: { genie: { result: () => Effect.fail(denied) } },
+    status: 502,
+    error: {
+      code: "workspace_request_failed",
+      message: denied.message,
+      upstreamStatus: 403,
+    },
+  },
+  {
+    request: getGenieResult,
+    services: { genie: { result: () => Effect.fail(genieTimeout) } },
     status: 504,
-    code: "warehouse_timeout",
+    error: { code: "genie_timeout", message: genieTimeout.message },
   },
   {
-    error: new GenieFailed({ status: "FAILED", message: "Question failed" }),
+    request: getGenieResult,
+    services: { genie: { result: () => Effect.fail(genieFailed) } },
     status: 409,
-    code: "genie_message_unavailable",
+    error: { code: "genie_message_unavailable", message: genieFailed.message },
   },
-];
-for (const { error, status, code, upstreamStatus } of cases) {
-  test(`HTTP boundary maps ${error._tag} and keeps diagnostics off the wire`, async () => {
-    const app = appFor(Effect.fail(error));
-    try {
-      const response = await app.handler(
-        new Request("http://localhost/api/saved-views"),
-      );
-      assert.equal(response.status, status);
-      assert.equal(response.headers.get("cache-control"), "no-store");
-      assert.deepEqual(await response.json(), {
-        error: {
-          code,
-          message: error.message,
-          ...(upstreamStatus === undefined ? {} : { upstreamStatus }),
-        },
-      });
-    } finally {
-      await app.dispose();
-    }
+  {
+    request: new Request("http://localhost/api/overview"),
+    services: { analytics: { overview: () => Effect.fail(warehouseTimeout) } },
+    status: 504,
+    error: { code: "warehouse_timeout", message: warehouseTimeout.message },
+  },
+] as const) {
+  test(`HTTP maps ${error.code} on the operation that can produce it`, async (t) => {
+    const app = appFor(undefined, services);
+    t.after(app.dispose);
+    const response = await app.handler(request);
+    assert.equal(response.status, status);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await response.json(), { error });
   });
 }
+
+test("endpoints advertise their applicable failures", () => {
+  const { paths } = OpenApi.fromApi(AppApi);
+  assert.deepEqual(Object.keys(paths["/health"]?.get?.responses ?? {}), [
+    "200",
+  ]);
+  assert.deepEqual(Object.keys(paths["/api/overview"]?.get?.responses ?? {}), [
+    "200",
+    "400",
+    "503",
+    "504",
+  ]);
+  assert.deepEqual(
+    Object.keys(paths["/api/saved-views"]?.get?.responses ?? {}),
+    ["200", "400", "503"],
+  );
+  assert.deepEqual(
+    Object.keys(paths["/api/saved-views"]?.put?.responses ?? {}),
+    ["200", "400", "404", "409", "503"],
+  );
+});
 
 test("Genie recovery endpoints validate operation IDs before calling the service", async () => {
   let calls = 0;
@@ -223,23 +264,25 @@ test("unexpected defects are HTTP 500 instead of dependency failures", async () 
 test("HTTP separates submission IDs from polling and result retrieval", async () => {
   const operation = { conversationId: "conversation", messageId: "message" };
   const calls: unknown[] = [];
-  const app = appFor(Effect.fail(unavailable("unused", "Unused")), {
-    availability: Effect.succeed("unknown" as const),
-    submit: (input) =>
-      Effect.sync(() => {
-        calls.push(input);
-        return operation;
-      }),
-    poll: (input) =>
-      Effect.sync(() => {
-        calls.push(input);
-        return { ...input, state: "completed" as const, status: "COMPLETED" };
-      }),
-    result: (input) =>
-      Effect.sync(() => {
-        calls.push(input);
-        return { ...input, text: "Answer", queries: [] };
-      }),
+  const app = appFor(undefined, {
+    genie: {
+      availability: Effect.succeed("unknown" as const),
+      submit: (input) =>
+        Effect.sync(() => {
+          calls.push(input);
+          return operation;
+        }),
+      poll: (input) =>
+        Effect.sync(() => {
+          calls.push(input);
+          return { ...input, state: "completed" as const, status: "COMPLETED" };
+        }),
+      result: (input) =>
+        Effect.sync(() => {
+          calls.push(input);
+          return { ...input, text: "Answer", queries: [] };
+        }),
+    },
   });
   try {
     const submitted = await app.handler(
@@ -277,7 +320,7 @@ test("HTTP separates submission IDs from polling and result retrieval", async ()
 });
 
 test("current-user endpoint returns only each viewer's name/email and prevents caching", async () => {
-  const app = appFor(Effect.fail(unavailable("unused", "Unused")));
+  const app = appFor();
   try {
     for (const name of ["Avery Morgan", "Sam Rivera"]) {
       const response = await app.handler(
@@ -305,10 +348,12 @@ test("current-user endpoint returns only each viewer's name/email and prevents c
 test("a configured Genie remains configured after an observed outage", async () => {
   const failure = Effect.fail(unavailable("genie", "Temporarily unavailable"));
   const app = appFor(failure, {
-    availability: Effect.succeed("unavailable"),
-    submit: () => failure,
-    poll: () => failure,
-    result: () => failure,
+    genie: {
+      availability: Effect.succeed("unavailable"),
+      submit: () => failure,
+      poll: () => failure,
+      result: () => failure,
+    },
   });
   try {
     const response = await app.handler(

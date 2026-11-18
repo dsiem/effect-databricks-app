@@ -50,6 +50,11 @@ export class GenieFailed extends Data.TaggedError("GenieFailed")<{
   readonly message: string;
 }> {}
 
+export type WorkspaceRequestError =
+  | ServiceUnavailable
+  | UpstreamError
+  | OperationTimeout;
+
 export type ServiceError =
   | InvalidRequest
   | SavedViewNotFound

@@ -9,41 +9,52 @@ import {
   Daily,
   type Filters,
   GpsCell,
+  type GpsEndpoint,
   type GpsSearch,
   Hourly,
   mapCellLimit,
   Metadata,
   type Overview,
   Summary,
-  Trip,
-  TripDetails,
   type TripMap,
   type TripSearch,
   type Trips,
   Zone,
 } from "../../shared/domain.js";
-import { type ServiceError, unavailable } from "./errors.js";
+import {
+  type ServiceUnavailable,
+  type OperationTimeout,
+  unavailable,
+} from "./errors.js";
 import { Settings } from "./settings.js";
+import {
+  formatTripPage,
+  tripPageWindow,
+  tripZip,
+  WarehouseTrip,
+} from "./trip-pagination.js";
 import { tripDetailsProjection } from "./trip-sql.js";
 import { makeWarehouse } from "./warehouse.js";
+
+type WarehouseError = ServiceUnavailable | OperationTimeout;
 
 export class Analytics extends Context.Service<
   Analytics,
   {
     readonly availability: Effect.Effect<CapabilityAvailability>;
-    readonly metadata: Effect.Effect<typeof Metadata.Type, ServiceError>;
+    readonly metadata: Effect.Effect<typeof Metadata.Type, WarehouseError>;
     readonly overview: (
       filters: Filters,
-    ) => Effect.Effect<Overview, ServiceError>;
+    ) => Effect.Effect<Overview, WarehouseError>;
     readonly trips: (
       search: TripSearch,
-    ) => Effect.Effect<typeof Trips.Type, ServiceError>;
+    ) => Effect.Effect<typeof Trips.Type, WarehouseError>;
     readonly tripMap: (
       search: typeof GpsSearch.Type,
-    ) => Effect.Effect<TripMap, ServiceError>;
+    ) => Effect.Effect<TripMap, WarehouseError>;
     readonly analysisReport: (
       id: AnalysisRunId,
-    ) => Effect.Effect<typeof RouteReliabilityReport.Type, ServiceError>;
+    ) => Effect.Effect<typeof RouteReliabilityReport.Type, WarehouseError>;
   }
 >()("app/Analytics") {
   static readonly layer = Layer.effect(
@@ -110,8 +121,7 @@ export class Analytics extends Context.Service<
       );
       const metadata = Cache.get(metadataCache, "dataset");
       const overviewCache = yield* Cache.makeWith(
-        (key: string) => {
-          const filters = JSON.parse(key) as Filters;
+        (filters: Filters) => {
           const predicate = where(filters);
           return Effect.all(
             {
@@ -171,33 +181,23 @@ export class Analytics extends Context.Service<
       );
 
       const trips = (search: TripSearch) => {
-        const page = search.page ?? 1;
-        const order =
-          search.sort === "fare"
-            ? sql`fare_amount DESC`
-            : search.sort === "distance"
-              ? sql`trip_distance DESC`
-              : sql`tpep_pickup_datetime DESC`;
-        const predicate = where(search);
+        const { sort = "newest", cursor, ...filters } = search;
+        const predicate = where(filters);
         return Effect.all(
           {
             rows: read(
-              Schema.Struct({
-                ...Trip.fields,
-                details: Schema.fromJsonString(TripDetails),
-              }),
+              WarehouseTrip,
               sql`SELECT CAST(trip_id AS STRING) AS trip_id,
           CAST(tpep_pickup_datetime AS STRING) AS pickup_at,
           CAST(tpep_dropoff_datetime AS STRING) AS dropoff_at,
-          COALESCE(CAST(pickup_zip AS STRING),'Unknown') AS pickup_zip,
-          COALESCE(CAST(dropoff_zip AS STRING),'Unknown') AS dropoff_zip,
-          CAST(COALESCE(trip_distance,0) AS DOUBLE) AS distance,
-          CAST(COALESCE(fare_amount,0) AS DOUBLE) AS fare,
+          ${tripZip(sql, "pickup_zip")} AS pickup_zip,
+          ${tripZip(sql, "dropoff_zip")} AS dropoff_zip,
+          CAST(trip_distance AS DOUBLE) AS distance,
+          CAST(fare_amount AS DOUBLE) AS fare,
           CAST(COALESCE(timestampdiff(SECOND,tpep_pickup_datetime,tpep_dropoff_datetime)/60.0,0) AS DOUBLE) AS duration,
           ${tripDetailsProjection(sql)}
           FROM ${snapshot} ${predicate}
-          ORDER BY ${order}, tpep_pickup_datetime DESC, tpep_dropoff_datetime DESC, pickup_zip, dropoff_zip, fare_amount, trip_distance, trip_id
-          LIMIT 25 OFFSET ${sql.param("INT", String((page - 1) * 25))}`,
+          ${tripPageWindow(sql, sort, cursor?.after)}`,
             ),
             total: read(
               Schema.Struct({ total: Schema.Number }),
@@ -206,14 +206,15 @@ export class Analytics extends Context.Service<
           },
           { concurrency: 2 },
         ).pipe(
-          Effect.map((data) => ({ ...data, page, pageSize: 25 })),
+          Effect.map(({ rows, total }) =>
+            formatTripPage(rows, total, { sort, filters }),
+          ),
           Effect.withSpan("analytics.trips"),
         );
       };
       const gpsCache = yield* Cache.makeWith(
-        (key: string) => {
-          const search = JSON.parse(key) as typeof GpsSearch.Type;
-          const endpoint = search.endpoint ?? "pickup";
+        (search: Filters & { readonly endpoint: GpsEndpoint }) => {
+          const { endpoint } = search;
           const longitude =
             endpoint === "pickup"
               ? sql`pickup_longitude`
@@ -282,26 +283,13 @@ export class Analytics extends Context.Service<
         availability,
         metadata,
         analysisReport,
-        overview: (filters: Filters) =>
-          Cache.get(
-            overviewCache,
-            JSON.stringify({
-              from: filters.from,
-              to: filters.to,
-              zip: filters.zip,
-            }),
-          ),
+        overview: (filters: Filters) => Cache.get(overviewCache, filters),
         trips,
         tripMap: (search: typeof GpsSearch.Type) =>
-          Cache.get(
-            gpsCache,
-            JSON.stringify({
-              from: search.from,
-              to: search.to,
-              zip: search.zip,
-              endpoint: search.endpoint ?? "pickup",
-            }),
-          ),
+          Cache.get(gpsCache, {
+            ...search,
+            endpoint: search.endpoint ?? "pickup",
+          }),
       };
     }).pipe(Effect.provide(Reactivity.layer)),
   );

@@ -24,6 +24,8 @@ import { button, type Child, card } from "../ui/primitives";
 import { pageContext } from "./analysis-context";
 import {
   analysisRunsMessage,
+  genieMessage,
+  tripsMessage,
   Message as M,
   savedViewsMessage,
 } from "./message";
@@ -31,7 +33,12 @@ import { type Model, navigation } from "./model";
 import { paths, routePath, showsExplore } from "./route";
 import { themeSelector } from "./theme-view";
 import { initTooltip } from "./ui-state";
-import { exploreMessage, gpsViewMessage } from "./view-messages";
+import {
+  openGenie,
+  overviewViewMessage,
+  gpsViewMessage,
+  tripsViewMessage,
+} from "./view-messages";
 import type { H } from "./view-types";
 
 function workspaceHref(path: string, query: string) {
@@ -266,7 +273,7 @@ export function view(model: Model, h: H): Document {
               filters: applied ?? {},
               mobile: model.mobile,
             },
-            toParentMessage: exploreMessage,
+            toParentMessage: overviewViewMessage,
           }),
         ];
         break;
@@ -277,7 +284,7 @@ export function view(model: Model, h: H): Document {
             view: tripsView,
             model: model.tripsState,
             viewInputs: { sort: route.sort },
-            toParentMessage: exploreMessage,
+            toParentMessage: tripsViewMessage,
           }),
         ];
         break;
@@ -314,7 +321,7 @@ export function view(model: Model, h: H): Document {
               filters: applied,
               status: model.status,
             },
-            toParentMessage: (message) => message,
+            toParentMessage: genieMessage,
           }),
         ];
         break;
@@ -390,10 +397,7 @@ export function view(model: Model, h: H): Document {
                             [h.Class("inline-flex items-center gap-2")],
                             [icon(h, "sparkles"), "Ask Genie"],
                           ),
-                          onClick: M.OpenGenie({
-                            context: null,
-                            question: null,
-                          }),
+                          onClick: openGenie({ context: null, question: null }),
                           disabled: !applied,
                           attributes: [h.Id("genie-trigger")],
                         }),
@@ -420,7 +424,7 @@ export function view(model: Model, h: H): Document {
                   filters: applied,
                   status: model.status,
                 },
-                toParentMessage: (message) => message,
+                toParentMessage: genieMessage,
               }),
             ]
           : []),
@@ -443,7 +447,7 @@ export function view(model: Model, h: H): Document {
                 model: {
                   ...model.tripsState,
                 },
-                toParentMessage: (message) => message,
+                toParentMessage: tripsMessage,
               }),
             ]
           : []),

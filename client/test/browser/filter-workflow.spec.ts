@@ -73,7 +73,9 @@ const airportView = {
 
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/trips**", (route) =>
-    route.fulfill({ json: { rows: [], total: 0, page: 1, pageSize: 25 } }),
+    route.fulfill({
+      json: { rows: [], total: 0, pageSize: 25, nextCursor: null },
+    }),
   );
   await page.route("**/api/metadata", (route) =>
     route.fulfill({

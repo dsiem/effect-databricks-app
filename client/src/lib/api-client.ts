@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, type Duration, Effect, Layer } from "effect";
 import { FetchHttpClient, HttpClient } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
 import { AppApi } from "../../../shared/api.js";
@@ -17,4 +17,5 @@ export class ApiClient extends Context.Service<
 }
 export const request = <A, E, R>(
   run: (client: ApiClient["Service"]) => Effect.Effect<A, E, R>,
-) => Effect.flatMap(ApiClient, run).pipe(Effect.timeout("2 minutes"));
+  timeout: Duration.Input = "2 minutes",
+) => Effect.flatMap(ApiClient, run).pipe(Effect.timeout(timeout));

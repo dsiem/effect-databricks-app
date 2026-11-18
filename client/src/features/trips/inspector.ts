@@ -292,9 +292,9 @@ function inspector(h: H, model: Model) {
           button(h, {
             type: "submit",
             variant: "primary",
-            disabled: !!model.posting || !draft?.id || !draft.body.trim(),
+            disabled: !!model.postingTripId || !draft?.body.trim(),
             label:
-              model.posting?.trip.trip_id === trip.trip_id
+              model.postingTripId === trip.trip_id
                 ? "Posting…"
                 : "Post comment",
           }),

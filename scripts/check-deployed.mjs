@@ -38,7 +38,7 @@ const metadata = await request("/api/metadata");
 const overview = await request("/api/overview");
 assert.ok(metadata.trips > 0);
 assert.equal(overview.summary.trips, metadata.trips);
-const trips = await request("/api/trips?page=1");
+const trips = await request("/api/trips");
 assert.equal(trips.total, metadata.trips);
 assert.ok(trips.rows.length > 0);
 assert.ok(
@@ -53,6 +53,21 @@ assert.ok(
   trips.rows.some((trip) => trip.details.pickup_location),
   "Hosted trip records must expose recorded GPS endpoints",
 );
+if (trips.total > trips.rows.length) {
+  assert.ok(
+    trips.nextCursor,
+    "Expected a continuation for the remaining trips",
+  );
+  const query = new URLSearchParams({
+    cursor: JSON.stringify(trips.nextCursor),
+  });
+  const next = await request(`/api/trips?${query.toString()}`);
+  const seen = new Set(trips.rows.map((trip) => trip.trip_id));
+  assert.ok(
+    next.rows.length > 0 && next.rows.every((trip) => !seen.has(trip.trip_id)),
+    "The trip cursor must advance past the first page",
+  );
+}
 for (const endpoint of ["pickup", "dropoff"]) {
   const activity = await request(`/api/trip-map?endpoint=${endpoint}`);
   assert.equal(activity.endpoint, endpoint);

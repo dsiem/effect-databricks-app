@@ -8,33 +8,37 @@ export const LoadTrips = Command.define("LoadTrips", {
   args: {
     generation: Schema.Int,
     filters: D.Filters,
-    page: Schema.Number,
+    cursor: Schema.NullOr(D.TripCursor),
     sort: D.TripSort,
   },
   messages: [M.LoadedTrips],
-  execute: ({ generation, filters, page, sort }) =>
+  execute: ({ generation, filters, cursor, sort }) =>
     result(
-      request((client) => client.trips({ query: { ...filters, page, sort } })),
+      request((client) =>
+        client.trips({
+          query: { ...filters, sort, ...(cursor ? { cursor } : {}) },
+        }),
+      ),
     ).pipe(Effect.map((value) => M.LoadedTrips({ generation, ...value }))),
 });
 export const LoadComments = Command.define("LoadComments", {
   args: {
-    trip: D.TripSnapshot,
+    tripId: D.TripSnapshot.fields.trip_id,
     generation: Schema.Int,
     cursor: Schema.NullOr(D.TripCommentCursor),
     more: Schema.Boolean,
   },
   messages: [M.LoadedComments],
-  execute: ({ trip, generation, cursor, more }) =>
+  execute: ({ tripId, generation, cursor, more }) =>
     result(
       request((client) =>
         client.tripComments({
-          query: { trip, ...(cursor ? { cursor } : {}) },
+          query: { tripId, ...(cursor ? { cursor } : {}) },
         }),
       ),
     ).pipe(
       Effect.map((value) =>
-        M.LoadedComments({ tripId: trip.trip_id, generation, ...value, more }),
+        M.LoadedComments({ tripId, generation, ...value, more }),
       ),
     ),
 });
@@ -49,22 +53,19 @@ export const LoadCommentCounts = Command.define("LoadCommentCounts", {
       request((client) => client.tripCommentCounts({ query: { tripIds } })),
     ).pipe(Effect.map((value) => M.LoadedCommentCounts({ version, ...value }))),
 });
-export const CommentDraft = Command.define("CreateCommentDraft", {
-  args: { tripId: Schema.String, body: Schema.String },
-  messages: [M.CreatedCommentDraft],
-  execute: ({ tripId, body }) =>
-    Effect.sync(() =>
-      M.CreatedCommentDraft({
-        tripId,
-        draft: { id: crypto.randomUUID(), body },
-      }),
-    ),
-});
 export const PostComment = Command.define("PostComment", {
-  args: { input: D.TripCommentInput },
+  args: {
+    trip: D.TripSnapshot,
+    body: Schema.String,
+    retryId: Schema.NullOr(D.Id),
+  },
   messages: [M.PostedComment],
-  execute: ({ input }) =>
-    result(request((client) => client.addTripComment({ payload: input }))).pipe(
-      Effect.map(({ error }) => M.PostedComment({ input, error })),
-    ),
+  execute: ({ trip, body, retryId }) =>
+    Effect.gen(function* () {
+      const input = { trip, body, id: retryId ?? crypto.randomUUID() };
+      const { error } = yield* result(
+        request((client) => client.addTripComment({ payload: input })),
+      );
+      return M.PostedComment({ input, error });
+    }),
 });

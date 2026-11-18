@@ -1,15 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Dialog } from "@foldkit/ui";
-import { Effect, Option } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { FetchHttpClient, HttpClient } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
 import { Url } from "foldkit";
 import { given, message, model, story } from "foldkit/story";
 import { AppApi } from "../../shared/api";
-import { Message as AppMessage, savedViewsMessage } from "../src/app/message";
+import { TripCommentInput } from "../../shared/domain";
+import {
+  genieMessage,
+  Message as AppMessage,
+  savedViewsMessage,
+  tripsMessage,
+} from "../src/app/message";
 import { init, update } from "../src/app/update";
-import { exploreMessage } from "../src/app/view-messages";
+import { overviewViewMessage } from "../src/app/view-messages";
 import { Message as FilterMessage } from "../src/features/filters/messages";
 import * as Filters from "../src/features/filters/model";
 import { updateFilters } from "../src/features/filters/update";
@@ -30,6 +36,7 @@ import { Message as TripMessage } from "../src/features/trips/messages";
 import * as Trips from "../src/features/trips/model";
 import { updateTrips } from "../src/features/trips/update";
 import { ApiClient } from "../src/lib/api-client";
+import { tripCursorFor } from "./trip-fixture";
 
 const open = (path: string) =>
   init(Option.getOrThrow(Url.fromString(`http://localhost${path}`)));
@@ -108,7 +115,7 @@ test("view intents are translated by the shell with their analysis scope intact"
   };
   const changed = update(
     app("/"),
-    exploreMessage(
+    overviewViewMessage(
       OverviewViewMessage.Analyze({ context, question: "Explain these fares" }),
     ),
   );
@@ -134,7 +141,7 @@ test("returning to a filter keeps fresh trip results when the original load fail
     AppMessage.Navigated({ path: "/trips", query: `zip=${zip}` });
   const changed = update(opened.model, visit("10002"));
   const returned = update(changed.model, visit("10001"));
-  const data = { rows: [], total: 0, page: 1, pageSize: 25 };
+  const data = { rows: [], total: 0, pageSize: 25, nextCursor: null };
   const fresh = await respond(returned, "LoadTrips", Response.json(data));
   const stale = await respond(opened, "LoadTrips", originalTimeout());
   story(
@@ -183,9 +190,9 @@ test("returning to an Overview filter keeps the fresh summary when the original 
 });
 
 test("reopening the same trip keeps fresh comments when the original list arrives late", async () => {
-  const inspect = AppMessage.InspectComments({ trip });
+  const inspect = tripsMessage(TripMessage.InspectComments({ trip }));
   const opened = update(app("/trips"), inspect);
-  const closed = update(opened.model, AppMessage.CloseTrip());
+  const closed = update(opened.model, tripsMessage(TripMessage.CloseTrip()));
   const reopened = update(closed.model, inspect);
   const note = {
     id: "00000000-0000-4000-8000-000000000001",
@@ -216,6 +223,45 @@ test("reopening the same trip keeps fresh comments when the original list arrive
       );
     }),
   );
+});
+
+test("lost comment responses replay the attempted payload until the draft is edited", async () => {
+  let next = open("/trips");
+  const send = (action: TripMessage) => {
+    next = update(next.model, tripsMessage(action));
+  };
+  async function post() {
+    send(TripMessage.PostComment());
+    const reply = await runRequest(
+      next,
+      "PostComment",
+      async (url, options) => {
+        const payload = Schema.decodeUnknownSync(TripCommentInput)(
+          await new Request(url, options).json(),
+        );
+        submissions.push(payload);
+        throw new TypeError("Response lost");
+      },
+    );
+    next = update(next.model, reply);
+  }
+  const submissions: TripCommentInput[] = [];
+  send(TripMessage.InspectTrip({ trip }));
+  send(TripMessage.CommentChanged({ body: "First finding" }));
+  await post();
+  send(TripMessage.CloseTrip());
+  send(TripMessage.InspectTrip({ trip: { ...trip, fare: 14 } }));
+  await post();
+  const [first, retry] = submissions;
+  assert.ok(first);
+  assert.deepEqual(retry, first);
+  send(TripMessage.CommentChanged({ body: "Edited finding" }));
+  await post();
+  const edited = submissions[2];
+  assert.ok(edited);
+  assert.notEqual(edited.id, first.id);
+  assert.equal(edited.body, "Edited finding");
+  assert.equal(edited.trip.fare, 14);
 });
 
 test("an idle message keeps the current model reference", () => {
@@ -250,7 +296,10 @@ test("a standalone trip feature closes its inspector and ignores late comments",
 });
 
 test("navigation retains the trip feature's dialog cleanup commands", () => {
-  const opened = update(app("/trips"), AppMessage.InspectTrip({ trip }));
+  const opened = update(
+    app("/trips"),
+    tripsMessage(TripMessage.InspectTrip({ trip })),
+  );
   const navigated = update(
     opened.model,
     AppMessage.Navigated({ path: "/", query: "" }),
@@ -271,7 +320,7 @@ test("sort URLs survive reload and history; saved views restore global scope wit
   assert.equal(tripLoad(opened)?.sort, "fare");
   const sorted = update(
     opened.model,
-    AppMessage.SortTrips({ sort: "distance" }),
+    tripsMessage(TripMessage.SortTrips({ sort: "distance" })),
   );
   assert.equal(tripLoad(sorted)?.sort, "distance");
   assert.ok(
@@ -338,7 +387,7 @@ test("comment counts from an older trip page cannot replace the current rows' co
       TripMessage.LoadedTrips({
         generation: model.loadGeneration,
         error: "",
-        data: { rows: [trip], total: 1, page: 1, pageSize: 25 },
+        data: { rows: [trip], total: 1, pageSize: 25, nextCursor: null },
       }),
     ).model;
   const firstPage = loaded(Trips.init());
@@ -513,11 +562,13 @@ test("Genie submits the filters and pinned chart from Send after navigation", as
   };
   const pinned = update(
     ready,
-    AppMessage.OpenGenie({ context: chart, question: null }),
+    genieMessage(GenieMessage.OpenGenie({ context: chart, question: null })),
   ).model;
   const sent = update(
     pinned,
-    AppMessage.SendQuestion({ question: "Explain these fares" }),
+    genieMessage(
+      GenieMessage.SendQuestion({ question: "Explain these fares" }),
+    ),
   );
   const navigated = update(
     sent.model,
@@ -605,26 +656,84 @@ test("overview accepts only the active response and requests selection invalidat
   assert.deepEqual(current.outMessage, { _tag: "SelectionInvalidated" });
 });
 
-test("paging trips clears analysis of the previous page", () => {
-  const model = app("/trips?zip=10001");
+test("trip paging clears the previous selection and retries from the same cursor", async () => {
+  const opening = open("/trips?zip=10001");
+  const cursor = tripCursorFor(trip, { zip: "10001" });
+  const response = await respond(
+    opening,
+    "LoadTrips",
+    Response.json({ rows: [trip], total: 2, pageSize: 1, nextCursor: cursor }),
+  );
+  const first = update(opening.model, response).model;
   const selected = {
-    ...model,
+    ...first,
     genieState: {
-      ...model.genieState,
+      ...first.genieState,
       genieSelection: { page: "trips" as const, title: "Old page" },
     },
   };
-  const changed = update(selected, AppMessage.SetPage({ page: 2 }));
-  assert.equal(changed.model.tripsState.page, 2);
-  assert.equal(changed.model.tripsState.trips.loading, true);
-  assert.equal(changed.model.genieState.genieSelection, null);
+  const next = update(selected, tripsMessage(TripMessage.NextPage()));
+  assert.equal(Trips.tripPageNumber(next.model.tripsState), 2);
+  assert.equal(next.model.genieState.genieSelection, null);
+  const failed = update(
+    next.model,
+    await respond(next, "LoadTrips", originalTimeout()),
+  );
+  assert.match(failed.model.tripsState.trips.error, /timed out/);
+  const retry = update(failed.model, AppMessage.LoadPage());
+  const retried = await runRequest(retry, "LoadTrips", async (input) => {
+    const url = new URL(input instanceof Request ? input.url : input);
+    assert.deepEqual(
+      JSON.parse(url.searchParams.get("cursor") ?? "null"),
+      cursor,
+    );
+    return Response.json({ rows: [], total: 1, pageSize: 1, nextCursor: null });
+  });
+  const last = update(retry.model, retried).model;
+  assert.equal(last.tripsState.trips.data?.nextCursor, null);
+  assert.equal(update(last, response).model, last);
+  assert.equal(update(last, tripsMessage(TripMessage.NextPage())).model, last);
+
+  const previous = update(last, tripsMessage(TripMessage.PreviousPage()));
+  assert.equal(Trips.tripPageNumber(previous.model.tripsState), 1);
+  assert.equal(
+    previous.commands?.find(({ name }) => name === "LoadTrips")?.args?.cursor,
+    null,
+  );
+
+  const filtered = update(
+    last,
+    AppMessage.Navigated({ path: "/trips", query: "zip=10002" }),
+  );
+  const request = filtered.commands?.find(
+    ({ name }) => name === "LoadTrips",
+  )?.args;
+  assert.deepEqual(request?.filters, { zip: "10002" });
+  assert.equal(request?.cursor, null);
+  assert.equal(Trips.tripPageNumber(filtered.model.tripsState), 1);
+});
+
+test("trip paging accepts a continuation beyond ten thousand pages", () => {
+  const cursor = tripCursorFor(trip, {});
+  const state: Trips.Model = {
+    ...Trips.init(),
+    pageCursors: Array.from({ length: 9_999 }, () => cursor),
+    trips: {
+      loading: false,
+      error: "",
+      data: { rows: [trip], total: 10_001, pageSize: 1, nextCursor: cursor },
+    },
+  };
+  const next = updateTrips(state, TripMessage.NextPage());
+  assert.equal(Trips.tripPageNumber(next.model), 10_001);
+  assert.deepEqual(next.outMessage, { _tag: "Reload" });
 });
 
 test("application opens Genie, dismisses mobile navigation, and requests focus", () => {
   const model = { ...app("/trips"), mobileNavigation: true };
   const changed = update(
     model,
-    AppMessage.OpenGenie({ context: null, question: null }),
+    genieMessage(GenieMessage.OpenGenie({ context: null, question: null })),
   );
   assert.equal(changed.model.genieState.genieOpen, true);
   assert.equal(changed.model.mobileNavigation, false);

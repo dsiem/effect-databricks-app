@@ -5,7 +5,8 @@ import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 import { Credentials } from "effect-sql-databricks";
 import {
   OperationTimeout,
-  type ServiceError,
+  type ServiceUnavailable,
+  type WorkspaceRequestError,
   UpstreamError,
   unavailable,
 } from "./errors.js";
@@ -20,13 +21,13 @@ export class Workspace extends Context.Service<
     readonly authMode: "token" | "oauth" | "cli";
     readonly accessToken: Effect.Effect<
       Redacted.Redacted<string>,
-      ServiceError
+      ServiceUnavailable
     >;
     readonly request: (
       path: string,
       method?: "GET" | "POST",
       body?: unknown,
-    ) => Effect.Effect<unknown, ServiceError>;
+    ) => Effect.Effect<unknown, WorkspaceRequestError>;
   }
 >()("app/Workspace") {
   static readonly layer = Layer.effect(

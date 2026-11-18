@@ -20,8 +20,8 @@ test("wide trip tables scroll within a narrow viewport", async ({ page }) => {
           },
         ],
         total: 1,
-        page: 1,
         pageSize: 25,
+        nextCursor: null,
       },
     }),
   );

@@ -125,29 +125,25 @@ export const make = (
     // Reuse Statement's execution boundary for transformers and client spans.
     // These connections change only the streaming result shape, not row queries
     // that a transformer might execute with the constructor it receives.
-    const arrowSql = Object.assign(
-      Statement.make(
-        Effect.succeed({ ...connection, executeStream: chunks }),
-        compiler,
-        spanAttributes,
-        undefined,
-      ),
-      sparkDialect,
-    );
-    const ipcSql = Object.assign(
-      Statement.make(
-        Effect.succeed({
-          ...connection,
-          executeStream: (text, params) => ipc(text, params),
-        }),
-        compiler,
-        spanAttributes,
-        undefined,
-      ),
-      sparkDialect,
-    );
-    const arrowChunks = (statement: Statement.Statement<unknown>) =>
-      arrowSql<Table>`${statement}`.stream;
+    const streamStatement = <A extends object>(
+      executeStream: (
+        text: string,
+        params: ReadonlyArray<unknown>,
+      ) => Stream.Stream<A, SqlError>,
+    ) => {
+      const sql = Object.assign(
+        Statement.make(
+          Effect.succeed({ ...connection, executeStream }),
+          compiler,
+          spanAttributes,
+          undefined,
+        ),
+        sparkDialect,
+      );
+      return (statement: Statement.Statement<unknown>) =>
+        sql<A>`${statement}`.stream;
+    };
+    const arrowChunks = streamStatement(chunks);
     return Object.assign(client, {
       ...sparkDialect,
       // There are no name or row transforms to remove. Keep the driver's APIs
@@ -163,19 +159,10 @@ export const make = (
       ipcStream: (
         statement: Statement.Statement<unknown>,
         limits?: { readonly maxBytes: number },
-      ) => {
-        if (!limits) return ipcSql<Uint8Array>`${statement}`.stream;
-        const boundedSql = Statement.make(
-          Effect.succeed({
-            ...connection,
-            executeStream: (text, params) => ipc(text, params, limits.maxBytes),
-          }),
-          compiler,
-          spanAttributes,
-          undefined,
-        );
-        return boundedSql<Uint8Array>`${statement}`.stream;
-      },
+      ) =>
+        streamStatement((text, params) => ipc(text, params, limits?.maxBytes))(
+          statement,
+        ),
       withQueryTimeout,
       param: (type: string, value: string | null) =>
         Statement.fragment([

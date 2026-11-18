@@ -122,7 +122,7 @@ export const makeTransport = (options: DatabricksClientConfig) =>
           try: () => parseUrl(url, options.allowDatabricksStorageProxy),
           catch: () => failure("Invalid Arrow download URL", "download"),
         });
-        const response = yield* withTransport(
+        return yield* withTransport(
           Effect.gen(function* () {
             // Fresh request: signed storage URLs never inherit workspace headers.
             const client = HttpClient.withScope(yield* HttpClient.HttpClient);
@@ -161,9 +161,12 @@ export const makeTransport = (options: DatabricksClientConfig) =>
           ),
           options.fetch,
         ).pipe(
-          Effect.mapError(() => failure("Arrow download failed", "download")),
+          Effect.mapError((error) =>
+            error instanceof SqlError
+              ? error
+              : failure("Arrow download failed", "download"),
+          ),
         );
-        return response;
       }).pipe(
         Effect.timeoutOrElse({
           duration: config.request,

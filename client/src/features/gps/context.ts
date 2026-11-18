@@ -1,12 +1,11 @@
 import type { Filters, GenieContext } from "../../../../shared/domain";
-import type { Model } from "./model";
-export function gpsContext(model: Model, filters: Filters = {}): GenieContext {
-  const endpoint = model.endpoint === "pickup" ? "pickups" : "drop-offs";
+import { endpointName, type Model } from "./model";
+export function gpsContext(model: Model, filters: Filters): GenieContext {
   const data = model.activity.data;
   const selected = model.selectedCell;
   return {
     page: "map",
-    title: `GPS ${endpoint}`,
+    title: `GPS ${endpointName(model.endpoint)}`,
     ...(data &&
     !model.activity.loading &&
     !model.activity.error &&
@@ -27,7 +26,7 @@ export function gpsContext(model: Model, filters: Filters = {}): GenieContext {
             shownTrips: data.shownTrips,
             truncated: data.truncated,
             resolution: 10,
-            selectedArea: selected ? selected : null,
+            selectedArea: selected,
             topAreas: data.cells.slice(0, 5),
             geography:
               "Hexagons aggregate actual GPS endpoints at H3 resolution 10. Cell centers are not individual trip locations. Date and ZIP filters apply to pickups.",

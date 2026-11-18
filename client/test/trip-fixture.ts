@@ -1,4 +1,10 @@
-import type { Trip } from "../../shared/domain";
+import { Struct } from "effect";
+import {
+  TripPosition,
+  type Filters,
+  type Trip,
+  type TripCursor,
+} from "../../shared/domain";
 
 export const tripDetails: Trip["details"] = {
   source_file: "test.csv",
@@ -16,3 +22,15 @@ export const tripDetails: Trip["details"] = {
   improvement_surcharge: null,
   total_amount: null,
 };
+
+export function tripCursorFor(
+  trip: Trip,
+  filters: Filters,
+  sort: TripCursor["sort"] = "newest",
+): TripCursor {
+  return {
+    filters,
+    sort,
+    after: Struct.pick(trip, Struct.keys(TripPosition.fields)),
+  };
+}

@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 import { Command } from "foldkit";
-import { ApiError } from "../../../../shared/api";
+import { ApiError, genieResultTimeoutMs } from "../../../../shared/api";
 import { request } from "../../lib/api-client";
 import { failure, result } from "../../lib/command-result";
 import { Message as M, QuestionSnapshot } from "./messages";
@@ -87,7 +87,10 @@ export const RetrieveQuestion = Command.define("RetrieveQuestion", {
     if (!("operation" in turn)) return Effect.succeed(M.ChangedTurn({ turn }));
     const operation = turn.operation;
     return result(
-      request((client) => client.genieResult({ params: operation })),
+      request(
+        (client) => client.genieResult({ params: operation }),
+        genieResultTimeoutMs + 15_000,
+      ),
     ).pipe(
       Effect.map(({ data, error }) =>
         M.ChangedTurn({

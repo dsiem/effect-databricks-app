@@ -38,7 +38,7 @@ function comments(
     },
     commands: [
       TripsCommands.LoadComments({
-        trip: model.selectedTrip,
+        tripId: model.selectedTrip.trip_id,
         generation,
         cursor: more ? (model.comments.data?.nextCursor ?? null) : null,
         more,
@@ -58,7 +58,7 @@ function updateTripsState(
         model: {
           ...model,
           loadGeneration: model.loadGeneration + 1,
-          page: 1,
+          pageCursors: [],
           selectedTrip: null,
         },
       };
@@ -108,15 +108,24 @@ function updateTripsState(
               },
             },
           };
-    case "SetPage":
+    case "NextPage": {
+      const cursor = model.trips.data?.nextCursor;
+      if (!cursor || model.trips.loading) return { model };
       return {
-        model: { ...model, page: message.page },
+        model: { ...model, pageCursors: [...model.pageCursors, cursor] },
+        outMessage: { _tag: "Reload" },
+      };
+    }
+    case "PreviousPage":
+      if (!model.pageCursors.length || model.trips.loading) return { model };
+      return {
+        model: { ...model, pageCursors: model.pageCursors.slice(0, -1) },
         outMessage: { _tag: "Reload" },
       };
     case "SortTrips":
       return {
-        model: { ...model, page: 1 },
-        outMessage: { _tag: "Reload" },
+        model: { ...model, pageCursors: [] },
+        outMessage: { _tag: "SortChanged", sort: message.sort },
       };
     case "InspectTrip":
     case "InspectComments":
@@ -163,71 +172,54 @@ function updateTripsState(
           };
     case "CommentChanged": {
       const id = model.selectedTrip?.trip_id;
-      if (!id) return { model };
-      const draft = model.commentDrafts[id];
-      if (!draft || (draft.id && model.posting?.id === draft.id))
-        return {
-          model: {
-            ...model,
-            commentDrafts: {
-              ...model.commentDrafts,
-              [id]: { id: "", body: message.body },
-            },
-          },
-          commands: [
-            TripsCommands.CommentDraft({ tripId: id, body: message.body }),
-          ],
-        };
+      if (!id || model.commentDrafts[id]?.body === message.body)
+        return { model };
       return {
         model: {
           ...model,
           commentDrafts: {
             ...model.commentDrafts,
-            [id]: { ...draft, body: message.body },
+            [id]: { state: "editing", body: message.body },
           },
           postError: "",
           posted: "",
         },
       };
     }
-    case "CreatedCommentDraft": {
-      const existing = model.commentDrafts[message.tripId];
-      return {
-        model: {
-          ...model,
-          commentDrafts: {
-            ...model.commentDrafts,
-            [message.tripId]: {
-              id: message.draft.id,
-              body: existing?.body ?? message.draft.body,
-            },
-          },
-        },
-      };
-    }
     case "PostComment": {
       const trip = model.selectedTrip;
       const draft = trip && model.commentDrafts[trip.trip_id];
-      if (!trip || !draft?.id || !draft.body.trim() || model.posting)
-        return { model };
-      const input = { ...draft, trip };
+      if (!trip || !draft?.body.trim() || model.postingTripId) return { model };
       return {
-        model: { ...model, posting: input, postError: "", posted: "" },
-        commands: [TripsCommands.PostComment({ input })],
+        model: {
+          ...model,
+          postingTripId: trip.trip_id,
+          commentDrafts: {
+            ...model.commentDrafts,
+            [trip.trip_id]: { state: "posting", body: draft.body },
+          },
+          postError: "",
+          posted: "",
+        },
+        commands: [
+          TripsCommands.PostComment({
+            trip: draft.state === "retry" ? draft.trip : trip,
+            body: draft.body,
+            retryId: draft.state === "retry" ? draft.id : null,
+          }),
+        ],
       };
     }
     case "PostedComment": {
       const key = message.input.trip.trip_id;
       const drafts = { ...model.commentDrafts };
-      if (
-        !message.error &&
-        drafts[key]?.id === message.input.id &&
-        drafts[key]?.body === message.input.body
-      )
-        delete drafts[key];
+      if (drafts[key]?.state === "posting") {
+        if (message.error) drafts[key] = { state: "retry", ...message.input };
+        else delete drafts[key];
+      }
       const next = {
         ...model,
-        posting: null,
+        postingTripId: null,
         commentDrafts: drafts,
         posted: message.error ? "" : key,
         postError: model.selectedTrip?.trip_id === key ? message.error : "",
@@ -246,6 +238,7 @@ function updateTripsState(
 
 export type Out =
   | { readonly _tag: "Reload" }
+  | { readonly _tag: "SortChanged"; readonly sort: typeof Sort.Type }
   | { readonly _tag: "SelectionInvalidated" };
 
 export function reloadTrips(
@@ -259,7 +252,7 @@ export function reloadTrips(
       TripsCommands.LoadTrips({
         generation,
         filters,
-        page: model.page,
+        cursor: model.pageCursors.at(-1) ?? null,
         sort,
       }),
     ],

@@ -182,8 +182,8 @@ test(
           [
             analytics.overview({}),
             analytics.overview({ zip: "10001" }),
-            analytics.trips({ page: 1 }),
-            analytics.trips({ page: 2 }),
+            analytics.trips({ sort: "newest" }),
+            analytics.trips({ sort: "fare" }),
             analytics.tripMap({}),
             analytics.metadata,
           ],
@@ -242,14 +242,14 @@ test(
           .overview({ zip: "10001" })
           .pipe(Effect.forkChild);
         const trips = yield* analytics
-          .trips({ page: 2 })
+          .trips({ sort: "fare" })
           .pipe(Effect.forkChild);
         yield* TestClock.adjust("1 millis");
         yield* Fiber.interrupt(overview);
         yield* Fiber.interrupt(trips);
         release();
         yield* Fiber.join(running);
-        yield* analytics.trips({ page: 3 });
+        yield* analytics.trips({ sort: "distance" });
         assert.equal(
           statements,
           3,

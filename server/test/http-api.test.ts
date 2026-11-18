@@ -9,7 +9,12 @@ import {
 } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
 import { ApiError, AppApi } from "../../shared/api.js";
-import type { SavedView, SavedViewInput } from "../../shared/domain.js";
+import {
+  tripPageSize,
+  type SavedView,
+  type SavedViewInput,
+  type TripCursor,
+} from "../../shared/domain.js";
 import { Analytics } from "../src/analytics.js";
 import { Genie } from "../src/genie.js";
 import { Lakebase } from "../src/lakebase.js";
@@ -28,6 +33,19 @@ const savedView: SavedViewInput = {
   version: null,
 };
 const metadata = { from: "2016-01-01", to: "2016-12-31", trips: 10 };
+const tripCursor = {
+  sort: "fare",
+  filters: { from: "2016-01-01", to: "2016-02-01", zip: "10001" },
+  after: {
+    trip_id: "last-trip",
+    pickup_at: "2016-01-20 10:00:00.123456",
+    dropoff_at: "2016-01-20 10:10:00.987654",
+    pickup_zip: "10001",
+    dropoff_zip: "Unknown",
+    fare: 10,
+    distance: 2,
+  },
+} satisfies TripCursor;
 const overview = {
   summary: {
     trips: 10,
@@ -80,8 +98,8 @@ const fixture = () => {
               record("trips", input, {
                 rows: [],
                 total: 10,
-                page: input.page ?? 1,
-                pageSize: 50,
+                pageSize: tripPageSize,
+                nextCursor: input.cursor ? null : tripCursor,
               }),
           }),
           Layer.succeed(Genie, {
@@ -185,7 +203,7 @@ const fixture = () => {
 test("generated client round-trips every endpoint through the real HTTP contract", async (t) => {
   const { app, client, calls } = fixture();
   t.after(app.dispose);
-  const filters = { from: "2016-01-01", to: "2016-02-01", zip: "10001" };
+  const { filters, sort } = tripCursor;
   await Effect.runPromise(
     Effect.gen(function* () {
       assert.deepEqual(yield* client.health(), { status: "ok" });
@@ -210,13 +228,18 @@ test("generated client round-trips every endpoint through the real HTTP contract
         })).matchingTrips,
         10,
       );
+      const first = yield* client.trips({ query: { ...filters, sort } });
+      assert.deepEqual(first.nextCursor, tripCursor);
+      assert.ok(first.nextCursor);
       assert.deepEqual(
-        yield* client.trips({ query: { ...filters, page: 2, sort: "fare" } }),
+        yield* client.trips({
+          query: { ...filters, sort, cursor: first.nextCursor },
+        }),
         {
           rows: [],
           total: 10,
-          page: 2,
-          pageSize: 50,
+          pageSize: tripPageSize,
+          nextCursor: null,
         },
       );
       assert.deepEqual(
@@ -277,7 +300,8 @@ test("generated client round-trips every endpoint through the real HTTP contract
   assert.deepEqual(calls, [
     ["overview", filters],
     ["gps", { ...filters, endpoint: "dropoff" }],
-    ["trips", { ...filters, page: 2, sort: "fare" }],
+    ["trips", { ...filters, sort }],
+    ["trips", { ...filters, cursor: tripCursor, sort }],
     ["tripCommentCounts", { tripIds: ["trip-1", "trip-2"] }],
     ["submit", { content: "Count trips", conversationId: "previous-1" }],
     ["poll", operation],
@@ -325,6 +349,15 @@ test("invalid query, path and JSON inputs never reach services", async (t) => {
     ),
     ["/api/overview?from=2016-02-31", undefined],
     ["/api/trips?page=0", undefined],
+    ["/api/trips?page=2", undefined],
+    ["/api/trips?cursor=not-json", undefined],
+    ...[{ sort: "newest" }, { sort: tripCursor.sort, zip: "10002" }].map(
+      (overrides) =>
+        [
+          `/api/trips?${new URLSearchParams({ ...tripCursor.filters, ...overrides, cursor: JSON.stringify(tripCursor) }).toString()}`,
+          undefined,
+        ] as const,
+    ),
     ["/api/trips?sort=unsafe", undefined],
     ["/api/trip-comment-counts?tripIds=not-json", undefined],
     ...[[], [""], Array(26).fill("trip-1")].map(
@@ -567,9 +600,16 @@ for (const { status, error } of [
         ),
       ),
     ).app;
-    const failure = await Effect.runPromise(
-      Effect.flip(client.submitGenie({ payload: { content: "Count trips" } })),
-    );
+    const failure =
+      error.code === "saved_view_conflict"
+        ? await Effect.runPromise(
+            Effect.flip(client.saveSavedView({ payload: savedView })),
+          )
+        : await Effect.runPromise(
+            Effect.flip(
+              client.submitGenie({ payload: { content: "Count trips" } }),
+            ),
+          );
     assert.ok(Schema.is(ApiError)(failure));
     assert.equal(failure.error.code, error.code);
     assert.equal(failure.error.message, error.message);
@@ -662,10 +702,24 @@ test("trip comment contract round-trips snapshots and attributes the request vie
   };
   const cursor = { id: savedView.id, createdAt: "2026-11-14T10:00:00.123456Z" };
   assert.deepEqual(
-    await Effect.runPromise(client.tripComments({ query: { trip, cursor } })),
+    await Effect.runPromise(
+      client.tripComments({ query: { tripId: trip.trip_id, cursor } }),
+    ),
     { rows: [], nextCursor: null },
   );
-  assert.deepEqual(calls.at(-1), ["tripComments", { trip, cursor }]);
+  assert.deepEqual(calls.at(-1), [
+    "tripComments",
+    { tripId: trip.trip_id, cursor },
+  ]);
+  const legacy = new URLSearchParams({
+    trip: JSON.stringify(trip),
+    cursor: JSON.stringify(cursor),
+  });
+  const oldClient = await app.handler(
+    new Request(`http://localhost/api/trip-comments?${legacy.toString()}`),
+  );
+  assert.equal(oldClient.status, 400);
+  assert.equal(calls.filter(([name]) => name === "tripComments").length, 1);
   const input = { id: savedView.id, trip, body: "Check the fare" };
   const response = await app.handler(
     new Request("http://localhost/api/trip-comments", {

@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { Schema } from "effect";
+import { TripSearch, type TripCursor } from "../../../shared/domain";
+import { tripCursorFor } from "../trip-fixture";
 
 const overview = {
   summary: {
@@ -52,16 +55,28 @@ test("overview charts, navigation, paging, and browser history work through the 
   await page.route("**/api/overview**", (route) =>
     route.fulfill({ json: overview }),
   );
-  await page.route("**/api/trips**", (route) =>
-    route.fulfill({
-      json: {
-        rows: [trip],
-        total: 50,
-        page: Number(new URL(route.request().url()).searchParams.get("page")),
-        pageSize: 25,
-      },
-    }),
-  );
+  const filters = { zip: "10001" };
+  const middle = { ...trip, trip_id: "middle", fare: 18 };
+  const last = { ...trip, trip_id: "last", fare: 24 };
+  const firstCursor = tripCursorFor(trip, filters);
+  const secondCursor = tripCursorFor(middle, filters);
+  const byPreviousTrip = new Map([
+    ["", { rows: [trip], nextCursor: firstCursor }],
+    [trip.trip_id, { rows: [middle], nextCursor: secondCursor }],
+    [middle.trip_id, { rows: [last], nextCursor: null }],
+  ]);
+  const requested: Array<TripCursor | null> = [];
+  await page.route("**/api/trips**", (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    expect(params.has("page")).toBe(false);
+    const { cursor } = Schema.decodeUnknownSync(TripSearch)(
+      Object.fromEntries(params),
+    );
+    requested.push(cursor ?? null);
+    const result = byPreviousTrip.get(cursor?.after.trip_id ?? "");
+    if (!result) throw new Error("Unexpected trip cursor");
+    return route.fulfill({ json: { ...result, total: 3, pageSize: 1 } });
+  });
   await page.goto("/?zip=10001");
   await expect(page.getByText("$600", { exact: true }).first()).toBeVisible();
   await expect(
@@ -96,9 +111,37 @@ test("overview charts, navigation, paging, and browser history work through the 
     animations: "disabled",
   });
   await expect(page.getByRole("button", { name: /Export/ })).toHaveCount(0);
-  await page.getByRole("button", { name: "Next page" }).click();
+  const previous = page.getByRole("button", { name: "Previous page" });
+  const next = page.getByRole("button", { name: "Next page" });
+  await expect(previous).toBeDisabled();
+  await next.click();
   await expect(page.getByText("Page 2", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Next page" })).toBeDisabled();
+  await expect(
+    page.getByRole("cell", { name: "$18.00", exact: true }),
+  ).toBeVisible();
+  await next.click();
+  await expect(page.getByText("Page 3", { exact: true })).toBeVisible();
+  await expect(page.getByText("3–3 of 3", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "$24.00", exact: true }),
+  ).toBeVisible();
+  await expect(next).toBeDisabled();
+  await previous.click();
+  await expect(
+    page.getByRole("cell", { name: "$18.00", exact: true }),
+  ).toBeVisible();
+  await previous.click();
+  await expect(
+    page.getByRole("cell", { name: "$12.00", exact: true }),
+  ).toBeVisible();
+  await expect(previous).toBeDisabled();
+  expect(requested).toEqual([
+    null,
+    firstCursor,
+    secondCursor,
+    firstCursor,
+    null,
+  ]);
   await page.getByRole("link", { name: "Overview", exact: true }).click();
   await page.goBack();
   await expect(page).toHaveURL("/trips?zip=10001");
@@ -125,8 +168,8 @@ test("late trip responses cannot overwrite a newer filter selection", async ({
       json: {
         rows: [{ ...trip, pickup_zip: zip }],
         total: 1,
-        page: 1,
         pageSize: 25,
+        nextCursor: null,
       },
     });
   });
@@ -319,12 +362,15 @@ test("trip sorting exposes a native dropdown and applies every choice from page 
   await page.route("**/api/trips**", (route) => {
     const query = new URL(route.request().url()).searchParams;
     searches.push(query);
+    const { cursor, sort } = Schema.decodeUnknownSync(TripSearch)(
+      Object.fromEntries(query),
+    );
     return route.fulfill({
       json: {
         rows: [trip],
-        total: 50,
-        page: Number(query.get("page")),
-        pageSize: 25,
+        total: 2,
+        pageSize: 1,
+        nextCursor: cursor ? null : tripCursorFor(trip, { zip: "10001" }, sort),
       },
     });
   });
@@ -346,7 +392,7 @@ test("trip sorting exposes a native dropdown and applies every choice from page 
     await expect(sort).toHaveValue(value);
     await expect(page.getByText("Page 1", { exact: true })).toBeVisible();
     await expect.poll(() => searches.at(-1)?.get("sort")).toBe(value);
-    expect(searches.at(-1)?.get("page")).toBe("1");
+    expect(searches.at(-1)?.has("cursor")).toBe(false);
     expect(searches.at(-1)?.get("zip")).toBe("10001");
   }
   await sort.focus();
@@ -364,7 +410,9 @@ test("trip inspector shows recorded endpoints, payment and the full charge", asy
   page,
 }) => {
   await page.route("**/api/trips**", (route) =>
-    route.fulfill({ json: { rows: [trip], total: 1, page: 1, pageSize: 25 } }),
+    route.fulfill({
+      json: { rows: [trip], total: 1, pageSize: 25, nextCursor: null },
+    }),
   );
   await page.route("**/api/trip-comments**", (route) =>
     route.fulfill({ json: { rows: [], nextCursor: null } }),

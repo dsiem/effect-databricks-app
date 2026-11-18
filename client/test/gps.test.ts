@@ -3,8 +3,9 @@ import { test } from "node:test";
 import { Option } from "effect";
 import { Url } from "foldkit";
 import { pageContext } from "../src/app/analysis-context";
-import { gpsMessage, Message as AppMessage } from "../src/app/message";
+import { gpsMessage, genieMessage } from "../src/app/message";
 import { init, update } from "../src/app/update";
+import { Message as GenieMessage } from "../src/features/genie/messages";
 import { gpsContext } from "../src/features/gps/context";
 import { jsonMap } from "../src/features/gps/dataset";
 import { Message as M } from "../src/features/gps/messages";
@@ -69,8 +70,9 @@ test("selection and Genie use the same GPS endpoint, counts and area without cop
     query: "",
     filters: {},
   }).model;
-  const context = gpsContext(selected);
+  const context = gpsContext(selected, { zip: "10001" });
   const data = JSON.parse(context.data ?? "{}");
+  assert.deepEqual(data.query.filters, { zip: "10001" });
   assert.equal(data.endpoint, "dropoff");
   assert.equal(data.resolution, 10);
   assert.equal(data.locatedTrips, 80);
@@ -118,7 +120,7 @@ test("an old map reply keeps pinned Genie context until the map scope changes", 
   const context = { page: "map" as const, title: "Pinned map context" };
   const pinned = update(
     loaded,
-    AppMessage.OpenGenie({ question: null, context }),
+    genieMessage(GenieMessage.OpenGenie({ question: null, context })),
   ).model;
   const stale = update(
     pinned,

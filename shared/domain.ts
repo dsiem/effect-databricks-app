@@ -32,18 +32,6 @@ export const GpsSearch = Schema.Struct({
 }).check(dateOrder);
 export const TripSort = Schema.Literals(["newest", "fare", "distance"]);
 export const Id = Schema.String.check(Schema.isUUID(4));
-export const TripSearch = Schema.Struct({
-  ...Filters.fields,
-  page: Schema.optionalKey(
-    Schema.NumberFromString.check(
-      Schema.isInt(),
-      Schema.isBetween({ minimum: 1, maximum: 10000 }),
-    ),
-  ),
-  sort: Schema.optionalKey(TripSort),
-}).check(dateOrder);
-export type TripSearch = typeof TripSearch.Type;
-
 export const Summary = Schema.Struct({
   trips: Schema.Number,
   revenue: Schema.Number,
@@ -151,11 +139,52 @@ export const Trip = Schema.Struct({
   details: TripDetails,
 });
 export type Trip = typeof Trip.Type;
+const isDay = Schema.is(Day);
+const cursorTimestamp = TripSnapshot.fields.pickup_at.check(
+  Schema.isPattern(
+    /^\d{4}-\d{2}-\d{2} (?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,6})?$/,
+  ),
+  Schema.makeFilter((value) => isDay(value.slice(0, 10))),
+);
+export const TripPosition = Schema.Struct({
+  trip_id: TripSnapshot.fields.trip_id,
+  pickup_at: cursorTimestamp,
+  dropoff_at: cursorTimestamp,
+  pickup_zip: TripSnapshot.fields.pickup_zip,
+  dropoff_zip: TripSnapshot.fields.dropoff_zip,
+  fare: Schema.NullOr(Schema.Finite),
+  distance: Schema.NullOr(Schema.Finite),
+});
+export type TripPosition = typeof TripPosition.Type;
+export const TripCursor = Schema.Struct({
+  filters: Filters,
+  sort: TripSort,
+  after: TripPosition,
+});
+export type TripCursor = typeof TripCursor.Type;
+export const TripSearch = Schema.Struct({
+  ...Filters.fields,
+  sort: Schema.optionalKey(TripSort),
+  cursor: Schema.optionalKey(Schema.fromJsonString(TripCursor)),
+}).check(
+  dateOrder,
+  Schema.makeFilter(
+    ({ cursor, sort, from, to, zip }) =>
+      !cursor ||
+      (cursor.sort === (sort ?? "newest") &&
+        cursor.filters.from === from &&
+        cursor.filters.to === to &&
+        cursor.filters.zip === zip) ||
+      "The trip cursor must match the filters and sort order.",
+  ),
+);
+export type TripSearch = typeof TripSearch.Type;
+export const tripPageSize = 25;
 export const Trips = Schema.Struct({
   rows: Schema.Array(Trip),
   total: Schema.Number,
-  page: Schema.Number,
   pageSize: Schema.Number,
+  nextCursor: Schema.NullOr(TripCursor),
 });
 export const SavedViewVersion = Schema.Int.check(Schema.isGreaterThan(0));
 export const SavedViewInput = Schema.Struct({
@@ -208,11 +237,12 @@ export const SavedViewsPage = Schema.Struct({
 });
 export type SavedViewsPage = typeof SavedViewsPage.Type;
 const GenieId = Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9-]{1,100}$/));
+export const genieContextDataLimit = 24_000;
 export const GenieContext = Schema.Struct({
   page: Schema.Literals(["overview", "trips", "map", "saved-views", "genie"]),
   title: boundedText(160),
   // A bounded snapshot of the displayed aggregates or visible records.
-  data: Schema.optionalKey(boundedText(24000)),
+  data: Schema.optionalKey(boundedText(genieContextDataLimit)),
 });
 export type GenieContext = typeof GenieContext.Type;
 export const GenieInput = Schema.Struct({
@@ -294,7 +324,7 @@ export const TripCommentCursor = Schema.Struct({
 });
 export type TripCommentCursor = typeof TripCommentCursor.Type;
 export const TripCommentSearch = Schema.Struct({
-  trip: Schema.fromJsonString(TripSnapshot),
+  tripId: TripSnapshot.fields.trip_id,
   cursor: Schema.optionalKey(Schema.fromJsonString(TripCommentCursor)),
 });
 export type TripCommentSearch = typeof TripCommentSearch.Type;

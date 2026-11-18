@@ -1,419 +1,196 @@
 import { Dialog, Textarea } from "@foldkit/ui";
 import { Option } from "effect";
 import { defineView } from "foldkit/submodel";
-import { Lexer } from "marked";
-import type { GenieReply } from "../../../../shared/domain";
 import { filterSummary } from "../../domain/filter-summary";
 import { dialog } from "../../ui/dialog";
 import { icon } from "../../ui/icons";
-import { alert, button, type Child, table } from "../../ui/primitives";
+import { alert, button, type Child } from "../../ui/primitives";
 import { PanelReturnFocus } from "./focus";
-import { markdown } from "./markdown-view";
+import { history } from "./history-view";
 import { busy } from "./model";
 import type { H } from "./view-messages";
 import { Message as M } from "./view-messages";
 import type { ViewModel as Model } from "./view-model";
 
-const questions = {
-  overview: [
-    "Explain the main patterns in this view.",
-    "Compare weekday and weekend trip activity.",
-    "Which pickup hours have the highest average fare?",
-  ],
-  trips: [
-    "Summarize the visible trips and point out unusual fares or distances.",
-    "Find unusually high fares in the filtered dataset.",
-    "Compare average fare by trip distance.",
-  ],
-  map: [
-    "Explain the spatial pattern in this view.",
-    "Compare the busiest areas shown here.",
-    "Which areas have the highest average fare?",
-  ],
-  "saved-views": [
-    "Summarize trip activity for the current filters.",
-    "Compare weekday and weekend fares.",
-  ],
-  genie: [
-    "Which pickup ZIP codes have the most trips?",
-    "How does the average fare change by hour of day?",
-    "Show total trips and fare revenue by month.",
-  ],
-};
-function answer(h: H, model: Model, reply: GenieReply): Child[] {
-  return [
-    h.div(
-      [h.Class("markdown")],
-      markdown(h, Lexer.lex(reply.text || "Query results")),
-    ),
-    ...reply.queries.map((result) =>
+function header(h: H, model: Model, floating: boolean, working: boolean) {
+  return h.div(
+    [h.Class("genie-header")],
+    [
       h.div(
-        [h.Class("query-result")],
+        [h.Class("flex items-center gap-3")],
         [
-          h.p(
-            [h.Class("text-xs font-medium px-3 py-2 border-b bg-gray-100/50")],
-            [result.description],
-          ),
+          h.span([h.Class("icon-tile")], [icon(h, "sparkles")]),
           h.div(
-            [h.Class("max-h-72 overflow-auto")],
+            [],
             [
-              table(h, {
-                caption: result.description || "Genie query result",
-                headers: result.columns,
-                rows: result.rows.map((row, index) => ({
-                  key: String(index),
-                  cells: row.map((cell) => cell ?? "—"),
-                })),
-              }),
-            ],
-          ),
-          ...(result.truncated
-            ? [
-                h.p(
-                  [h.Class("border-t px-3 py-2 text-xs muted")],
-                  ["Showing a bounded preview of the query result."],
-                ),
-              ]
-            : []),
-          h.details(
-            [h.Class("border-t p-3")],
-            [
-              h.summary(
-                [h.Class("text-xs font-medium cursor-pointer")],
-                ["View generated SQL"],
-              ),
-              h.pre(
+              h.h2(
                 [
-                  h.Class(
-                    "mt-3 whitespace-pre-wrap break-all text-xs leading-5 muted",
+                  h.Id(
+                    floating && model.mobile
+                      ? Dialog.titleId(model.helperDialog)
+                      : "genie-title",
                   ),
                 ],
-                [result.sql],
+                ["Genie"],
               ),
-              button(h, {
-                label: model.clipboard === "Copied" ? "Copied" : "Copy SQL",
-                onClick: M.CopySql({ sql: result.sql }),
-                className: " mt-2",
-                variant: "ghost",
-              }),
-              ...(model.clipboard && model.clipboard !== "Copied"
-                ? [alert(h, model.clipboard)]
-                : []),
+              h.p([h.Class("muted text-xs")], ["Your data, in context"]),
             ],
           ),
         ],
       ),
-    ),
-  ];
-}
-function genie(h: H, model: Model, floating = false) {
-  const context = model.genieSelection ?? model.context;
-  const { filters } = model;
-  const enabled = !!model.status.data?.genie && !!filters;
-  const working = busy(model);
-  const content: Child[] = [
-    h.div(
-      [h.Class("genie-header")],
-      [
-        h.div(
-          [h.Class("flex items-center gap-3")],
-          [
-            h.span([h.Class("icon-tile")], [icon(h, "sparkles")]),
-            h.div(
-              [],
-              [
-                h.h2(
-                  [
-                    h.Id(
-                      floating && model.mobile
-                        ? Dialog.titleId(model.helperDialog)
-                        : "genie-title",
+      h.div(
+        [h.Class("flex items-center gap-1")],
+        [
+          button(h, {
+            label: icon(h, "plus"),
+            onClick: M.NewConversation(),
+            disabled: working || !model.turns.length,
+            attributes: [h.AriaLabel("New conversation")],
+            variant: "ghost",
+          }),
+          ...(floating
+            ? [
+                button(h, {
+                  label: icon(
+                    h,
+                    model.genieExpanded ? "minimize-2" : "maximize-2",
+                  ),
+                  onClick: M.ExpandGenie(),
+                  attributes: [
+                    h.AriaLabel(
+                      model.genieExpanded ? "Minimize Genie" : "Expand Genie",
                     ),
                   ],
-                  ["Genie"],
-                ),
-                h.p([h.Class("muted text-xs")], ["Your data, in context"]),
-              ],
-            ),
-          ],
-        ),
-        h.div(
-          [h.Class("flex items-center gap-1")],
-          [
-            button(h, {
-              label: icon(h, "plus"),
-              onClick: M.NewConversation(),
-              disabled: working || !model.turns.length,
-              attributes: [h.AriaLabel("New conversation")],
-              variant: "ghost",
-            }),
-            ...(floating
-              ? [
-                  button(h, {
-                    label: icon(
-                      h,
-                      model.genieExpanded ? "minimize-2" : "maximize-2",
-                    ),
-                    onClick: M.ExpandGenie(),
-                    attributes: [
-                      h.AriaLabel(
-                        model.genieExpanded ? "Minimize Genie" : "Expand Genie",
-                      ),
-                    ],
-                    className: " hidden md:inline-flex",
-                    variant: "ghost",
-                  }),
-                  button(h, {
-                    label: icon(h, "x"),
-                    onClick: M.CloseGenie(),
-                    attributes: [h.AriaLabel("Close Genie")],
-                    variant: "ghost",
-                  }),
-                ]
-              : []),
-          ],
-        ),
-      ],
-    ),
-    h.section(
-      [
-        h.AriaLabel("Explore view for your next question"),
-        h.Class("genie-context"),
-      ],
-      [
-        h.div(
-          [h.Class("flex items-center justify-between gap-2 mb-2")],
-          [
-            h.div(
-              [],
-              [
-                h.p(
-                  [h.Class("muted text-[10px] uppercase tracking-widest mb-1")],
-                  ["Looking at"],
-                ),
-                h.h3([h.Class("text-sm font-medium")], [context.title]),
-              ],
-            ),
-            ...(model.genieSelection
-              ? [
-                  button(h, {
-                    label: icon(h, "x"),
-                    onClick: M.ClearSelection(),
-                    attributes: [h.AriaLabel("Use whole page")],
-                    variant: "ghost",
-                  }),
-                ]
-              : []),
-          ],
-        ),
-        ...(filters
-          ? [filterSummary(h, filters)]
-          : [alert(h, "Correct the page filters before asking Genie.")]),
-        h.p(
-          [h.Class("muted text-[11px] leading-4 mt-2")],
-          [
-            `${context.data ? "Displayed data and applied filters included." : "Applied filters included."} Earlier answers keep their original view.`,
-          ],
-        ),
-      ],
-    ),
-    h.div(
-      [h.Class("genie-messages")],
-      [
-        ...(model.persistenceError ? [alert(h, model.persistenceError)] : []),
-        ...(model.status.loading
-          ? [h.p([h.Class("muted text-sm")], ["Connecting to Genie…"])]
-          : model.status.error
-            ? [alert(h, `Unable to connect to Genie. ${model.status.error}`)]
-            : !model.status.data?.genie
-              ? [
-                  h.div(
-                    [h.Class("py-5")],
-                    [
-                      h.h3([], ["Connect Genie to explore further"]),
-                      h.p(
-                        [h.Class("muted text-sm leading-6 mt-2")],
-                        [
-                          "Configure a Databricks Genie space for this workspace to ask questions about your taxi data.",
-                        ],
-                      ),
-                    ],
+                  className: " hidden md:inline-flex",
+                  variant: "ghost",
+                }),
+                button(h, {
+                  label: icon(h, "x"),
+                  onClick: M.CloseGenie(),
+                  attributes: [h.AriaLabel("Close Genie")],
+                  variant: "ghost",
+                }),
+              ]
+            : []),
+        ],
+      ),
+    ],
+  );
+}
+
+function scope(h: H, model: Model, context: Model["context"]) {
+  return h.section(
+    [
+      h.AriaLabel("Explore view for your next question"),
+      h.Class("genie-context"),
+    ],
+    [
+      h.div(
+        [h.Class("flex items-center justify-between gap-2 mb-2")],
+        [
+          h.div(
+            [],
+            [
+              h.p(
+                [h.Class("muted text-[10px] uppercase tracking-widest mb-1")],
+                ["Looking at"],
+              ),
+              h.h3([h.Class("text-sm font-medium")], [context.title]),
+            ],
+          ),
+          ...(model.genieSelection
+            ? [
+                button(h, {
+                  label: icon(h, "x"),
+                  onClick: M.ClearSelection(),
+                  attributes: [h.AriaLabel("Use whole page")],
+                  variant: "ghost",
+                }),
+              ]
+            : []),
+        ],
+      ),
+      ...(model.filters
+        ? [filterSummary(h, model.filters)]
+        : [alert(h, "Correct the page filters before asking Genie.")]),
+      h.p(
+        [h.Class("muted text-[11px] leading-4 mt-2")],
+        [
+          `${context.data ? "Displayed data and applied filters included." : "Applied filters included."} Earlier answers keep their original view.`,
+        ],
+      ),
+    ],
+  );
+}
+
+function composer(h: H, draft: string, enabled: boolean, working: boolean) {
+  return h.div(
+    [h.Class("genie-composer")],
+    [
+      h.form(
+        [h.OnSubmit(M.SendQuestion({ question: draft }))],
+        [
+          Textarea.view(
+            {
+              id: "genie-composer",
+              placeholder: "Ask about this view…",
+              value: draft,
+              isDisabled: !enabled,
+              onInput: (value) => M.GenieDraft({ value }),
+              toView: (attributes) =>
+                h.textarea([
+                  ...attributes.textarea,
+                  h.AriaLabel("Ask a question about taxi data"),
+                  h.Maxlength(3500),
+                  h.OnKeyDownPreventDefault((key, modifiers) =>
+                    key === "Enter" && !modifiers.shiftKey
+                      ? Option.some(M.SendQuestion({ question: draft }))
+                      : Option.none(),
                   ),
-                ]
-              : []),
-        ...(!model.turns.length && enabled
-          ? [
-              h.div(
-                [h.Class("genie-welcome")],
+                ]),
+            },
+            h,
+          ),
+          h.div(
+            [h.Class("flex items-center justify-between gap-2 mt-2")],
+            [
+              h.span(
+                [h.Class("muted text-[11px]")],
                 [
-                  h.h3(
-                    [h.Class("text-lg font-semibold")],
-                    ["Go deeper into this view"],
-                  ),
-                  h.p(
-                    [h.Class("muted text-sm leading-6 mt-2 mb-5")],
-                    [
-                      "Explain what you’re seeing or ask Genie to run another analysis.",
-                    ],
-                  ),
-                  h.div(
-                    [h.Class("space-y-2 mb-5")],
-                    questions[context.page].map((question) =>
-                      button(h, {
-                        label: h.span(
-                          [
-                            h.Class(
-                              "flex w-full items-center justify-between gap-3",
-                            ),
-                          ],
-                          [h.span([], [question]), icon(h, "arrow-up-right")],
-                        ),
-                        onClick: M.SendQuestion({ question }),
-                        className: " suggestion",
-                      }),
-                    ),
-                  ),
+                  working
+                    ? "Working on your question…"
+                    : "Enter to send · Shift + Enter for a new line",
                 ],
               ),
-            ]
-          : []),
-        h.div(
-          [h.AriaLive("polite"), h.Class("space-y-6")],
-          model.turns.map((turn) =>
-            h.div(
-              [h.Key(turn.id)],
-              [
-                h.div(
-                  [h.Class("question-bubble")],
-                  [
-                    h.p([], [turn.question]),
-                    ...(turn.context && turn.filters
-                      ? [
-                          h.details(
-                            [h.Class("text-xs muted mt-2")],
-                            [
-                              h.summary(
-                                [h.Class("cursor-pointer")],
-                                [`${turn.context.title} · View context`],
-                              ),
-                              h.div(
-                                [h.Class("mt-2")],
-                                [filterSummary(h, turn.filters)],
-                              ),
-                            ],
-                          ),
-                        ]
-                      : []),
-                  ],
-                ),
-                h.p(
-                  [
-                    h.Class(
-                      "text-xs font-semibold mb-2 flex items-center gap-2",
-                    ),
-                  ],
-                  [icon(h, "sparkles"), "Genie"],
-                ),
-                ...(turn.state === "complete"
-                  ? answer(h, model, turn.reply)
-                  : "error" in turn
-                    ? [
-                        alert(h, turn.error),
-                        ...(turn.state === "submission-rejected"
-                          ? [
-                              button(h, {
-                                label: "Edit question",
-                                onClick: M.EditQuestion({
-                                  question: turn.question,
-                                }),
-                                disabled: working,
-                                className: " mt-3",
-                              }),
-                            ]
-                          : turn.state === "paused"
-                            ? [
-                                button(h, {
-                                  label:
-                                    turn.stage === "retrieving"
-                                      ? "Retry result download"
-                                      : "Resume answer",
-                                  onClick: M.ResumeTurn({ id: turn.id }),
-                                  disabled: working,
-                                  className: " mt-3",
-                                }),
-                              ]
-                            : []),
-                      ]
-                    : [
-                        h.p(
-                          [h.Class("muted text-sm py-2")],
-                          ["Processing query…"],
-                        ),
-                      ]),
-              ],
-            ),
+              button(h, {
+                type: "submit",
+                variant: "primary",
+                size: "icon",
+                disabled: !enabled || working || !draft.trim(),
+                label: icon(h, "arrow-up"),
+                attributes: [h.AriaLabel("Send question")],
+              }),
+            ],
           ),
-        ),
-      ],
-    ),
-    h.div(
-      [h.Class("genie-composer")],
-      [
-        h.form(
-          [h.OnSubmit(M.SendQuestion({ question: model.genieDraft }))],
-          [
-            Textarea.view(
-              {
-                id: "genie-composer",
-                placeholder: "Ask about this view…",
-                value: model.genieDraft,
-                isDisabled: !enabled,
-                onInput: (value) => M.GenieDraft({ value }),
-                toView: (attributes) =>
-                  h.textarea([
-                    ...attributes.textarea,
-                    h.AriaLabel("Ask a question about taxi data"),
-                    h.Maxlength(3500),
-                    h.OnKeyDownPreventDefault((key, modifiers) =>
-                      key === "Enter" && !modifiers.shiftKey
-                        ? Option.some(
-                            M.SendQuestion({ question: model.genieDraft }),
-                          )
-                        : Option.none(),
-                    ),
-                  ]),
-              },
-              h,
-            ),
-            h.div(
-              [h.Class("flex items-center justify-between gap-2 mt-2")],
-              [
-                h.span(
-                  [h.Class("muted text-[11px]")],
-                  [
-                    working
-                      ? "Working on your question…"
-                      : "Enter to send · Shift + Enter for a new line",
-                  ],
-                ),
-                button(h, {
-                  type: "submit",
-                  variant: "primary",
-                  size: "icon",
-                  disabled: !enabled || working || !model.genieDraft.trim(),
-                  label: icon(h, "arrow-up"),
-                  attributes: [h.AriaLabel("Send question")],
-                }),
-              ],
-            ),
-          ],
-        ),
-        h.p(
-          [h.Class("muted text-[10px] text-center mt-2")],
-          ["Genie can make mistakes. Check the SQL and results."],
-        ),
-      ],
-    ),
+        ],
+      ),
+      h.p(
+        [h.Class("muted text-[10px] text-center mt-2")],
+        ["Genie can make mistakes. Check the SQL and results."],
+      ),
+    ],
+  );
+}
+
+function genie(h: H, model: Model, floating = false) {
+  const context = model.genieSelection ?? model.context;
+  const enabled = !!model.status.data?.genie && !!model.filters;
+  const working = busy(model);
+  const content: Child[] = [
+    header(h, model, floating, working),
+    scope(h, model, context),
+    history(h, model, context.page, enabled, working),
+    composer(h, model.genieDraft, enabled, working),
   ];
   if (!floating) return h.div([h.Class("genie-full")], content);
   const classes = `genie-panel ${model.genieExpanded ? "expanded" : ""}`;

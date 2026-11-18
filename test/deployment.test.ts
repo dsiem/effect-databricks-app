@@ -17,6 +17,7 @@ for (const failure of [
   "warehouse",
   "trips",
   "details",
+  "trip cursor",
   "gps",
   "create",
   "list",
@@ -49,27 +50,44 @@ for (const failure of [
           : reply({ trips: 10 });
       if (url.pathname === "/api/overview")
         return reply({ summary: { trips: 10 } });
-      if (url.pathname === "/api/trips")
-        return failure === "trips"
-          ? reply({ error: { message: "Trips unavailable" } }, 503)
-          : reply({
-              total: 10,
-              rows: [
-                {
-                  details:
-                    failure === "details"
-                      ? undefined
-                      : {
-                          source_file: "yellow_tripdata_2016-01.csv.gz",
-                          total_amount: 10,
-                          pickup_location: {
-                            longitude: -73.99,
-                            latitude: 40.75,
-                          },
-                        },
-                },
-              ],
-            });
+      if (url.pathname === "/api/trips") {
+        if (failure === "trips")
+          return reply({ error: { message: "Trips unavailable" } }, 503);
+        if (url.searchParams.has("page"))
+          return reply({ error: "Unsupported page parameter" }, 400);
+        const next = url.searchParams.get("cursor");
+        const tripCursor = {
+          sort: "newest",
+          filters: {},
+          after: {
+            trip_id: "trip-5",
+            pickup_at: "2016-01-01 10:00:00",
+            dropoff_at: "2016-01-01 10:10:00",
+            pickup_zip: "10001",
+            dropoff_zip: "Unknown",
+            fare: 10,
+            distance: 2,
+          },
+        };
+        if (next !== null && next !== JSON.stringify(tripCursor))
+          return reply({ error: "Invalid cursor" }, 400);
+        return reply({
+          total: 10,
+          pageSize: 5,
+          nextCursor: next === null ? tripCursor : null,
+          rows: Array.from({ length: 5 }, (_, i) => ({
+            trip_id: `trip-${(next === null || failure === "trip cursor" ? 1 : 6) + i}`,
+            details:
+              failure === "details"
+                ? undefined
+                : {
+                    source_file: "yellow_tripdata_2016-01.csv.gz",
+                    total_amount: 10,
+                    pickup_location: { longitude: -73.99, latitude: 40.75 },
+                  },
+          })),
+        });
+      }
       if (url.pathname === "/api/trip-map") {
         if (failure === "gps")
           return reply({ error: { message: "GPS unavailable" } }, 503);
@@ -173,7 +191,14 @@ console.log(JSON.stringify(responses[process.argv.slice(2, 4).join(" ")]));
     else assert.match((await verification).stdout, /Deployed app verified/);
     assert.equal(
       created,
-      ["warehouse", "trips", "details", "gps", "create"].includes(failure ?? "")
+      [
+        "warehouse",
+        "trips",
+        "details",
+        "trip cursor",
+        "gps",
+        "create",
+      ].includes(failure ?? "")
         ? 0
         : 1,
     );

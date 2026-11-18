@@ -2,7 +2,7 @@ import { Dialog } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
 import * as D from "../../../../shared/domain";
-import { CommentDraft, Sort } from "./model";
+import { Sort } from "./model";
 
 export const messages = {
   CloseTrip: {},
@@ -13,7 +13,8 @@ export const messages = {
     data: Schema.NullOr(D.Trips),
     error: Schema.String,
   },
-  SetPage: { page: Schema.Number },
+  NextPage: {},
+  PreviousPage: {},
   SortTrips: { sort: Sort },
   InspectTrip: { trip: D.TripSnapshot },
   InspectComments: { trip: D.TripSnapshot },
@@ -31,7 +32,6 @@ export const messages = {
     more: Schema.Boolean,
   },
   CommentChanged: { body: Schema.String },
-  CreatedCommentDraft: { tripId: Schema.String, draft: CommentDraft },
   PostComment: {},
   PostedComment: { input: D.TripCommentInput, error: Schema.String },
 };

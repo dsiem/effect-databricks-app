@@ -37,9 +37,9 @@ export const Message = defineMessageUnion({
   LoadedUser: { user: Schema.NullOr(D.CurrentUser) },
   ...Filters.messages,
   ...Overview.messages,
-  ...Trips.messages,
+  Trips: { message: Trips.Message },
   SavedViews: { message: SavedViews.Message },
-  ...Genie.messages,
+  Genie: { message: Genie.Message },
   Gps: { message: Gps.Message },
   AnalysisRuns: { message: AnalysisRuns.Message },
 });
@@ -47,6 +47,10 @@ export type Message = typeof Message.Type;
 
 export const savedViewsMessage = (message: SavedViews.Message) =>
   Message.SavedViews({ message });
+export const tripsMessage = (message: Trips.Message) =>
+  Message.Trips({ message });
+export const genieMessage = (message: Genie.Message) =>
+  Message.Genie({ message });
 export const gpsMessage = (message: Gps.Message) => Message.Gps({ message });
 export const analysisRunsMessage = (message: AnalysisRuns.Message) =>
   Message.AnalysisRuns({ message });

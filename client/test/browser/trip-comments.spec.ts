@@ -55,7 +55,12 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/me", (route) => route.fulfill({ json: author }));
   await page.route("**/api/trips**", (route) =>
     route.fulfill({
-      json: { rows: [trip, otherTrip], total: 2, page: 1, pageSize: 25 },
+      json: {
+        rows: [trip, otherTrip],
+        total: 2,
+        pageSize: 25,
+        nextCursor: null,
+      },
     }),
   );
   await page.route("**/api/trip-comment-counts**", (route) =>
@@ -70,7 +75,12 @@ for (const width of [1440, 360]) {
     await page.setViewportSize({ width, height: 740 });
     await page.route("**/api/trips**", (route) =>
       route.fulfill({
-        json: { rows: [enrichedTrip], total: 1, page: 1, pageSize: 25 },
+        json: {
+          rows: [enrichedTrip],
+          total: 1,
+          pageSize: 25,
+          nextCursor: null,
+        },
       }),
     );
     await page.route("**/api/trip-comments**", (route) =>
@@ -281,14 +291,12 @@ for (const width of [1440, 360]) {
         stored.push(saved);
         return route.fulfill({ json: saved });
       }
-      const selected = JSON.parse(
-        new URL(route.request().url()).searchParams.get("trip") ?? "null",
-      ) as Trip;
+      const params = new URL(route.request().url()).searchParams;
+      expect([...params.keys()]).toEqual(["tripId"]);
+      const selected = params.get("tripId");
       return route.fulfill({
         json: {
-          rows: stored.filter(
-            (comment) => comment.trip.trip_id === selected.trip_id,
-          ),
+          rows: stored.filter((comment) => comment.trip.trip_id === selected),
           nextCursor: null,
         },
       });
@@ -377,8 +385,8 @@ test("drafts follow the trip ID when refreshed record details change", async ({
       json: {
         rows: [{ ...trip, fare: 25 }],
         total: 1,
-        page: 1,
         pageSize: 25,
+        nextCursor: null,
       },
     }),
   );

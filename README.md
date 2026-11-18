@@ -21,6 +21,11 @@ shared work in Lakebase.
 Effect manages server services and their lifetimes. The server and the Foldkit
 client share the same HTTP contract and runtime schemas. [HTTP contract](shared/api.ts)
 
+To page through `GET /api/trips`, start with the desired filters and sort. Send
+the returned `nextCursor` as the JSON-encoded `cursor` query parameter with the
+same filters and sort. A null cursor marks the last page. To list comments for a
+trip, send its `tripId` to `GET /api/trip-comments`.
+
 ## Use your own data
 
 Deploy the example once to set up the Databricks resources and write your local

@@ -16,7 +16,12 @@ import * as SqlClient from "effect/sql/SqlClient";
 import type { Connection } from "effect/sql/SqlConnection";
 import { SqlError, UnknownError } from "effect/sql/SqlError";
 import type { SavedView, SavedViewSearch } from "../../shared/domain.js";
-import { type ServiceError, UpstreamError } from "../src/errors.js";
+import {
+  type ServiceError,
+  type WorkspaceRequestError,
+  unavailable,
+  UpstreamError,
+} from "../src/errors.js";
 import { Lakebase } from "../src/lakebase.js";
 import { initializeAppSchema } from "../src/lakebase-schema.js";
 import { pgPassword, restoreCredentialFailure } from "../src/pg-credentials.js";
@@ -45,7 +50,7 @@ const operations: Record<
     savedViews.remove(input.id, 1),
 };
 const runSavedViews = <A, E>(
-  credentials: Effect.Effect<unknown, ServiceError>,
+  credentials: Effect.Effect<unknown, WorkspaceRequestError>,
   use: (savedViews: typeof SavedViews.Service) => Effect.Effect<A, E>,
 ) =>
   Effect.runPromiseExit(
@@ -202,10 +207,7 @@ test("removing a missing saved view keeps its distinct not-found error", async (
 });
 
 test("the credential adapter preserves every reason in a mixed cause", async () => {
-  const credentialError = new UpstreamError({
-    service: "workspace",
-    message: "Credential failure",
-  });
+  const credentialError = unavailable("lakebase", "Credential failure");
   const bridged = await Effect.runPromiseExit(
     pgPassword(Effect.fail(credentialError)),
   );

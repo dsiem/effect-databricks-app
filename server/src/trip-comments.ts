@@ -44,7 +44,7 @@ const makeTripComments = (sql: LakebaseSql) => {
       execute: () => sql`SELECT ${columns},
         to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at
         FROM app.trip_comments AS comments
-        WHERE trip_key=${search.trip.trip_id}
+        WHERE trip_key=${search.tripId}
         ${
           search.cursor
             ? sql`AND (created_at, id) <
@@ -88,7 +88,7 @@ const makeTripComments = (sql: LakebaseSql) => {
           : Effect.fail(
               new InvalidRequest({
                 message:
-                  "This comment was already submitted with different content. Reopen the trip to start a new comment.",
+                  "This comment was already submitted with different content. Edit the draft to post a new comment.",
               }),
             ),
       ),

@@ -12,7 +12,11 @@ import * as Reactivity from "effect/reactivity/Reactivity";
 import type * as SqlClient from "effect/sql/SqlClient";
 import type { CapabilityAvailability } from "../../shared/domain.js";
 import { makeCapability } from "./capability.js";
-import { type ServiceError, unavailable } from "./errors.js";
+import {
+  type ServiceError,
+  type ServiceUnavailable,
+  unavailable,
+} from "./errors.js";
 import { pgPassword, restoreCredentialFailure } from "./pg-credentials.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
@@ -85,9 +89,9 @@ export class Lakebase extends Context.Service<
   {
     readonly availability: Effect.Effect<CapabilityAvailability>;
     /** Run a feature operation on the shared client and record its outcome. */
-    readonly use: <A, R>(
-      run: (sql: LakebaseSql) => Effect.Effect<A, ServiceError, R>,
-    ) => Effect.Effect<A, ServiceError, R>;
+    readonly use: <A, E extends ServiceError, R>(
+      run: (sql: LakebaseSql) => Effect.Effect<A, E, R>,
+    ) => Effect.Effect<A, E | ServiceUnavailable, R>;
   }
 >()("app/Lakebase") {
   static readonly layer = Layer.effect(
@@ -118,8 +122,8 @@ export class Lakebase extends Context.Service<
       );
       return {
         availability: capability.availability,
-        use: <A, R>(
-          run: (sql: LakebaseSql) => Effect.Effect<A, ServiceError, R>,
+        use: <A, E extends ServiceError, R>(
+          run: (sql: LakebaseSql) => Effect.Effect<A, E, R>,
         ) =>
           client.pipe(
             Effect.flatMap(run),

@@ -126,7 +126,7 @@ test.beforeEach(async ({ page }) => {
       "/api/metadata": { from: "2016-01-01", to: "2016-02-29", trips: total },
       "/api/overview": overview,
       "/api/trip-map": gpsFixture(),
-      "/api/trips": { rows: trips, total, page: 1, pageSize: 25 },
+      "/api/trips": { rows: trips, total, pageSize: 25, nextCursor: null },
       "/api/trip-comment-counts": Object.fromEntries(
         trips.map((trip, index) => [
           trip.trip_id,
