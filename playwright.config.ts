@@ -4,7 +4,7 @@ const port = process.env.PLAYWRIGHT_PORT ?? "3011";
 
 export default defineConfig({
   testDir: "client/test/browser",
-  workers: process.env.CI ? 2 : undefined,
+  ...(process.env.CI ? { workers: 2 } : {}),
   use: {
     baseURL: `http://127.0.0.1:${port}`,
     trace: "retain-on-failure",

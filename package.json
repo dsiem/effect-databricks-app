@@ -14,7 +14,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "npm run build --workspaces --if-present && tsc -p tsconfig.build.json && vite build",
     "start": "node --env-file-if-exists=.env dist/server/src/main.js",
-    "typecheck": "npm run build --workspaces --if-present && npm run typecheck --workspaces --if-present && tsc --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "typecheck": "npm run build --workspaces --if-present && npm run typecheck --workspaces --if-present && tsc --noEmit && tsc -p client",
     "lint": "npm run build --workspaces --if-present && oxlint --deny-warnings .",
     "format": "oxfmt --write .",
     "test": "npm run test --workspaces --if-present && node --import tsx --test server/test/*.test.ts test/*.test.ts client/test/*.test.ts",

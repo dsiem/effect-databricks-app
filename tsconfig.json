@@ -20,6 +20,8 @@
     "server/test/**/*.ts",
     "test/**/*.ts",
     "scripts/**/*.ts",
-    "shared/**/*.ts"
+    "shared/**/*.ts",
+    "vite.config.ts",
+    "playwright.config.ts"
   ]
 }

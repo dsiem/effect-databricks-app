@@ -191,7 +191,7 @@ for (const [search, dates] of [
   ["", "All dates"],
   ["from=2016-01-10", "From Jan 10, 2016"],
   ["to=2016-01-20", "Through Jan 20, 2016"],
-]) {
+] as const) {
   test(`context communicates unbounded filters: ${search || "all data"}`, async ({
     page,
   }) => {
