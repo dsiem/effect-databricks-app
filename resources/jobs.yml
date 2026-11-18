@@ -2,13 +2,17 @@ resources:
   jobs:
     seed_trip_snapshot:
       name: ${var.data_name}-seed-trip-snapshot
-      description: Full Jan-Feb 2016 taxi ingestion, quality audit, and ZIP enrichment; preserves trip IDs on rerun.
+      description: Ingest NYC taxi trips for a pickup date range, audit source quality, and enrich trips with ZIP codes.
       max_concurrent_runs: 1
       parameters:
         - name: catalog
           default: ${resources.schemas.data.catalog_name}
         - name: schema
           default: ${resources.schemas.data.name}
+        - name: snapshot_start_date
+          default: ${var.snapshot_start_date}
+        - name: snapshot_end_date
+          default: ${var.snapshot_end_date}
       tasks:
         - task_key: copy_geography
           environment_key: copy_geography
@@ -69,5 +73,5 @@ resources:
               source: WORKSPACE
             parameters:
               analysis_run_id: "{{job.run_id}}"
-              snapshot_table: "`${resources.schemas.data.catalog_name}`.`${resources.schemas.data.name}`.`trips_2016`"
+              snapshot_table: "`${resources.schemas.data.catalog_name}`.`${resources.schemas.data.name}`.`trips`"
               results_table: "`${resources.schemas.data.catalog_name}`.`${resources.schemas.data.name}`.`route_reliability_runs`"

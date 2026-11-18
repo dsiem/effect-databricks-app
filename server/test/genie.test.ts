@@ -340,7 +340,7 @@ test("Genie builds structured filter context server-side for initial and follow-
         ConfigProvider.fromEnvRecord({
           DATABRICKS_HOST: "https://workspace.invalid",
           GENIE_SPACE_ID: "space",
-          TRIP_SNAPSHOT_TABLE: "custom.taxi.trips_2016",
+          TRIP_SNAPSHOT_TABLE: "custom.taxi.trips",
         }),
       ),
     ),
@@ -355,7 +355,7 @@ test("Genie builds structured filter context server-side for initial and follow-
   const content = String(first.body.content);
   assert.ok(content.startsWith("Count trips\n"));
   assert.ok(content.includes(JSON.stringify(filters)));
-  assert.match(content, /custom.taxi.trips_2016/);
+  assert.match(content, /custom.taxi.trips/);
   assert.ok(content.includes(JSON.stringify(context)));
   const followup = requests[1];
   assert.ok(

@@ -41,13 +41,34 @@ and grant access. [Lakebase permissions](https://docs.databricks.com/aws/en/dev-
 
    In Databricks Apps, open the app when its status is **Running**.
 
-To rerun the sample data job, use `databricks bundle run seed_trip_snapshot -t dev`.
-The job copies the geography file to the volume and preserves existing snapshot
-tables and trip IDs.
+## Choose the taxi snapshot dates
+
+Set `snapshot_start_date` and `snapshot_end_date` in the target's
+`variable-overrides.json`. Use `YYYY-MM-DD` for both dates. Both are inclusive
+and refer to New York local pickup time. The default is January 1 through
+February 29, 2016.
+
+To apply new defaults, deploy the bundle and rerun `seed_trip_snapshot`.
+To override the dates for one run, pass both job parameters.
+
+```sh
+databricks bundle run seed_trip_snapshot -t dev \
+  --params snapshot_start_date=2016-02-01,snapshot_end_date=2016-02-15
+```
+
+Each month needs a sample yellow taxi CSV with the 19-column schema that
+includes pickup and drop-off coordinates. To list the files, run
+`LIST '/Volumes/samples/databricks/datasets/nyctaxi/tripdata/yellow/'` in
+Databricks SQL. Reruns reuse trip IDs, including when you change the range.
 
 ## Release an app update
 
-After you set up the target, deploy the bundle and start the new app version.
+If your deployment predates the `trips` and `trip_quality` tables, rerun
+`databricks bundle run bootstrap -t dev`. Bootstrap preserves trip IDs and
+grants the app access to both tables. For local development, rerun
+`databricks bundle run local_env -t dev` to update `.env`.
+
+For routine updates, deploy the bundle and start the app.
 
 ```sh
 databricks bundle deploy -t dev

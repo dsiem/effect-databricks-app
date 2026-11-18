@@ -2,7 +2,7 @@ resources:
   genie_spaces:
     taxi:
       title: ${var.app_name} NYC taxi analyst
-      description: NYC yellow taxi trips in January and February 2016.
+      description: NYC yellow taxi trips in the configured pickup date range.
       warehouse_id: ${resources.sql_warehouses.analytics.id}
       serialized_space: |
         {
@@ -32,13 +32,13 @@ resources:
           "data_sources": {
             "tables": [
               {
-                "identifier": "${var.data_catalog}.${var.data_schema}.trip_quality_2016",
+                "identifier": "${var.data_catalog}.${var.data_schema}.trip_quality",
                 "description": [
-                  "Ingestion counts for each source file, independent of the app's date and ZIP filters."
+                  "Ingestion counts for each selected monthly source file. Rejected counts include pickups outside the snapshot date range."
                 ]
               },
               {
-                "identifier": "${var.data_catalog}.${var.data_schema}.trips_2016"
+                "identifier": "${var.data_catalog}.${var.data_schema}.trips"
               }
             ]
           },
@@ -47,7 +47,7 @@ resources:
               {
                 "id": "01f1df70000000000000000000000004",
                 "content": [
-                  "Use trips_2016 for read-only analysis of accepted NYC taxi trips in January and February 2016. Pickup and drop-off timestamps are in New York local time. Filter on pickup time and include the entire end date. Trip distance is in miles. Sum fare_amount for USD fare revenue. total_amount includes fees, tolls, and recorded tips. Cash tips are absent from the data. ZIP codes come from 2020 Census ZCTA boundaries. For a selected map area, apply the active pickup date and ZIP filters and use the selected pickup or drop-off coordinates and their validity flag. Match the area ID with h3_h3tostring(h3_longlatash3(longitude, latitude, 10)). Use the matching, located, and shown counts to describe the map's coverage."
+                  "Use trips for read-only analysis of accepted NYC taxi trips. Use the minimum and maximum pickup timestamps to find the available dates. Pickup and drop-off timestamps are in New York local time. Filter on pickup time and include the entire end date. Trip distance is in miles. Sum fare_amount for USD fare revenue. total_amount includes fees, tolls, and recorded tips. Cash tips are absent from the data. ZIP codes come from 2020 Census ZCTA boundaries. For a selected map area, apply the active pickup date and ZIP filters and use the selected pickup or drop-off coordinates and their validity flag. Match the area ID with h3_h3tostring(h3_longlatash3(longitude, latitude, 10)). Use the matching, located, and shown counts to describe the map's coverage."
                 ]
               }
             ]

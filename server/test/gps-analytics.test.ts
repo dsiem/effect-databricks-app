@@ -23,7 +23,7 @@ const provide = Effect.provideService(
   ConfigProvider.fromEnvRecord({
     DATABRICKS_HOST: "https://workspace.invalid",
     DATABRICKS_WAREHOUSE_ID: "warehouse",
-    TRIP_SNAPSHOT_TABLE: "test.taxi.trips_2016",
+    TRIP_SNAPSHOT_TABLE: "test.taxi.trips",
   }),
 );
 for (const truncated of [false, true])

@@ -43,7 +43,10 @@ assert.ok(trips.rows.length > 0);
 assert.ok(
   trips.rows.every(
     (trip) =>
-      trip.details?.source_file.startsWith("yellow_tripdata_2016-") &&
+      trip.details &&
+      /^yellow_tripdata_\d{4}-(0[1-9]|1[0-2])\.csv\.gz$/.test(
+        trip.details.source_file,
+      ) &&
       Object.hasOwn(trip.details, "total_amount"),
   ),
   "Hosted trip records must include source lineage and itemized charges",

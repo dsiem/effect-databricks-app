@@ -3,7 +3,7 @@ resources:
     data:
       name: ${var.data_schema}
       catalog_name: ${var.data_catalog}
-      comment: Full January-February 2016 NYC taxi source, quality checks, and enriched trips.
+      comment: NYC taxi source, quality checks, and enriched trips.
   volumes:
     taxi_sources:
       name: taxi_sources

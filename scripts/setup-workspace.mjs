@@ -78,7 +78,7 @@ if (operation === "bootstrap") {
     TRIP_SNAPSHOT_TABLE:
       schema?.catalog_name &&
       schema.name &&
-      `${schema.catalog_name}.${schema.name}.trips_2016`,
+      `${schema.catalog_name}.${schema.name}.trips`,
     ANALYSIS_JOB_ID: resources.jobs?.route_reliability?.id,
     ANALYSIS_RESULTS_TABLE:
       schema?.catalog_name &&

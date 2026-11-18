@@ -2,7 +2,7 @@
 
 The application uses the following data and assets:
 
-- Taxi trips: January and February 2016 NYC yellow taxi CSVs, distributed in
+- Taxi trips: Monthly NYC yellow taxi CSVs, distributed in
   Databricks sample volumes under
   `/Volumes/samples/databricks/datasets/nyctaxi/tripdata/yellow/`.
   The [NYC Taxi and Limousine Commission](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
@@ -13,4 +13,4 @@ The application uses the following data and assets:
 - ZIP labels: Census 2020 ZIP Code Tabulation Areas from
   [NYC Open Data](https://data.cityofnewyork.us/City-Government/ZIP-Code-Tabulation-Areas/35j5-n34v),
   pinned in `jobs/nyc-zcta.jsonl`. The areas approximate ZIP geography. They do not
-  represent recorded postal addresses or historical 2016 boundaries.
+  represent recorded postal addresses or historical ZIP boundaries.

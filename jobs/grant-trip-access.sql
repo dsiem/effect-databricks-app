@@ -14,10 +14,10 @@ BEGIN
   EXECUTE IMMEDIATE grant_sql;
   SET grant_sql = 'GRANT USE SCHEMA ON SCHEMA `' || :catalog || '`.`' || :schema || '` TO `' || :app_service_principal_id || '`';
   EXECUTE IMMEDIATE grant_sql;
-  SET grant_sql = 'GRANT SELECT ON TABLE `' || :catalog || '`.`' || :schema || '`.`trips_2016` TO `' || :app_service_principal_id || '`';
+  SET grant_sql = 'GRANT SELECT ON TABLE `' || :catalog || '`.`' || :schema || '`.`trips` TO `' || :app_service_principal_id || '`';
   EXECUTE IMMEDIATE grant_sql;
   SET grant_sql = 'GRANT SELECT ON TABLE `' || :catalog || '`.`' || :schema || '`.`route_reliability_runs` TO `' || :app_service_principal_id || '`';
   EXECUTE IMMEDIATE grant_sql;
-  SET grant_sql = 'GRANT SELECT ON VIEW `' || :catalog || '`.`' || :schema || '`.`trip_quality_2016` TO `' || :app_service_principal_id || '`';
+  SET grant_sql = 'GRANT SELECT ON TABLE `' || :catalog || '`.`' || :schema || '`.`trip_quality` TO `' || :app_service_principal_id || '`';
   EXECUTE IMMEDIATE grant_sql;
 END;

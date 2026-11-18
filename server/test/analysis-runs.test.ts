@@ -102,7 +102,7 @@ test("analysis runs record the requester across retries, scope history and resul
           DATABRICKS_TOKEN: "fixture",
           GENIE_SPACE_ID: "fixture-space",
           DATABRICKS_WAREHOUSE_ID: "warehouse",
-          TRIP_SNAPSHOT_TABLE: "custom.taxi-schema.trips_2016",
+          TRIP_SNAPSHOT_TABLE: "custom.taxi-schema.trips",
           ANALYSIS_JOB_ID: "456",
           ANALYSIS_RESULTS_TABLE: "custom.taxi-schema.route_reliability_runs",
         }),

@@ -142,9 +142,7 @@ test("local_env writes the selected bundle settings without deploying anything",
   assert.ok(result.env.includes("DATABRICKS_HOST=https://workspace.invalid\n"));
   assert.ok(result.env.includes("KEEP_ME=yes\n"));
   assert.ok(
-    result.env.includes(
-      "TRIP_SNAPSHOT_TABLE=seed_catalog.seed-schema.trips_2016\n",
-    ),
+    result.env.includes("TRIP_SNAPSHOT_TABLE=seed_catalog.seed-schema.trips\n"),
   );
   assert.ok(result.env.includes("ANALYSIS_JOB_ID=123456\n"));
   assert.ok(

@@ -10,7 +10,7 @@ resources:
           - name: DATABRICKS_WAREHOUSE_ID
             value_from: lakehouse
           - name: TRIP_SNAPSHOT_TABLE
-            value: ${resources.schemas.data.catalog_name}.${resources.schemas.data.name}.trips_2016
+            value: ${resources.schemas.data.catalog_name}.${resources.schemas.data.name}.trips
           - name: ANALYSIS_JOB_ID
             value_from: route-reliability
           - name: ANALYSIS_RESULTS_TABLE

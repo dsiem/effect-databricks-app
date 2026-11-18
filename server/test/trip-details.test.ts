@@ -48,7 +48,7 @@ function readTrips(search: TripSearch) {
         ConfigProvider.fromEnvRecord({
           DATABRICKS_HOST: "https://workspace.invalid",
           DATABRICKS_WAREHOUSE_ID: "warehouse",
-          TRIP_SNAPSHOT_TABLE: "custom.taxi.trips_2016",
+          TRIP_SNAPSHOT_TABLE: "custom.taxi.trips",
         }),
       ),
       Effect.scoped,
@@ -108,7 +108,7 @@ test("trip pages preserve the warehouse order across ties, nulls, deleted anchor
       const values = parameters.map((param) => param.value);
       const query = statement
         .replaceAll("`", '"')
-        .replaceAll('"custom"."taxi"."trips_2016"', "trips")
+        .replaceAll('"custom"."taxi"."trips"', "trips")
         .replace(/:p(\d+)/g, (_marker, index: string) => "$" + index)
         .replace(
           "timestampdiff(SECOND,tpep_pickup_datetime,tpep_dropoff_datetime)",
