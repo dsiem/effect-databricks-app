@@ -1,14 +1,14 @@
 # Databricks Apps + Effect
 
 This TypeScript starter for Databricks Apps uses historical NYC taxi trips to
-show how to query Databricks SQL, ask Genie about the current view, and save
-shared work in Lakebase.
+show how to query Databricks SQL, ask Genie about the current view, save
+shared work in Lakebase, and run a Databricks job.
 
 [Deploy the example](DEPLOYMENT.md) ·
 [Use your own data](#use-your-own-data) ·
 [Reuse the SQL adapter](packages/sql-databricks/README.md)
 
-![NYC taxi overview with trip metrics, a daily activity chart, and the Genie helper](.github/assets/nyc-taxi.png)
+![January 2016 NYC taxi trip metrics and daily activity with the Genie helper open](.github/assets/nyc-taxi.png)
 
 ## What the example does
 
@@ -17,9 +17,17 @@ shared work in Lakebase.
 - **Genie** answers questions using the active filters and the selected chart,
   record, or map area. The app displays answers, result tables, and generated SQL.
 - **Lakebase** stores saved filters, findings, and comments on trip records.
+- **Databricks Jobs** runs a SQL task to compare 90th-percentile trip times by
+  pickup ZIP, drop-off ZIP, and time of day.
 
 Effect manages server services and their lifetimes. The server and the Foldkit
 client share the same HTTP contract and runtime schemas. [HTTP contract](shared/api.ts)
+
+## Run an analysis
+
+In **Analysis runs**, select **New run**. Choose the start dates for two
+seven-day windows and set the minimum trips per route in each window. Select
+**Run analysis**. Open completed reports from **Recent runs** or the run link.
 
 ## Use your own data
 
@@ -33,6 +41,7 @@ Databricks CLI login. [Deployment guide](DEPLOYMENT.md)
 | API and data types            | [Shared HTTP contract](shared/api.ts) and [domain schemas](shared/domain.ts)             |
 | Filters and views             | [Foldkit features](client/src/features)                                                  |
 | Genie tables and instructions | [Genie resource](resources/genie.yml)                                                    |
+| Route analysis                | [Route reliability SQL](jobs/route-reliability.sql)                                      |
 | Workspace resources           | [Databricks bundle](databricks.yml)                                                      |
 
 The deployed app uses its service principal for data access. Saved views and
