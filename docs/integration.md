@@ -1,0 +1,156 @@
+# Effect and Foldkit patterns for Databricks Apps
+
+Use Overview as the example for a query and Analysis Runs as the example for work
+that continues after an HTTP request ends. Both use the same Effect HTTP contract
+to connect the server to Foldkit.
+
+## Carry a query through one HTTP contract
+
+1. Define the endpoint's input, response, and error schemas in `AppApi`. The
+   `overview` endpoint takes `Filters` and returns `Overview`. `HttpApiBuilder`
+   decodes the input and passes it to the handler, which calls `Analytics.overview`.
+   [HTTP contract](../shared/api.ts) · [Server handlers](../server/src/routes.ts)
+2. Bind user values as SQL parameters and quote table identifiers through the
+   adapter. The Overview queries project counts as numbers and dates as strings.
+   `warehouse.read` uses `SqlSchema.findAll` to decode the returned rows. Choose
+   a string representation for IDs and decimals that need exact precision in
+   JSON. [Overview queries](../server/src/analytics.ts) ·
+   [Warehouse service](../server/src/warehouse.ts) · [SQL adapter](../packages/sql-databricks/README.md)
+3. Provide `ApiClient.layer` once in Foldkit's `Runtime.makeApplication`.
+   `LoadOverview` calls the generated client and returns a `LoadedOverview`
+   message. The command scopes the request through response decoding, so the
+   deadline can interrupt a wait for either headers or the body. Keep the
+   server deadline below the browser deadline when the UI needs to display the
+   server's typed timeout. [Browser runtime](../client/src/main.ts) ·
+   [API client](../client/src/lib/api-client.ts) · [Overview command](../client/src/features/overview/commands.ts) ·
+   [Deadline tests](../client/test/api-client.test.ts)
+4. Capture the filters and a new request generation when issuing the command.
+   Carry the generation back in the completion message and apply it only if it
+   matches the current model. This handles a slow reply for an earlier request,
+   even when the user has returned to the same filters.
+   [Overview update](../client/src/features/overview/update.ts) · [Feature tests](../client/test/features.test.ts)
+
+Map service errors to stable HTTP error codes in the handler. Use them in the
+command when the next action depends on the failure. The Overview command only
+needs a display message. The Genie submit command uses the code and upstream
+status to distinguish rejection from uncertain acceptance.
+[Server error mapping](../server/src/routes.ts) · [Genie commands](../client/src/features/genie/commands.ts)
+
+## Submit, poll, and retrieve long-running work
+
+1. **Submit.** The Analysis Runs command keeps its request ID when the user
+   retries the same submission. The server derives a Jobs idempotency token from
+   the job ID, request ID, and parameters. Once Databricks accepts the run, the
+   API returns `202` with its run ID. Foldkit puts that ID in `/analysis?run=<id>`
+   so a reload or shared link can reopen the run.
+   [Analysis commands](../client/src/features/analysis-runs/commands.ts) ·
+   [Jobs service](../server/src/analysis-runs.ts)
+2. **Poll.** Derive subscription dependencies from the model. Analysis Runs
+   polls while the page is open and the selected run needs a status check.
+   Status and report replies carry the run ID and selection generation, so
+   switching runs protects the new selection from late replies.
+   [Subscriptions](../client/src/app/browser.ts) · [Analysis update](../client/src/features/analysis-runs/update.ts)
+3. **Retrieve.** The SQL job merges its report by `{{job.run_id}}`. Before
+   reading the report, the API checks that the run belongs to the configured job
+   and has succeeded. Fetch the report by run ID so the browser can retry that
+   read independently of submission.
+   [Job configuration](../resources/jobs.yml) · [Report SQL](../jobs/route-reliability.sql) ·
+   [Jobs service](../server/src/analysis-runs.ts)
+
+Genie keeps its polling subscription active across navigation. Once Genie
+returns a conversation ID and a message ID, save both so the tab can resume
+polling or retrieval after a reload. If the submission response is lost before
+those IDs arrive, show the uncertain state and let the user check Genie before
+submitting again. Capture the question's filters and context when the user sends
+it so subsequent navigation leaves the submitted question intact.
+[Genie update](../client/src/features/genie/update.ts) ·
+[Genie commands](../client/src/features/genie/commands.ts) · [Recovery tests](../client/test/browser/genie-recovery.spec.ts)
+
+The Genie layer checks `DATABRICKS_HOST` and `GENIE_SPACE_ID` at startup. If
+either setting is missing, the submit command displays `genie_unavailable` as
+a rejected question with setup instructions. With both settings present, the
+Databricks request checks the space and permissions. [Genie service](../server/src/genie.ts) ·
+[Genie commands](../client/src/features/genie/commands.ts)
+
+## Assign permissions to the identity that uses them
+
+| Identity              | What it does in this app                                                                                                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bundle deployer       | Provisions resources and runs setup. The seed job grants the app principal `SELECT` on the snapshot and reports. Lakebase setup creates the app schema and grants access to its tables. |
+| App service principal | Uses the warehouse, runs Genie requests, connects to Lakebase, and calls Jobs with `CAN_MANAGE_RUN`.                                                                                    |
+| Job `run_as`          | Reads the snapshot and writes the report. The principal needs access to the SQL file, the warehouse, and the input and output tables.                                                   |
+| Viewer                | Supplies the identity shown by `/api/me` and recorded on comments and analysis runs.                                                                                                    |
+
+The bundle lists the app's workspace resource permissions and uses `value_from`
+to supply resource IDs to the server. The setup scripts grant data access in
+Unity Catalog and PostgreSQL.
+[App resources](../resources/app.yml) · [Seed grants](../jobs/seed-trip-snapshot.sql) ·
+[Lakebase schema setup](../server/src/lakebase-schema.ts)
+
+For a production deployment, set `run_as.service_principal_name` on the job's
+production resource definition. Use the execution principal's application ID
+and grant it access to the job inputs and outputs. Databricks uses the job
+creator by default. [Job definition](../resources/jobs.yml) ·
+[Databricks Jobs permissions](https://docs.databricks.com/aws/en/jobs/privileges)
+
+The sample uses shared app authorization. The viewer headers provide attribution
+and analytics results are cached by query inputs. For a feature that needs
+per-viewer Unity Catalog permissions, use Databricks user authorization and
+provide the proxy's user token to the server-side query for that request. Require
+that credential on the route. Disable shared caching there or key it by the
+authorization context. Test identical filters for two viewers with different
+grants. [Viewer lookup](../server/src/current-user.ts) · [Analytics cache](../server/src/analytics.ts) ·
+[Databricks user authorization](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/auth)
+
+Keep the Lakebase connection pool scoped to the server runtime. The sample
+initializes it on first use and retries failed discovery on the next operation.
+With Lakebase OAuth, each new connection uses a fresh database credential. Run
+schema setup as a separate deployment step. [Lakebase service](../server/src/lakebase.ts) ·
+[Lakebase setup](../scripts/setup-lakebase.ts)
+
+## Bound upstream work and verify real requests
+
+Create one concurrency limiter per service instance. The warehouse limiter
+shares permits across queries, including the queries that make up one Overview
+request. Genie has its own limiter for submissions. Put the deadline around both
+permit acquisition and execution so an expired request cannot start work after
+waiting in the queue. Each app process has its own limits.
+[Admission control](../server/src/admission.ts) · [Warehouse service](../server/src/warehouse.ts) ·
+[Genie service](../server/src/genie.ts)
+
+Put cancellation in the Effect that owns the upstream statement. When its
+scope closes, the SQL adapter attempts to cancel a known pending or running
+statement. A submission timeout before the statement ID arrives leaves the
+outcome uncertain. The adapter retries transient connection errors on metadata
+reads and leaves submission recovery to the caller.
+[Statement lifecycle](../packages/sql-databricks/src/internal/execution.ts) ·
+[Retry policy](../packages/sql-databricks/src/internal/transport.ts)
+
+Use the hosted smoke check to exercise the resources through the deployed app
+and detect missing grants or setup. Playwright waits for the built app to serve
+`/`. Databricks Apps also supports an optional deployment check on any HTTP
+path you configure.
+[Hosted verification](../DEPLOYMENT.md#verify-the-app) · [Playwright config](../playwright.config.ts) ·
+[Databricks deployment health checks](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/app-runtime#configure-a-deployment-health-check)
+
+## Run the examples locally
+
+After `npm ci`, run the tests that exercise the contract, request lifecycle, and
+identity handling with local fixtures. The HTTP contract test runs the generated
+client through the real handlers with test Layers.
+
+```sh
+node --import tsx --test server/test/http-api.test.ts client/test/api-client.test.ts \
+  client/test/features.test.ts server/test/analysis-runs.test.ts \
+  server/test/current-user.test.ts server/test/lakebase.test.ts \
+  server/test/admission.test.ts
+```
+
+For browser coverage, install the Playwright browsers, then build and run the
+Analysis Runs and Genie tests. These exercise the built UI with fixture API
+responses. [Browser setup](../DEPLOYMENT.md#verify-the-app)
+
+```sh
+npm run build
+npm run test:browser -- analysis-runs.spec.ts genie-recovery.spec.ts
+```

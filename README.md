@@ -6,6 +6,7 @@ shared work in Lakebase, and run a Databricks job.
 
 [Deploy the example](DEPLOYMENT.md) ·
 [Use your own data](#use-your-own-data) ·
+[Integration patterns](docs/integration.md) ·
 [Reuse the SQL adapter](packages/sql-databricks/README.md)
 
 ![January 2016 NYC taxi trip metrics and daily activity with the Genie helper open](.github/assets/nyc-taxi.png)
