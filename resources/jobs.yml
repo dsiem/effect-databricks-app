@@ -2,8 +2,36 @@ resources:
   jobs:
     seed_trip_snapshot:
       name: ${var.data_name}-seed-trip-snapshot
-      description: Full Jan-Feb 2016 taxi ingestion, quality audit, ZIP enrichment, and app grants; preserves trip IDs on rerun.
+      description: Full Jan-Feb 2016 taxi ingestion, quality audit, and ZIP enrichment; preserves trip IDs on rerun.
       max_concurrent_runs: 1
+      parameters:
+        - name: catalog
+          default: ${resources.schemas.data.catalog_name}
+        - name: schema
+          default: ${resources.schemas.data.name}
+      tasks:
+        - task_key: copy_geography
+          environment_key: copy_geography
+          timeout_seconds: 600
+          spark_python_task:
+            python_file: ../jobs/copy-geography.py
+            parameters:
+              - ${workspace.file_path}/jobs/nyc-zcta.jsonl
+              - /Volumes/${resources.volumes.taxi_sources.catalog_name}/${resources.volumes.taxi_sources.schema_name}/${resources.volumes.taxi_sources.name}/nyc-zcta.jsonl
+        - task_key: seed_trip_snapshot
+          depends_on:
+            - task_key: copy_geography
+          timeout_seconds: 3600
+          notebook_task:
+            notebook_path: ../jobs/seed-trip-snapshot.sql
+            warehouse_id: ${resources.sql_warehouses.analytics.id}
+      environments:
+        - environment_key: copy_geography
+          spec:
+            environment_version: "5"
+    grant_trip_access:
+      name: ${var.data_name}-grant-trip-access
+      description: Give the app read access to the published taxi data and analysis results.
       parameters:
         - name: catalog
           default: ${resources.schemas.data.catalog_name}
@@ -12,10 +40,10 @@ resources:
         - name: app_service_principal_id
           default: ""
       tasks:
-        - task_key: seed_trip_snapshot
-          timeout_seconds: 3600
+        - task_key: grant_trip_access
+          timeout_seconds: 600
           notebook_task:
-            notebook_path: ../jobs/seed-trip-snapshot.sql
+            notebook_path: ../jobs/grant-trip-access.sql
             warehouse_id: ${resources.sql_warehouses.analytics.id}
     route_reliability:
       name: ${var.data_name}-route-reliability

@@ -32,9 +32,8 @@ seven-day windows and set the minimum trips per route in each window. Select
 
 ## Use your own data
 
-Deploy the example once to set up the Databricks resources and write your local
-connection settings. Run `npm run dev` to start the client and API with your
-Databricks CLI login. [Deployment guide](DEPLOYMENT.md)
+Set up the example and run it locally with your Databricks CLI login.
+[Set up a target](DEPLOYMENT.md#set-up-a-target) · [Develop locally](DEPLOYMENT.md#develop-locally)
 
 | Replace                       | Start here                                                                               |
 | ----------------------------- | ---------------------------------------------------------------------------------------- |

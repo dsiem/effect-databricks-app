@@ -48,10 +48,10 @@ jobs:
       - uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - name: Deploy and start the app
-        run: npm run workspace:setup -- "$BUNDLE_TARGET"
+      - name: Release the app
+        run: |
+          databricks bundle deploy -t "$BUNDLE_TARGET"
+          databricks bundle run app -t "$BUNDLE_TARGET"
       - name: Wait for the app to run
         run: |
           for attempt in $(seq 1 40); do

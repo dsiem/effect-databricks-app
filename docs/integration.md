@@ -72,17 +72,19 @@ The taxi app requires Genie. The server fails startup if `DATABRICKS_HOST` or
 
 ## Assign permissions to the identity that uses them
 
-| Identity              | What it does in this app                                                                                                                                                                |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Bundle deployer       | Provisions resources and runs setup. The seed job grants the app principal `SELECT` on the snapshot and reports. Lakebase setup creates the app schema and grants access to its tables. |
-| App service principal | Uses the warehouse, runs Genie requests, connects to Lakebase, and calls Jobs with `CAN_MANAGE_RUN`.                                                                                    |
-| Job `run_as`          | Reads the snapshot and writes the report. The principal needs access to the SQL file, the warehouse, and the input and output tables.                                                   |
-| Viewer                | Supplies the identity shown by `/api/me` and recorded on comments and analysis runs.                                                                                                    |
+| Identity              | What it does in this app                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Setup identity        | Provisions the bundle resources, runs the seed and grant jobs, and initializes the Lakebase schema.                                   |
+| Release identity      | Deploys the bundle and starts the app.                                                                                                |
+| App service principal | Uses the warehouse, runs Genie requests, connects to Lakebase, and calls Jobs with `CAN_MANAGE_RUN`.                                  |
+| Analysis job `run_as` | Reads the snapshot and writes the report. The principal needs access to the SQL file, the warehouse, and the input and output tables. |
+| Viewer                | Supplies the identity shown by `/api/me` and recorded on comments and analysis runs.                                                  |
 
 The bundle lists the app's workspace resource permissions and uses `value_from`
-to supply resource IDs to the server. The setup scripts grant data access in
-Unity Catalog and PostgreSQL.
-[App resources](../resources/app.yml) · [Seed grants](../jobs/seed-trip-snapshot.sql) ·
+to supply resource IDs to the server. The grant job gives the app access to
+the published taxi data and analysis results. Lakebase setup grants access to
+the app's PostgreSQL tables.
+[App resources](../resources/app.yml) · [Trip access grants](../jobs/grant-trip-access.sql) ·
 [Lakebase schema setup](../server/src/lakebase-schema.ts)
 
 For a production deployment, set `run_as.service_principal_name` on the job's
@@ -102,8 +104,8 @@ grants. [Viewer lookup](../server/src/current-user.ts) · [Analytics cache](../s
 
 Keep the Lakebase connection pool scoped to the server runtime. The sample
 initializes it on first use and retries failed discovery on the next operation.
-With Lakebase OAuth, each new connection uses a fresh database credential. Run
-schema setup as a separate deployment step. [Lakebase service](../server/src/lakebase.ts) ·
+With Lakebase OAuth, each new connection uses a fresh database credential.
+Initialize the schema during target setup. [Lakebase service](../server/src/lakebase.ts) ·
 [Lakebase setup](../scripts/setup-lakebase.ts)
 
 ## Bound upstream work and verify real requests

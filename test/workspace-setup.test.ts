@@ -3,135 +3,153 @@ import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
 const principal = "472a6613-2337-4af1-a416-e9b6b61064dd";
+const endpointName = "projects/test/branches/production/endpoints/primary";
 
-// Run the actual setup entry point in an isolated directory, replacing only
-// external commands. This also checks that a failed seed never starts the app.
-const commands = `
+const fakeCommands = `
 import childProcess from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
 childProcess.execFileSync = (file, args, options) => {
-  console.log("CALL " + JSON.stringify({ file, args, principal: options?.env?.APP_SERVICE_PRINCIPAL_ID }));
-  if (args[0] === "bundle" && args[1] === "summary") return JSON.stringify({ resources: {
+  const command = args.join(" ");
+  console.log("CALL " + command);
+  if (command.startsWith("bundle summary")) return JSON.stringify({ resources: {
     apps: { app: { name: "test-app" } },
     sql_warehouses: { analytics: { id: "warehouse" } },
-    schemas: { data: { catalog_name: process.env.SETUP_CATALOG, name: process.env.SETUP_SCHEMA } },
+    schemas: { data: { catalog_name: "seed_catalog", name: "seed-schema" } },
     jobs: { route_reliability: { id: 123456 } },
     genie_spaces: { taxi: { id: "genie" } },
-    postgres_endpoints: { notebook_endpoint: { id: "endpoint" } },
+    postgres_endpoints: { notebook_endpoint: { id: "${endpointName}" } },
   } });
-  if (args[0] === "bundle" && args[1] === "validate") return JSON.stringify({ workspace: { host: "https://workspace.invalid" } });
-  if (args[0] === "postgres") return JSON.stringify({ status: { hosts: { host: "postgres.invalid" } } });
-  if (args[0] === "apps") return JSON.stringify({ service_principal_client_id: "${principal}" });
-  if (args[0] === "current-user") return JSON.stringify({ userName: "deployer@example.com" });
-  if (process.env.SETUP_FAILURE === "seed" && args.includes("seed_trip_snapshot")) throw new Error("Fixture seed failed");
-  if (process.env.SETUP_FAILURE === "Lakebase setup" && file === "npm" && args.includes("db:setup")) throw new Error("Fixture Lakebase setup failed");
+  if (command.startsWith("postgres get-endpoint")) return JSON.stringify({ status: { hosts: { host: "postgres.invalid" } } });
+  if (command.startsWith("apps get")) return JSON.stringify({ service_principal_client_id: "${principal}" });
+  if (command.startsWith("current-user me")) return JSON.stringify({ userName: "deployer@example.com" });
+  if (args[0] === "--import") {
+    console.log("LAKEBASE " + JSON.stringify({
+      host: options.env.PGHOST, principal: options.env.APP_SERVICE_PRINCIPAL_ID,
+      endpoint: options.env.LAKEBASE_ENDPOINT, user: options.env.PGUSER,
+    }));
+  }
+  if (command === process.env.SETUP_FAILURE) throw new Error("Fixture command failed");
   return "";
 };
 syncBuiltinESMExports();
-process.argv[2] = "prod";
+process.argv[2] = process.env.SETUP_OPERATION;
 await import(process.env.SETUP_ENTRY_POINT);
 `;
 
-for (const { failure, catalog, schema } of [
-  { failure: "", catalog: "seed_catalog", schema: "seed-schema" },
-  { failure: "seed", catalog: "seed_catalog", schema: "seed-schema" },
-  { failure: "Lakebase setup", catalog: "seed_catalog", schema: "seed-schema" },
-]) {
-  test(`workspace setup ${failure ? `stops after a failed ${failure}` : `initializes and starts with ${catalog}.${schema}.trips_2016`}`, async (t) => {
-    const directory = await mkdtemp(join(tmpdir(), "workspace-setup-"));
-    t.after(() => rm(directory, { recursive: true, force: true }));
-    await writeFile(join(directory, ".env.example"), "DATABRICKS_HOST=\n");
-    let stdout: string;
-    try {
-      const result = await run(
-        process.execPath,
-        ["--input-type=module", "-e", commands],
-        {
-          cwd: directory,
-          env: {
-            ...process.env,
-            DATABRICKS_HOST: "",
-            SETUP_FAILURE: failure,
-            SETUP_CATALOG: catalog,
-            SETUP_SCHEMA: schema,
-            SETUP_ENTRY_POINT: new URL(
-              "../scripts/setup-workspace.mjs",
-              import.meta.url,
-            ).href,
-          },
-          timeout: 15_000,
+async function setup(t: TestContext, operation: string, failure = "") {
+  const directory = await mkdtemp(join(tmpdir(), "workspace-setup-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const localEnv = "DATABRICKS_HOST=https://local.invalid\nKEEP_ME=yes\n";
+  const envPath = join(directory, ".env");
+  await writeFile(envPath, localEnv);
+  let stdout: string;
+  try {
+    const result = await run(
+      process.execPath,
+      ["--input-type=module", "-e", fakeCommands],
+      {
+        cwd: directory,
+        env: {
+          ...process.env,
+          BUNDLE_TARGET: "prod",
+          DATABRICKS_HOST: "https://workspace.invalid",
+          PGHOST: "local.invalid",
+          SETUP_OPERATION: operation,
+          SETUP_FAILURE: failure,
+          SETUP_ENTRY_POINT: new URL(
+            "../scripts/setup-workspace.mjs",
+            import.meta.url,
+          ).href,
         },
-      );
-      assert.equal(failure, "", "setup must propagate a failed command");
-      stdout = result.stdout;
-    } catch (error) {
-      assert.ok(failure);
-      assert.ok(error instanceof Error && "stdout" in error);
-      assert.match(error.message, new RegExp(`Fixture ${failure} failed`));
-      stdout = String(error.stdout);
-    }
-    const calls = stdout
-      .split("\n")
-      .filter((line) => line.startsWith("CALL "))
-      .map(
-        (line) =>
-          JSON.parse(line.slice(5)) as {
-            file: string;
-            args: string[];
-            principal?: string;
-          },
-      );
-    const seedIndex = calls.findIndex((call) =>
-      call.args.includes("seed_trip_snapshot"),
+        timeout: 15_000,
+      },
     );
-    assert.ok(seedIndex >= 0);
-    assert.deepEqual(calls[seedIndex], {
-      file: "databricks",
-      args: [
-        "bundle",
-        "run",
-        "seed_trip_snapshot",
-        "-t",
-        "prod",
-        "--params",
-        `app_service_principal_id=${principal}`,
-      ],
-    });
-    const started = calls.some(
-      (call) =>
-        call.file === "databricks" &&
-        call.args.slice(0, 3).join(" ") === "bundle run app",
+    assert.equal(failure, "");
+    stdout = result.stdout;
+  } catch (error) {
+    assert.ok(failure);
+    assert.ok(error instanceof Error && "stdout" in error);
+    assert.match(error.message, /Fixture command failed/);
+    stdout = String(error.stdout);
+  }
+  const calls = stdout
+    .split("\n")
+    .filter((line) => line.startsWith("CALL "))
+    .map((line) => line.slice(5));
+  const lakebase = stdout
+    .split("\n")
+    .find((line) => line.startsWith("LAKEBASE "));
+  return { calls, lakebase, env: await readFile(envPath, "utf8"), localEnv };
+}
+
+const lakebaseCommand = "--import tsx scripts/setup-lakebase.ts";
+const bootstrapCalls = [
+  "run build --workspaces --if-present",
+  "bundle deploy -t prod --select jobs.seed_trip_snapshot",
+  "bundle run -t prod seed_trip_snapshot",
+  "bundle deploy -t prod",
+  "bundle summary -t prod -o json",
+  "current-user me -o json",
+  "apps get test-app -o json",
+  `bundle run -t prod grant_trip_access --params app_service_principal_id=${principal}`,
+  lakebaseCommand,
+  "bundle run -t prod app",
+];
+
+test("bootstrap seeds before creating Genie and the app, then grants access before starting it", async (t) => {
+  const result = await setup(t, "bootstrap");
+  assert.deepEqual(result.calls, bootstrapCalls);
+  assert.equal(
+    result.lakebase,
+    "LAKEBASE " +
+      JSON.stringify({
+        host: "",
+        principal,
+        endpoint: endpointName,
+        user: "deployer@example.com",
+      }),
+  );
+  assert.equal(result.env, result.localEnv);
+});
+
+for (const failedCommand of [
+  bootstrapCalls[2]!,
+  bootstrapCalls[7]!,
+  lakebaseCommand,
+]) {
+  test(`bootstrap stops after ${failedCommand} fails`, async (t) => {
+    const result = await setup(t, "bootstrap", failedCommand);
+    assert.deepEqual(
+      result.calls,
+      bootstrapCalls.slice(0, bootstrapCalls.indexOf(failedCommand) + 1),
     );
-    assert.equal(
-      started,
-      failure === "",
-      "failed setup must not start the app",
-    );
-    if (failure !== "seed")
-      assert.deepEqual(
-        calls.find((call) => call.args.includes("db:setup")),
-        { file: "npm", args: ["run", "db:setup"], principal },
-      );
-    if (failure === "seed")
-      await assert.rejects(readFile(join(directory, ".env")), {
-        code: "ENOENT",
-      });
-    else {
-      const env = (await readFile(join(directory, ".env"), "utf8")).split("\n");
-      assert.ok(
-        env.includes(`TRIP_SNAPSHOT_TABLE=${catalog}.${schema}.trips_2016`),
-      );
-      assert.ok(env.includes("ANALYSIS_JOB_ID=123456"));
-      assert.ok(
-        env.includes(
-          `ANALYSIS_RESULTS_TABLE=${catalog}.${schema}.route_reliability_runs`,
-        ),
-      );
-    }
+    assert.equal(result.env, result.localEnv);
   });
 }
+
+test("local_env writes the selected bundle settings without deploying anything", async (t) => {
+  const result = await setup(t, "local-env");
+  assert.deepEqual(result.calls, [
+    "bundle summary -t prod -o json",
+    "current-user me -o json",
+    `postgres get-endpoint ${endpointName} -o json`,
+  ]);
+  assert.ok(result.env.includes("DATABRICKS_HOST=https://workspace.invalid\n"));
+  assert.ok(result.env.includes("KEEP_ME=yes\n"));
+  assert.ok(
+    result.env.includes(
+      "TRIP_SNAPSHOT_TABLE=seed_catalog.seed-schema.trips_2016\n",
+    ),
+  );
+  assert.ok(result.env.includes("ANALYSIS_JOB_ID=123456\n"));
+  assert.ok(
+    result.env.includes(
+      "ANALYSIS_RESULTS_TABLE=seed_catalog.seed-schema.route_reliability_runs\n",
+    ),
+  );
+});

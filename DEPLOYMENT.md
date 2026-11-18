@@ -9,7 +9,7 @@ bundle resources, create a schema in the selected catalog, and grant access to
 the app. Lakebase setup needs a PostgreSQL role that can create tables
 and grant access. [Lakebase permissions](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/lakebase)
 
-## Deploy the example
+## Set up a target
 
 1. Install dependencies and sign in to your workspace.
 
@@ -20,38 +20,56 @@ and grant access. [Lakebase permissions](https://docs.databricks.com/aws/en/dev-
    databricks auth login --host https://YOUR-WORKSPACE.cloud.databricks.com
    ```
 
-   If you use a named profile, set `DATABRICKS_CONFIG_PROFILE` in your shell
-   for the bundle commands.
+   If you use a named profile, export `DATABRICKS_CONFIG_PROFILE` in your shell.
 
-2. Review the bundle plan. The `dev` target defaults to the `workspace` catalog
-   and uses `databricks-effect-app-dev` for both the app and the schema. Set
-   overrides first if your workspace needs [different names](#choose-resource-names).
+2. Review the bundle plan. By default, the `dev` target names the app and
+   schema `databricks-effect-app-dev` and puts the schema in the `workspace`
+   catalog. Set any name overrides before you run the plan. [Choose resource names](#choose-resource-names)
 
    ```sh
    databricks bundle validate --strict -t dev
    databricks bundle plan -t dev
    ```
 
-3. Deploy the bundle, seed the taxi data, and initialize Lakebase.
+3. Run the setup command once per target. The command creates the data resources
+   and seeds the taxi snapshot. It deploys Genie and sets up Unity Catalog and
+   Lakebase access before it starts the app.
 
    ```sh
-   npm run workspace:setup -- dev
+   databricks bundle run bootstrap -t dev
    ```
 
-   Setup starts the app, prints its URL, and writes the connection settings to
-   `.env`. Open the URL once the Databricks Apps page shows **Running**.
+   In Databricks Apps, open the app when its status is **Running**.
+
+To rerun the sample data job, use `databricks bundle run seed_trip_snapshot -t dev`.
+The job copies the geography file to the volume and preserves existing snapshot
+tables and trip IDs.
+
+## Release an app update
+
+After you set up the target, deploy the bundle and start the new app version.
+
+```sh
+databricks bundle deploy -t dev
+databricks bundle run app -t dev
+```
 
 ## Develop locally
 
+Write the connection settings to `.env` and start the client and API. If you
+use a named profile, export `DATABRICKS_CONFIG_PROFILE` in your shell first.
+
 ```sh
+databricks bundle run local_env -t dev
 npm run dev
 ```
 
 Open the frontend URL printed in the terminal. The local API uses your
-Databricks CLI login. Set `DATABRICKS_CONFIG_PROFILE` in `.env` if you use a
-named profile.
+Databricks CLI login.
 
 ## Verify the app
+
+### Run local checks
 
 Run the build and local tests, then exercise the UI against mocked API responses.
 
@@ -61,8 +79,10 @@ npx playwright install chromium webkit
 npm run test:browser
 ```
 
-After deployment, check the hosted app's SQL, maps, Lakebase, and Genie
-connections. This creates and deletes a temporary saved view.
+### Check hosted APIs
+
+After a release, verify that SQL queries, trip maps, Lakebase, and Genie work
+through the hosted app. The check creates and deletes a temporary saved view.
 
 ```sh
 node scripts/check-deployed.mjs dev
@@ -86,13 +106,14 @@ different schema name.
 For production, use `prod` in the commands and override path. Use distinct app
 and data names for each target.
 
-## Deploy from GitHub Actions
+## Release from GitHub Actions
 
 1. Create a GitHub environment called `dev` or `prod`. Configure federation for
    the Databricks service principal and that environment. [GitHub federation guide](https://docs.databricks.com/aws/en/dev-tools/auth/provider-github)
-2. Set `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, and `DATABRICKS_APP_NAME` in the
-   GitHub environment's **Variables** settings.
-3. Set shared bundle variables in `databricks.yml` for CI. If both local and CI
-   identities will deploy to the same target, use a shared, restricted
-   `workspace.root_path`.
-4. Run the [Deploy workflow](.github/workflows/deploy.yml) for that target.
+2. In the GitHub environment's **Variables** settings, set `DATABRICKS_HOST` and
+   `DATABRICKS_CLIENT_ID`. Set `DATABRICKS_APP_NAME` to the target's `app_name`.
+3. Set the bundle variables and a restricted `workspace.root_path` in
+   `databricks.yml`. Use the same values for target setup and GitHub releases.
+   Give both identities access to that path and the resources they manage.
+4. [Set up the target](#set-up-a-target) once from the CLI. For app updates, run
+   the [Deploy workflow](.github/workflows/deploy.yml) and select the target.

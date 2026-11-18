@@ -23,6 +23,21 @@ variables:
 include:
   - resources/*.yml
 
+scripts:
+  bootstrap:
+    env:
+      BUNDLE_TARGET: ${bundle.target}
+      BUNDLE_VAR_app_name: ${var.app_name}
+      BUNDLE_VAR_data_name: ${var.data_name}
+      BUNDLE_VAR_data_catalog: ${var.data_catalog}
+      BUNDLE_VAR_data_schema: ${var.data_schema}
+      BUNDLE_VAR_warehouse_name: ${var.warehouse_name}
+    content: node scripts/setup-workspace.mjs bootstrap
+  local_env:
+    env:
+      BUNDLE_TARGET: ${bundle.target}
+    content: node scripts/setup-workspace.mjs local-env
+
 sync:
   exclude:
     - .github/**
@@ -31,7 +46,6 @@ sync:
     - server/test/**
     - client/test/**
     - packages/*/test/**
-    - jobs/nyc-zcta.jsonl
     - README.md
     - DEPLOYMENT.md
     - .oxlintrc.json

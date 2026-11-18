@@ -2,9 +2,8 @@
 -- January and February 2016 taxi snapshot.
 SELECT assert_true(
   :catalog RLIKE '^[A-Za-z_][A-Za-z0-9_-]{0,127}$'
-    AND :schema RLIKE '^[A-Za-z_][A-Za-z0-9_-]{0,127}$'
-    AND :app_service_principal_id RLIKE '(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-  'Expected valid catalog/schema identifiers and the Databricks App principal UUID.'
+    AND :schema RLIKE '^[A-Za-z_][A-Za-z0-9_-]{0,127}$',
+  'Expected valid catalog/schema identifiers.'
 );
 
 -- COMMAND ----------
@@ -76,7 +75,7 @@ WHERE q.analytics_valid;
 
 -- COMMAND ----------
 
-CREATE OR REPLACE VIEW IDENTIFIER('`' || :catalog || '`.`' || :schema || '`.`trip_quality_2016`') AS
+CREATE VIEW IF NOT EXISTS IDENTIFIER('`' || :catalog || '`.`' || :schema || '`.`trip_quality_2016`') AS
 SELECT source_file, COUNT(*) AS raw_trips,
   count_if(analytics_valid) AS accepted_trips,
   count_if(NOT analytics_valid) AS rejected_trips,
@@ -100,22 +99,6 @@ CREATE TABLE IF NOT EXISTS IDENTIFIER('`' || :catalog || '`.`' || :schema || '`.
   run_id BIGINT NOT NULL,
   report_json STRING NOT NULL
 ) USING DELTA;
-
--- COMMAND ----------
-
-BEGIN
-  DECLARE grant_sql STRING;
-  SET grant_sql = 'GRANT USE CATALOG ON CATALOG `' || :catalog || '` TO `' || :app_service_principal_id || '`';
-  EXECUTE IMMEDIATE grant_sql;
-  SET grant_sql = 'GRANT USE SCHEMA ON SCHEMA `' || :catalog || '`.`' || :schema || '` TO `' || :app_service_principal_id || '`';
-  EXECUTE IMMEDIATE grant_sql;
-  SET grant_sql = 'GRANT SELECT ON TABLE `' || :catalog || '`.`' || :schema || '`.`trips_2016` TO `' || :app_service_principal_id || '`';
-  EXECUTE IMMEDIATE grant_sql;
-  SET grant_sql = 'GRANT SELECT ON TABLE `' || :catalog || '`.`' || :schema || '`.`route_reliability_runs` TO `' || :app_service_principal_id || '`';
-  EXECUTE IMMEDIATE grant_sql;
-  SET grant_sql = 'GRANT SELECT ON VIEW `' || :catalog || '`.`' || :schema || '`.`trip_quality_2016` TO `' || :app_service_principal_id || '`';
-  EXECUTE IMMEDIATE grant_sql;
-END;
 
 -- COMMAND ----------
 

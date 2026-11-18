@@ -23,7 +23,6 @@
     "dev:server": "npm run build --workspaces --if-present && node --env-file-if-exists=.env --import tsx --watch server/src/main.ts",
     "dev:client": "vite --host 127.0.0.1",
     "db:setup": "node --env-file-if-exists=.env --import tsx scripts/setup-lakebase.ts",
-    "workspace:setup": "node scripts/setup-workspace.mjs",
     "test:browser": "playwright test",
     "format:check": "oxfmt --check ."
   },
