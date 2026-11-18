@@ -13,7 +13,7 @@ import { TripComments } from "../src/trip-comments.js";
 import { Workspace } from "../src/workspace.js";
 import { warehouseFetch } from "./warehouse-fixture.js";
 
-test("analysis runs recover submission, scope history and results, and read an empty report", async (t) => {
+test("analysis runs record the requester across retries, scope history and results, and read an empty report", async (t) => {
   const input = {
     baselineWeek: "2016-01-04",
     comparisonWeek: "2016-01-11",
@@ -23,6 +23,7 @@ test("analysis runs recover submission, scope history and results, and read an e
     baseline_week: input.baselineWeek,
     comparison_week: input.comparisonWeek,
     minimum_trips: String(input.minimumTrips),
+    requested_by: "Avery Morgan",
   };
   const report = { input, rows: [] };
   const submissions: unknown[] = [];
@@ -49,7 +50,15 @@ test("analysis runs recover submission, scope history and results, and read an e
     const request = new Request(input, init);
     const url = new URL(request.url);
     if (!url.pathname.startsWith("/api/2.2/jobs/")) return sql(request);
-    const run = { job_id: 456, run_id: 123, status: { state } };
+    const legacy = { job_id: 456, run_id: 125, status: { state } };
+    const run = {
+      ...legacy,
+      run_id: 123,
+      job_parameters: Object.entries(jobParameters).map(([name, value]) => ({
+        name,
+        value,
+      })),
+    };
     switch (url.pathname) {
       case "/api/2.2/jobs/run-now":
         submissions.push(await request.json());
@@ -59,7 +68,7 @@ test("analysis runs recover submission, scope history and results, and read an e
       case "/api/2.2/jobs/runs/list":
         assert.equal(url.searchParams.get("job_id"), "456");
         return Response.json({
-          runs: [run, { ...run, job_id: 789, run_id: 124 }],
+          runs: [run, { ...run, job_id: 789, run_id: 124 }, legacy],
         });
       case "/api/2.2/jobs/runs/get":
         return Response.json({
@@ -71,9 +80,6 @@ test("analysis runs recover submission, scope history and results, and read an e
             state === "TERMINATED"
               ? { state, termination_details: { code: "SUCCESS" } }
               : { state },
-          job_parameters: Object.entries(jobParameters).map(
-            ([name, value]) => ({ name, value }),
-          ),
         });
       default:
         throw new Error(`Unexpected request to ${url.pathname}`);
@@ -115,10 +121,15 @@ test("analysis runs recover submission, scope history and results, and read an e
   const submit = (analysis = input) =>
     api("", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "x-forwarded-preferred-username": "Avery Morgan",
+        "x-forwarded-email": "avery@example.com",
+      },
       body: JSON.stringify({
         input: analysis,
         requestId: "52545413-6df3-4669-9e53-200b323b4001",
+        requestedBy: "Forged name",
       }),
     });
 
@@ -146,13 +157,27 @@ test("analysis runs recover submission, scope history and results, and read an e
     idempotency_token: submitted.idempotency_token,
   });
   assert.deepEqual(await (await api()).json(), [
-    { id: 123, state: "queued", startedAt: null, endedAt: null },
+    {
+      id: 123,
+      state: "queued",
+      startedAt: null,
+      endedAt: null,
+      requestedBy: "Avery Morgan",
+    },
+    {
+      id: 125,
+      state: "queued",
+      startedAt: null,
+      endedAt: null,
+      requestedBy: null,
+    },
   ]);
   assert.deepEqual(await (await api("/123")).json(), {
     id: 123,
     state: "queued",
     startedAt: null,
     endedAt: null,
+    requestedBy: "Avery Morgan",
     input,
     reason: null,
   });

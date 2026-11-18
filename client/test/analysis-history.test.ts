@@ -18,6 +18,7 @@ const run: AnalysisRunSummary = {
   state: "succeeded",
   startedAt: null,
   endedAt: null,
+  requestedBy: null,
 };
 
 test("refreshing history keeps the recent list visible through a failure", () => {
@@ -65,7 +66,8 @@ test("refreshing history keeps the recent list visible through a failure", () =>
 
 test("a completed submission can refresh pending history without accepting older replies", () => {
   const opened = openAnalysisRuns(init(), { _tag: "NoRun" }).model;
-  const submitted = updateAnalysisRuns(opened, M.StartAnalysis(), "").model;
+  const form = updateAnalysisRuns(opened, M.OpenAnalysisForm(), "").model;
+  const submitted = updateAnalysisRuns(form, M.StartAnalysis(), "").model;
   const reopened = openAnalysisRuns(submitted, { _tag: "NoRun" });
   assert.deepEqual(
     reopened.commands?.map(({ name }) => name),

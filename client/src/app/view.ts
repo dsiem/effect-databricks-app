@@ -3,6 +3,7 @@ import { Array as Arr } from "effect";
 import type { Document } from "foldkit/html";
 import { filterSummary } from "../domain/filter-summary";
 import { filterError, href, queryFor } from "../domain/filters";
+import { withoutRun } from "../features/analysis-runs/model";
 import { analysisRunsView } from "../features/analysis-runs/view";
 import { filterFields } from "../features/filters/view";
 import { genieHelperView, genieView } from "../features/genie/view";
@@ -34,11 +35,7 @@ import { exploreMessage, gpsViewMessage } from "./view-messages";
 import type { H } from "./view-types";
 
 function workspaceHref(path: string, query: string) {
-  const params = new URLSearchParams(query);
-  if (path === paths.AnalysisRuns || !params.has("run"))
-    return href(path, query);
-  params.delete("run");
-  return href(path, params.toString());
+  return href(path, withoutRun(query));
 }
 
 function sidebar(h: H, model: Model) {
@@ -339,7 +336,10 @@ export function view(model: Model, h: H): Document {
     navigation.find((item) => item.path === routePath(route))?.label ??
     (route._tag === "Genie" ? "Ask Genie" : "Workspace");
   return {
-    title: `NYC Taxi · ${current}`,
+    title:
+      route._tag === "AnalysisRuns" && route.run._tag === "SelectedRun"
+        ? `NYC Taxi · Run #${route.run.id} · ${current}`
+        : `NYC Taxi · ${current}`,
     body: h.div(
       [h.Class("workspace")],
       [

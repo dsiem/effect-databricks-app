@@ -5,7 +5,10 @@ import type { Url } from "foldkit/url";
 import { href, queryFor, withTripSort } from "../domain/filters";
 import * as AnalysisDates from "../features/analysis-runs/dates";
 import * as AnalysisRuns from "../features/analysis-runs/model";
-import { updateAnalysisRuns } from "../features/analysis-runs/update";
+import {
+  closeAnalysisForm,
+  updateAnalysisRuns,
+} from "../features/analysis-runs/update";
 import * as FilterDates from "../features/filters/dates";
 import * as Filters from "../features/filters/model";
 import { updateFilters } from "../features/filters/update";
@@ -108,6 +111,7 @@ function updateApplication(
         };
       const location = parseLocation(message.path, message.query);
       const reset = updateTrips(model.tripsState, M.ResetTrips());
+      const analysis = closeAnalysisForm(model.analysisRunsState);
       const savedViews =
         showsExplore(route) && !showsExplore(location.route)
           ? closeSavedViewsPicker(model.savedViewsState)
@@ -123,6 +127,7 @@ function updateApplication(
           model.metadata.data,
         ),
         savedViewsState: { ...savedViews.model, notice: "" },
+        analysisRunsState: analysis.model,
         tripsState: reset.model,
         genieState: { ...model.genieState, genieSelection: null },
       });
@@ -130,10 +135,17 @@ function updateApplication(
         ...loaded,
         commands: [
           ...(reset.commands ?? []),
+          ...(analysis.commands ?? []).map((command) =>
+            Command.mapMessage(command, analysisRunsMessage),
+          ),
           ...(savedViews.commands ?? []).map((command) =>
             Command.mapMessage(command, savedViewsMessage),
           ),
           ...(loaded.commands ?? []),
+          ...(route._tag === "AnalysisRuns" &&
+          location.route._tag === "AnalysisRuns"
+            ? [AppCommands.Focus({ selector: "#analysis-heading" })]
+            : []),
         ],
       };
     }

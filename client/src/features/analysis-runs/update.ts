@@ -1,4 +1,4 @@
-import { DatePicker } from "@foldkit/ui";
+import { DatePicker, Dialog } from "@foldkit/ui";
 import { Option, Schema } from "effect";
 import { AsyncData, Command, type Update } from "foldkit";
 import { AnalysisInput } from "../../../../shared/analysis-runs";
@@ -8,9 +8,52 @@ import { empty, pending } from "../../lib/request-state";
 import * as Commands from "./commands";
 import { focusWeek } from "./dates";
 import { Message as M, type Message } from "./messages";
-import { type AnalysisRunLink, type Model, readyToSubmit } from "./model";
+import {
+  type AnalysisRunLink,
+  defaultDraft,
+  type Model,
+  readyToSubmit,
+} from "./model";
 
 type Change = Update.Return<Model, Message, ApiClient>;
+
+function updateFormDialog(model: Model, message: Dialog.Message): Change {
+  const changed = Dialog.update(model.dialog, message);
+  const commands: Command.Command<Message>[] = (changed.commands ?? []).map(
+    (command) =>
+      Command.mapMessage(command, (message) =>
+        M.AnalysisFormDialog({ message }),
+      ),
+  );
+  let datePickers = model.datePickers;
+  if (model.dialog.isOpen && !changed.model.isOpen && datePickers) {
+    for (const field of ["baselineWeek", "comparisonWeek"] as const) {
+      const picker = datePickers[field];
+      if (!picker.popover.isOpen) continue;
+      const closed = DatePicker.close(picker);
+      datePickers = { ...datePickers, [field]: closed.model };
+      commands.push(
+        ...(closed.commands ?? []).map((command) =>
+          Command.mapMessage(command, (message) =>
+            M.AnalysisDatePicker({ field, message }),
+          ),
+        ),
+      );
+    }
+  }
+  return {
+    model:
+      changed.model === model.dialog
+        ? model
+        : { ...model, dialog: changed.model, datePickers },
+    commands,
+  };
+}
+
+export const closeAnalysisForm = (model: Model): Change =>
+  model.dialog.isOpen
+    ? updateFormDialog(model, Dialog.Message.RequestedClose())
+    : { model };
 
 const editField = (
   model: Model,
@@ -39,21 +82,28 @@ function loadHistory(model: Model): Change {
 
 export function openAnalysisRuns(model: Model, run: AnalysisRunLink): Change {
   const generation = model.generation + 1;
-  return loadHistory({
-    ...model,
-    generation,
-    invalidLink: run._tag === "InvalidRun",
-    selected:
-      run._tag !== "SelectedRun"
-        ? null
-        : {
-            id: run.id,
-            generation,
-            detail: pending,
-            report: empty,
-            observedAt: 0,
-          },
-  });
+  if (run._tag !== "SelectedRun") {
+    return loadHistory({
+      ...model,
+      generation,
+      invalidLink: run._tag === "InvalidRun",
+      selected: null,
+    });
+  }
+  return {
+    model: {
+      ...model,
+      generation,
+      invalidLink: false,
+      selected: {
+        id: run.id,
+        generation,
+        detail: pending,
+        report: empty,
+        observedAt: 0,
+      },
+    },
+  };
 }
 
 const loadReport = (
@@ -71,13 +121,49 @@ export function updateAnalysisRuns(
   message: Message,
   query: string | null,
 ): Change {
-  if (query === null && message._tag !== "AnalysisSubmitted") return { model };
+  if (
+    query === null &&
+    message._tag !== "AnalysisSubmitted" &&
+    message._tag !== "AnalysisFormDialog"
+  )
+    return { model };
   const selected = model.selected;
   switch (message._tag) {
     case "Idle":
       return { model };
+    case "OpenAnalysisForm":
+    case "ReuseAnalysisInputs": {
+      if (model.dialog.isOpen || model.submission._tag === "Submitting")
+        return { model };
+      const draft =
+        message._tag === "OpenAnalysisForm"
+          ? defaultDraft
+          : {
+              ...message.input,
+              minimumTrips: String(message.input.minimumTrips),
+            };
+      return updateFormDialog(
+        { ...model, draft, submission: readyToSubmit() },
+        Dialog.Message.RequestedOpen(),
+      );
+    }
+    case "CloseAnalysisForm":
+      return model.submission._tag === "Submitting"
+        ? { model }
+        : closeAnalysisForm(model);
+    case "AnalysisFormDialog":
+      if (
+        message.message._tag === "RequestedClose" &&
+        model.submission._tag === "Submitting"
+      )
+        return { model };
+      return updateFormDialog(model, message.message);
     case "AnalysisDatePicker": {
-      if (!model.datePickers || model.submission._tag === "Submitting")
+      if (
+        !model.dialog.isOpen ||
+        !model.datePickers ||
+        model.submission._tag === "Submitting"
+      )
         return { model };
       const { field } = message;
       const previous = model.datePickers[field];
@@ -94,13 +180,14 @@ export function updateAnalysisRuns(
         datePickers: { ...model.datePickers, [field]: picker },
       };
       return {
-        model: out
-          ? editField(
-              next,
-              field,
-              out._tag === "SelectedDate" ? isoDay(out.date) : "",
-            )
-          : next,
+        model:
+          out && out._tag !== "ChangedViewMonth"
+            ? editField(
+                next,
+                field,
+                out._tag === "SelectedDate" ? isoDay(out.date) : "",
+              )
+            : next,
         commands: [
           ...(changed.commands ?? []),
           ...(closed?.commands ?? []),
@@ -112,10 +199,12 @@ export function updateAnalysisRuns(
       };
     }
     case "AnalysisFieldChanged":
-      if (model.submission._tag === "Submitting") return { model };
+      if (!model.dialog.isOpen || model.submission._tag === "Submitting")
+        return { model };
       return { model: editField(model, message.field, message.value) };
     case "StartAnalysis": {
-      if (model.submission._tag === "Submitting") return { model };
+      if (!model.dialog.isOpen || model.submission._tag === "Submitting")
+        return { model };
       const input = Schema.decodeUnknownOption(AnalysisInput)({
         ...model.draft,
         minimumTrips: Number(model.draft.minimumTrips),
@@ -150,6 +239,12 @@ export function updateAnalysisRuns(
       ) {
         return { model };
       }
+      if (query === null || model.generation !== message.generation) {
+        const next = { ...model, submission: readyToSubmit() };
+        return message.data && query !== null && !selected
+          ? loadHistory(next)
+          : { model: next };
+      }
       if (!message.data) {
         return {
           model: {
@@ -158,12 +253,16 @@ export function updateAnalysisRuns(
           },
         };
       }
-      const next = { ...model, submission: readyToSubmit() };
-      if (query === null) return { model: next };
-      if (model.generation !== message.generation) return loadHistory(next);
+      const closed = closeAnalysisForm({
+        ...model,
+        submission: readyToSubmit(),
+      });
       return {
-        model: next,
-        commands: [Commands.OpenRun({ id: message.data.id, query })],
+        model: closed.model,
+        commands: [
+          ...(closed.commands ?? []),
+          Commands.OpenRun({ id: message.data.id, query }),
+        ],
       };
     }
     case "RefreshAnalysisHistory":
@@ -228,19 +327,6 @@ export function updateAnalysisRuns(
             },
           },
         },
-      };
-    case "ReuseAnalysisInputs":
-      if (model.submission._tag === "Submitting") return { model };
-      return {
-        model: {
-          ...model,
-          draft: {
-            ...message.input,
-            minimumTrips: String(message.input.minimumTrips),
-          },
-          submission: readyToSubmit(),
-        },
-        commands: [Commands.FocusInputs()],
       };
   }
 }

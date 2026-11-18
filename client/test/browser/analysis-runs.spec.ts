@@ -15,6 +15,7 @@ test("analysis retries safely and a run link resumes monitoring and reuses input
   const summary = () => ({
     id: 123,
     state,
+    requestedBy: "Avery Morgan",
     startedAt,
     endedAt: state === "succeeded" ? startedAt + 15_000 : null,
   });
@@ -68,9 +69,18 @@ test("analysis retries safely and a run link resumes monitoring and reuses input
   await expect(
     page.getByRole("heading", { name: "Analysis runs" }),
   ).toBeVisible();
-  const baseline = page.getByLabel("Baseline week starts");
-  const comparison = page.getByLabel("Comparison week starts");
-  const minimum = page.getByLabel("Minimum trips per week");
+  await expect(
+    page.getByRole("heading", { name: "Recent runs" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Baseline week starts")).toBeHidden();
+  await page.getByRole("button", { name: "New run", exact: true }).click();
+  const form = page.getByRole("dialog", {
+    name: "New analysis run",
+    exact: true,
+  });
+  const baseline = form.getByLabel("Baseline week starts");
+  const comparison = form.getByLabel("Comparison week starts");
+  const minimum = form.getByLabel("Minimum trips per week");
   await expect(baseline).toHaveAttribute("type", "text");
   await expect(comparison).toHaveAttribute("type", "text");
   const [baselineBox, comparisonBox, minimumBox] = await Promise.all(
@@ -96,8 +106,13 @@ test("analysis retries safely and a run link resumes monitoring and reuses input
   await expect(page.getByText("Databricks request timed out.")).toBeVisible();
   await page.getByRole("button", { name: "Retry submission" }).click();
   await expect(page).toHaveURL(/\/analysis\?run=123$/);
+  await expect(form).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Recent runs" })).toBeHidden();
   await expect(
     page.getByRole("status").filter({ hasText: "Running" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Started by Avery Morgan", { exact: true }),
   ).toBeVisible();
   expect(submissions).toHaveLength(2);
   expect(submissions[1]).toEqual(submissions[0]);
@@ -107,6 +122,9 @@ test("analysis retries safely and a run link resumes monitoring and reuses input
   await page.reload();
   await expect(
     page.getByRole("status").filter({ hasText: "Running" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Started by Avery Morgan", { exact: true }),
   ).toBeVisible();
   state = "succeeded";
   await expect(page.getByRole("cell", { name: "+3.5 min" })).toBeVisible({
@@ -118,21 +136,99 @@ test("analysis retries safely and a run link resumes monitoring and reuses input
       return container && container.scrollWidth === container.clientWidth;
     }),
   ).toBe(true);
-  await expect(page.getByRole("link", { name: /Run #123/ })).toHaveAttribute(
-    "aria-current",
-    "page",
+  await expect(page.getByRole("link", { name: "All runs" })).toHaveAttribute(
+    "href",
+    "/analysis",
   );
+  await expect(
+    page.getByRole("link", { name: "Analysis runs", exact: true }),
+  ).toHaveAttribute("href", "/analysis");
   expect(submissions).toHaveLength(2);
   expect(reportReads).toBe(1);
 
-  await page
-    .getByRole("button", { name: "Run again with these inputs" })
-    .click();
-  await expect(page.getByLabel("Comparison week starts")).toHaveValue(
-    input.comparisonWeek,
-  );
-  await expect(page.getByLabel("Minimum trips per week")).toHaveValue(
-    String(input.minimumTrips),
-  );
+  const reuse = page.getByRole("button", { name: "Use these inputs" });
+  await reuse.click();
+  await expect(comparison).toHaveValue(input.comparisonWeek);
+  await expect(minimum).toHaveValue(String(input.minimumTrips));
+  await form.getByRole("button", { name: "Cancel" }).click();
+  await expect(reuse).toBeFocused();
+  await page.getByRole("button", { name: "New run", exact: true }).click();
+  await expect(minimum).toHaveValue("50");
+  await page.keyboard.press("Escape");
+  await expect(form).toBeHidden();
   expect(submissions).toHaveLength(2);
+});
+
+test("a phone can return from the end of a long report and reopen it from history", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  const input = {
+    baselineWeek: "2016-01-04",
+    comparisonWeek: "2016-01-11",
+    minimumTrips: 20,
+  };
+  const summary = {
+    id: 321,
+    state: "succeeded",
+    requestedBy: "Avery Morgan",
+    startedAt: Date.UTC(2026, 0, 20),
+    endedAt: Date.UTC(2026, 0, 20, 0, 1),
+  };
+  await page.route("**/api/analysis-runs", (route) =>
+    route.fulfill({ json: [summary] }),
+  );
+  await page.route("**/api/analysis-runs/321", (route) =>
+    route.fulfill({ json: { ...summary, input, reason: null } }),
+  );
+  await page.route("**/api/analysis-runs/321/result", (route) =>
+    route.fulfill({
+      json: {
+        input,
+        rows: Array.from({ length: 50 }, (_, i) => ({
+          pickupZip: String(10001 + i),
+          dropoffZip: "10010",
+          timeBand: "morning",
+          baselineCount: 35,
+          comparisonCount: 41,
+          baselineP90Minutes: 12,
+          comparisonP90Minutes: 14,
+        })),
+      },
+    }),
+  );
+
+  await page.goto("/analysis?zip=10001&run=321");
+  const history = page.getByRole("link", { name: "All runs" });
+  const last = page.getByRole("cell", { name: /10050.*10010/ });
+  await last.scrollIntoViewIfNeeded();
+  await expect(last).toBeInViewport();
+  await expect(history).toBeInViewport();
+  await expect(history).toHaveAttribute("href", "/analysis?zip=10001");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await history.click();
+  await expect(page).toHaveURL("/analysis?zip=10001");
+  const entry = page.getByRole("link", { name: /Run #321/ });
+  await expect(entry).toHaveAttribute("href", "/analysis?zip=10001&run=321");
+  await expect(page.getByRole("cell", { name: /10050.*10010/ })).toBeHidden();
+  await entry.focus();
+  await entry.press("Enter");
+  const heading = page.getByRole("heading", { name: "Run #321" });
+  await expect(heading).toBeFocused();
+  await expect(heading).toBeInViewport();
+  await page.getByRole("button", { name: "New run", exact: true }).click();
+  const form = page.getByRole("dialog", {
+    name: "New analysis run",
+    exact: true,
+  });
+  await expect(form).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL("/analysis?zip=10001");
+  await expect(form).toBeHidden();
+  await expect(page.locator("html")).not.toHaveCSS("overflow", "hidden");
+  await expect(entry).toBeVisible();
 });

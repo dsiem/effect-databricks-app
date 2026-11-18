@@ -1,6 +1,5 @@
 import { Clock, Effect, Schema } from "effect";
 import { Command, Navigation } from "foldkit";
-import * as Dom from "foldkit/dom";
 import { AnalysisInput, AnalysisRunId } from "../../../../shared/analysis-runs";
 import { Id } from "../../../../shared/domain";
 import { request } from "../../lib/api-client";
@@ -68,9 +67,4 @@ export const OpenRun = Command.define("OpenAnalysisRun", {
   args: { id: AnalysisRunId, query: Schema.String },
   messages: [M.Idle],
   execute: ({ id, query }) => done(Navigation.pushUrl(runHref(id, query))),
-});
-
-export const FocusInputs = Command.define("FocusAnalysisInputs", {
-  messages: [M.Idle],
-  execute: done(Dom.focus("#analysis-baseline-week").pipe(Effect.ignore)),
 });

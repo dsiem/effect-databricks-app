@@ -1,4 +1,4 @@
-import { DatePicker } from "@foldkit/ui";
+import { DatePicker, Dialog } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
 import {
@@ -12,6 +12,9 @@ import { Id } from "../../../../shared/domain";
 import { Selection, WeekField } from "./model";
 
 const messages = {
+  OpenAnalysisForm: {},
+  CloseAnalysisForm: {},
+  AnalysisFormDialog: { message: Dialog.Message },
   AnalysisDatePicker: { field: WeekField, message: DatePicker.Message },
   AnalysisFieldChanged: {
     field: Schema.Literals(["baselineWeek", "comparisonWeek", "minimumTrips"]),

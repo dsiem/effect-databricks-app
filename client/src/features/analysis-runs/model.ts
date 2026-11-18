@@ -1,4 +1,4 @@
-import { DatePicker } from "@foldkit/ui";
+import { DatePicker, Dialog } from "@foldkit/ui";
 import { Option, Schema } from "effect";
 import { AsyncData } from "foldkit";
 import {
@@ -10,6 +10,7 @@ import {
   RouteReliabilityReport,
 } from "../../../../shared/analysis-runs";
 import { Id } from "../../../../shared/domain";
+import { href } from "../../domain/filters";
 import { request } from "../../lib/request-state";
 
 export const Draft = Schema.Struct({
@@ -45,6 +46,7 @@ export const readyToSubmit = (retryId: string | null = null, error = "") =>
   Ready.make({ retryId, error });
 
 export const Model = Schema.Struct({
+  dialog: Dialog.Model,
   draft: Draft,
   datePickers: Schema.NullOr(
     Schema.Struct({
@@ -69,12 +71,18 @@ export const Model = Schema.Struct({
 });
 export type Model = typeof Model.Type;
 
+export const defaultDraft: Model["draft"] = {
+  baselineWeek: "2016-01-04",
+  comparisonWeek: "2016-01-11",
+  minimumTrips: "50",
+};
+
 export const init = (): Model => ({
-  draft: {
-    baselineWeek: "2016-01-04",
-    comparisonWeek: "2016-01-11",
-    minimumTrips: "50",
-  },
+  dialog: Dialog.init({
+    id: "analysis-run-form",
+    focusSelector: "#analysis-baseline-week",
+  }),
+  draft: defaultDraft,
   datePickers: null,
   submission: readyToSubmit(),
   generation: 0,
@@ -92,6 +100,14 @@ export function parseRunLink(run: string | null): AnalysisRunLink {
     ? { _tag: "SelectedRun", id: id.value }
     : { _tag: "InvalidRun" };
 }
+export const withoutRun = (query: string) => {
+  const params = new URLSearchParams(query);
+  if (!params.has("run")) return query;
+  params.delete("run");
+  return params.toString();
+};
+export const historyHref = (query: string) =>
+  href(analysisPath, withoutRun(query));
 export const runHref = (id: AnalysisRunId, query: string) => {
   const params = new URLSearchParams(query);
   params.set("run", String(id));

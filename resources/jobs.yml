@@ -30,6 +30,8 @@ resources:
           default: "2016-01-11"
         - name: minimum_trips
           default: "50"
+        - name: requested_by
+          default: ""
       tasks:
         - task_key: compare_routes
           sql_task:

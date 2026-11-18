@@ -3,12 +3,12 @@ import { AsyncData } from "foldkit";
 import { defineView } from "foldkit/submodel";
 import type {
   AnalysisRunState,
+  AnalysisRunSummary,
   RouteReliabilityReport,
   RouteReliabilityRow,
 } from "../../../../shared/analysis-runs";
 import { number } from "../../lib/format";
-import { dateField } from "../../ui/date-field";
-import { field } from "../../ui/field";
+import { icon } from "../../ui/icons";
 import {
   alert,
   button,
@@ -16,10 +16,10 @@ import {
   type H as Builder,
   panelHeader,
   table,
-  title,
 } from "../../ui/primitives";
+import { analysisForm } from "./form-view";
 import { Message as M, type Message } from "./messages";
-import { type Model, runHref, type WeekField } from "./model";
+import { historyHref, type Model, runHref } from "./model";
 
 type H = Builder<Message>;
 type ViewInputs = { readonly query: string };
@@ -55,6 +55,9 @@ const status = (h: H, state: AnalysisRunState) =>
     [states[state]],
   );
 
+const startedBy = (name: string | null) =>
+  name ? `Started by ${name}` : "Requester unavailable";
+
 const duration = (start: number, end: number) => {
   const seconds = Math.max(0, Math.floor((end - start) / 1_000));
   return seconds < 60
@@ -62,89 +65,51 @@ const duration = (start: number, end: number) => {
     : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 };
 
-function setup(h: H, model: Model) {
-  const busy = model.submission._tag === "Submitting";
-  const week = (
-    key: WeekField,
-    id: string,
-    label: string,
-    calendarLabel: string,
-  ) =>
-    dateField(h, {
-      id,
-      label,
-      calendarLabel,
-      value: model.draft[key],
-      model: model.datePickers?.[key] ?? null,
-      onInput: (value) => M.AnalysisFieldChanged({ field: key, value }),
-      onMessage: (message) => M.AnalysisDatePicker({ field: key, message }),
-    });
+const pageHeading = (h: H, text: string) =>
+  h.h1([h.Id("analysis-heading"), h.Tabindex(-1)], [text]);
 
-  return card(h, [
-    panelHeader(h, {
-      title: "Route reliability",
-      description:
-        "Compare 90th-percentile trip times for the same ZIP pair and pickup time band. Each window covers seven days.",
-    }),
-    h.form(
-      [
-        h.Class("analysis-form"),
-        h.Novalidate(true),
-        h.OnSubmit(M.StartAnalysis()),
-      ],
-      [
-        h.fieldset(
-          [h.Class("filter-controls"), h.Disabled(busy)],
-          [
-            h.div(
-              [h.Class("filter-fields")],
-              [
-                week(
-                  "baselineWeek",
-                  "analysis-baseline-week",
-                  "Baseline week starts",
-                  "Choose baseline week start",
-                ),
-                week(
-                  "comparisonWeek",
-                  "analysis-comparison-week",
-                  "Comparison week starts",
-                  "Choose comparison week start",
-                ),
-                field(h, {
-                  id: "analysis-minimum-trips",
-                  label: "Minimum trips per week",
-                  type: "number",
-                  value: model.draft.minimumTrips,
-                  onInput: (value) =>
-                    M.AnalysisFieldChanged({ field: "minimumTrips", value }),
-                  attributes: [h.Min("1"), h.Step("1"), h.Required(true)],
-                }),
-              ],
-            ),
-            h.div(
-              [h.Class("filter-actions")],
-              [
-                button(h, {
-                  label: busy
-                    ? "Starting…"
-                    : model.submission.retryId
-                      ? "Retry submission"
-                      : "Run analysis",
-                  type: "submit",
-                  variant: "primary",
-                  disabled: busy,
-                }),
-              ],
-            ),
-          ],
-        ),
-        ...(!busy && model.submission.error
-          ? [alert(h, model.submission.error)]
-          : []),
-      ],
+const newRun = (h: H, model: Model) =>
+  button(h, {
+    label: h.span(
+      [h.Class("inline-flex items-center gap-2")],
+      [icon(h, "plus"), "New run"],
     ),
-  ]);
+    variant: "primary",
+    onClick: M.OpenAnalysisForm(),
+    disabled: model.submission._tag === "Submitting",
+  });
+
+function historyRow(h: H, run: AnalysisRunSummary, query: string) {
+  return h.li(
+    [h.Key(String(run.id))],
+    [
+      h.a(
+        [h.Href(runHref(run.id, query)), h.Class("analysis-history-link")],
+        [
+          h.span([h.Class("analysis-run-id")], [`Run #${run.id}`]),
+          status(h, run.state),
+          h.span(
+            [h.Class("analysis-start-time")],
+            [
+              run.startedAt === null
+                ? "Start time unavailable"
+                : dateTime.format(run.startedAt),
+            ],
+          ),
+          h.span(
+            [h.Class("analysis-requester")],
+            [
+              ...(run.requestedBy
+                ? [h.span([h.Class("@min-[40rem]:sr-only")], ["Started by "])]
+                : []),
+              run.requestedBy ?? "Requester unavailable",
+            ],
+          ),
+          icon(h, "chevron-right"),
+        ],
+      ),
+    ],
+  );
 }
 
 function recentRuns(h: H, model: Model, query: string) {
@@ -169,54 +134,27 @@ function recentRuns(h: H, model: Model, query: string) {
       : []),
     ...(data?.length
       ? [
+          h.div(
+            [h.Class("analysis-history-head"), h.AriaHidden(true)],
+            ["Run", "Status", "Started", "Started by"].map((label) =>
+              h.span([], [label]),
+            ),
+          ),
           h.ul(
             [h.Class("analysis-history")],
-            data.map((run) => {
-              const current = model.selected?.id === run.id;
-              const latest = current
-                ? (model.selected?.detail.data ?? run)
-                : run;
-              return h.li(
-                [h.Key(String(run.id))],
-                [
-                  h.a(
-                    [
-                      h.Href(runHref(run.id, query)),
-                      h.Class("analysis-history-link"),
-                      ...(current ? [h.AriaCurrent("page")] : []),
-                    ],
-                    [
-                      h.span(
-                        [],
-                        [
-                          h.span(
-                            [h.Class("font-semibold")],
-                            [`Run #${run.id}`],
-                          ),
-                          h.span(
-                            [h.Class("analysis-detail")],
-                            [
-                              latest.startedAt === null
-                                ? "Start time unavailable"
-                                : dateTime.format(latest.startedAt),
-                            ],
-                          ),
-                        ],
-                      ),
-                      status(h, latest.state),
-                    ],
-                  ),
-                ],
-              );
-            }),
+            data.map((run) => historyRow(h, run, query)),
           ),
         ]
       : error
         ? []
         : [
             h.p(
-              [h.Class("analysis-panel-body muted text-sm"), h.Role("status")],
-              [loading ? "Loading recent runs…" : "No runs yet."],
+              [h.Class("empty-state"), h.Role("status")],
+              [
+                loading
+                  ? "Loading recent runs…"
+                  : "No runs yet. Start a new run to compare two weeks.",
+              ],
             ),
           ]),
   ]);
@@ -285,10 +223,16 @@ function reportTable(h: H, report: typeof RouteReliabilityReport.Type) {
   );
 }
 
+const weekStart = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeZone: "UTC",
+});
+
 function selectedRun(
   h: H,
   model: Model,
   selected: NonNullable<Model["selected"]>,
+  query: string,
 ) {
   const { detail, report } = selected;
   const run = detail.data;
@@ -297,142 +241,201 @@ function selectedRun(
     run?.state === "succeeded" ||
     run?.state === "failed" ||
     run?.state === "canceled";
-  return card(h, [
-    panelHeader(h, {
-      title: `Run #${selected.id}`,
-      ...(input
-        ? {
-            description: `${input.baselineWeek} vs ${input.comparisonWeek} · At least ${number(input.minimumTrips)} trips per week`,
-          }
-        : {}),
-      actions:
-        terminal && input
-          ? [
-              button(h, {
-                label: "Run again with these inputs",
-                size: "small",
-                onClick: M.ReuseAnalysisInputs({ input }),
-                disabled: model.submission._tag === "Submitting",
-              }),
-            ]
-          : [],
-    }),
-    h.div(
-      [h.Class("analysis-run-status")],
-      [
-        h.div(
-          [h.Role("status")],
-          [
-            run
-              ? status(h, run.state)
-              : detail.loading
-                ? "Checking status…"
-                : "Status unavailable",
-          ],
-        ),
-        ...(run && run.startedAt !== null
-          ? [
+  const inputValue = (label: string, value: string) =>
+    h.div([], [h.dt([], [label]), h.dd([], [value])]);
+
+  return h.div(
+    [h.Class("analysis-report")],
+    [
+      h.div(
+        [h.Class("analysis-report-toolbar")],
+        [
+          h.a(
+            [h.Href(historyHref(query)), h.Class("analysis-back")],
+            [icon(h, "chevron-left"), "All runs"],
+          ),
+          newRun(h, model),
+        ],
+      ),
+      h.header(
+        [h.Class("analysis-report-heading")],
+        [
+          h.p([h.Class("analysis-report-type")], ["Route reliability"]),
+          h.div(
+            [h.Class("analysis-run-title")],
+            [
+              pageHeading(h, `Run #${selected.id}`),
               h.span(
-                [h.Class("muted text-xs tabular-nums")],
+                [h.Role("status")],
                 [
-                  `Elapsed ${duration(run.startedAt, run.endedAt ?? selected.observedAt)}`,
+                  run
+                    ? status(h, run.state)
+                    : detail.loading
+                      ? "Checking status…"
+                      : "Status unavailable",
                 ],
               ),
-            ]
-          : []),
-        ...((!run && detail.error) || run?.state === "unknown"
-          ? [
-              button(h, {
-                label: "Check status",
-                onClick: M.RetryAnalysisStatus(),
-                size: "small",
-                busy: detail.loading,
-              }),
-            ]
-          : []),
-      ],
-    ),
-    ...(detail.error
-      ? [h.div([h.Class("analysis-panel-body")], [alert(h, detail.error)])]
-      : []),
-    ...(run?.reason
-      ? [h.p([h.Class("analysis-panel-body muted text-sm")], [run.reason])]
-      : []),
-    ...(report.loading
-      ? [
-          h.p(
-            [h.Class("analysis-panel-body muted text-sm"), h.Role("status")],
-            ["Loading report…"],
-          ),
-        ]
-      : []),
-    ...(report.error
-      ? [
-          h.div(
-            [h.Class("analysis-panel-body space-y-3")],
-            [
-              alert(h, report.error),
-              button(h, {
-                label: "Retry report",
-                onClick: M.RetryAnalysisReport(),
-                size: "small",
-              }),
             ],
           ),
-        ]
-      : []),
-    ...(report.data
-      ? [
-          panelHeader(h, {
-            title: "Route changes",
-            description:
-              "Up to 50 routes ranked by the size of the change in p90 trip time. A p90 trip time is the time within which 90% of trips finish.",
-          }),
-          reportTable(h, report.data),
-        ]
-      : []),
-  ]);
+          ...(run
+            ? [
+                h.div(
+                  [h.Class("analysis-run-meta")],
+                  [
+                    h.span([], [startedBy(run.requestedBy)]),
+                    ...(run.startedAt !== null
+                      ? [
+                          h.span([], [dateTime.format(run.startedAt)]),
+                          h.span(
+                            [],
+                            [
+                              `Elapsed ${duration(run.startedAt, run.endedAt ?? selected.observedAt)}`,
+                            ],
+                          ),
+                        ]
+                      : []),
+                  ],
+                ),
+              ]
+            : []),
+        ],
+      ),
+      ...(input
+        ? [
+            card(
+              h,
+              [
+                h.dl(
+                  [h.Class("analysis-input-values")],
+                  [
+                    inputValue(
+                      "Baseline week starts",
+                      weekStart.format(new Date(input.baselineWeek)),
+                    ),
+                    inputValue(
+                      "Comparison week starts",
+                      weekStart.format(new Date(input.comparisonWeek)),
+                    ),
+                    inputValue(
+                      "Minimum trips per week",
+                      number(input.minimumTrips),
+                    ),
+                  ],
+                ),
+                ...(terminal
+                  ? [
+                      button(h, {
+                        label: "Use these inputs",
+                        onClick: M.ReuseAnalysisInputs({ input }),
+                        size: "small",
+                        disabled: model.submission._tag === "Submitting",
+                      }),
+                    ]
+                  : []),
+              ],
+              "analysis-input-summary",
+            ),
+          ]
+        : []),
+      ...(detail.error ? [alert(h, detail.error)] : []),
+      ...((!run && detail.error) || run?.state === "unknown"
+        ? [
+            button(h, {
+              label: "Check status",
+              size: "small",
+              busy: detail.loading,
+              onClick: M.RetryAnalysisStatus(),
+            }),
+          ]
+        : []),
+      ...(run?.reason ? [h.p([h.Class("muted text-sm")], [run.reason])] : []),
+      ...(run?.state === "running" || run?.state === "queued"
+        ? [
+            h.p(
+              [h.Class("muted text-sm")],
+              ["The report will appear here when the run finishes."],
+            ),
+          ]
+        : []),
+      ...(report.loading
+        ? [
+            h.p(
+              [h.Role("status"), h.Class("muted text-sm")],
+              ["Loading report…"],
+            ),
+          ]
+        : []),
+      ...(report.error
+        ? [
+            h.div(
+              [h.Class("space-y-3")],
+              [
+                alert(h, report.error),
+                button(h, {
+                  label: "Retry report",
+                  size: "small",
+                  onClick: M.RetryAnalysisReport(),
+                }),
+              ],
+            ),
+          ]
+        : []),
+      ...(report.data
+        ? [
+            card(h, [
+              panelHeader(h, {
+                title: "Route changes",
+                description:
+                  "Up to 50 routes ranked by the size of the change in p90 trip time. A p90 trip time is the time within which 90% of trips finish.",
+              }),
+              reportTable(h, report.data),
+            ]),
+          ]
+        : []),
+    ],
+  );
 }
 
 export const analysisRunsView = defineView<Model, Message, ViewInputs>(
   (model, { query }, h) =>
     h.div(
-      [h.Class("contents")],
+      [h.Class("analysis-page")],
       [
-        title(
-          h,
-          "Analysis runs",
-          "Start a route comparison and return to its report when it finishes.",
-        ),
-        h.div(
-          [h.Class("analysis-grid")],
-          [
-            h.div(
-              [h.Class("analysis-main")],
-              [
-                setup(h, model),
-                ...(model.invalidLink
-                  ? [
-                      card(
-                        h,
-                        [
-                          alert(
-                            h,
-                            "This run link is invalid. Choose a recent run or start a new one.",
-                          ),
-                        ],
-                        "analysis-panel-body",
+        ...(model.selected
+          ? [selectedRun(h, model, model.selected, query)]
+          : [
+              h.header(
+                [h.Class("page-title")],
+                [
+                  h.div(
+                    [],
+                    [
+                      pageHeading(h, "Analysis runs"),
+                      h.p(
+                        [h.Class("muted mt-2")],
+                        ["Compare route reliability across two weeks."],
                       ),
-                    ]
-                  : []),
-                ...(model.selected
-                  ? [selectedRun(h, model, model.selected)]
-                  : []),
-              ],
-            ),
-            recentRuns(h, model, query),
-          ],
-        ),
+                    ],
+                  ),
+                  newRun(h, model),
+                ],
+              ),
+              ...(model.invalidLink
+                ? [
+                    h.div(
+                      [h.Class("mb-4")],
+                      [
+                        alert(
+                          h,
+                          "This run link is invalid. Choose a recent run or start a new one.",
+                        ),
+                      ],
+                    ),
+                  ]
+                : []),
+              recentRuns(h, model, query),
+            ]),
+        analysisForm(h, model),
       ],
     ),
 );

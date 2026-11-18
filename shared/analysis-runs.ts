@@ -43,6 +43,7 @@ export const AnalysisRunSummary = Schema.Struct({
   state: AnalysisRunState,
   startedAt: Schema.NullOr(Schema.Int),
   endedAt: Schema.NullOr(Schema.Int),
+  requestedBy: Schema.NullOr(Schema.NonEmptyString),
 });
 export type AnalysisRunSummary = typeof AnalysisRunSummary.Type;
 

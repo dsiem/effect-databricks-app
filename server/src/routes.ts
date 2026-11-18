@@ -128,7 +128,13 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
       .handle("trips", ({ query }) => respond(analytics.trips(query)))
       .handle("tripMap", ({ query }) => respond(analytics.tripMap(query)))
       .handle("submitAnalysisRun", ({ payload }) =>
-        respond(analysisRuns.submit(payload)),
+        respond(
+          Effect.gen(function* () {
+            const { headers } = yield* HttpServerRequest.HttpServerRequest;
+            const user = yield* currentUser(headers);
+            return yield* analysisRuns.submit(payload, user?.name ?? null);
+          }),
+        ),
       )
       .handle("analysisRuns", () => respond(analysisRuns.list))
       .handle("analysisRun", ({ params }) =>

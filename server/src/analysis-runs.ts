@@ -107,27 +107,26 @@ const failureReason = (run: Run) => {
   }
 };
 
-const submittedInput = (run: Run) => {
-  const values = new Map(
-    run.job_parameters?.map(({ name, value, default: fallback }) => [
-      name,
-      value ?? fallback,
-    ]),
-  );
-  return Option.getOrNull(
+const parameter = (run: Run, name: string) => {
+  const entry = run.job_parameters?.find((entry) => entry.name === name);
+  return entry?.value ?? entry?.default;
+};
+
+const submittedInput = (run: Run) =>
+  Option.getOrNull(
     Schema.decodeUnknownOption(AnalysisInput)({
-      baselineWeek: values.get("baseline_week"),
-      comparisonWeek: values.get("comparison_week"),
-      minimumTrips: Number(values.get("minimum_trips")),
+      baselineWeek: parameter(run, "baseline_week"),
+      comparisonWeek: parameter(run, "comparison_week"),
+      minimumTrips: Number(parameter(run, "minimum_trips")),
     }),
   );
-};
 
 const summary = (run: Run): AnalysisRunSummary => ({
   id: run.run_id,
   state: runState(run),
   startedAt: run.start_time || null,
   endedAt: run.end_time || null,
+  requestedBy: parameter(run, "requested_by")?.trim() || null,
 });
 
 const notFound = () =>
@@ -172,7 +171,10 @@ export const makeAnalysisRuns = Effect.gen(function* () {
         ),
       );
 
-  const submit = ({ input, requestId }: typeof AnalysisSubmission.Type) => {
+  const submit = (
+    { input, requestId }: typeof AnalysisSubmission.Type,
+    requestedBy: string | null,
+  ) => {
     const { baselineWeek, comparisonWeek, minimumTrips } = input;
     const parameters = {
       baseline_week: baselineWeek,
@@ -186,7 +188,7 @@ export const makeAnalysisRuns = Effect.gen(function* () {
       Effect.andThen(
         workspace.request(`${jobs}/run-now`, "POST", {
           job_id: analysisJobId,
-          job_parameters: parameters,
+          job_parameters: { ...parameters, requested_by: requestedBy ?? "" },
           idempotency_token: token,
         }),
       ),
