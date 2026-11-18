@@ -149,7 +149,7 @@ function updateApplication(
           ...(loaded.commands ?? []),
           ...(route._tag === "AnalysisRuns" &&
           location.route._tag === "AnalysisRuns"
-            ? [AppCommands.Focus({ selector: "#analysis-heading" })]
+            ? [AppCommands.FocusAnalysisHeading()]
             : []),
         ],
       };

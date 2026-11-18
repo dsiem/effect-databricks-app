@@ -1,5 +1,5 @@
 import { Effect, Schema } from "effect";
-import { Calendar, Command, Navigation } from "foldkit";
+import { Calendar, Command, Dom, Navigation } from "foldkit";
 import { request } from "../lib/api-client";
 import { done, result } from "../lib/command-result";
 import { Message as M } from "./message";
@@ -65,6 +65,10 @@ export const Focus = Command.define("Focus", {
         ),
       ),
     ),
+});
+export const FocusAnalysisHeading = Command.define("FocusAnalysisHeading", {
+  messages: [M.Idle],
+  execute: done(Dom.focus("#analysis-heading").pipe(Effect.ignore)),
 });
 export const LoadMetadata = Command.define("LoadMetadata", {
   messages: [M.LoadedMetadata],
