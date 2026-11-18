@@ -61,25 +61,28 @@ export function updateGenie(
       return { model: { ...model, genieSelection: null } };
     case "GenieDraft":
       return { model: { ...model, genieDraft: message.value } };
-    case "SendQuestion":
-      return busy(model) ||
-        !message.question.trim() ||
-        !context.filters ||
-        !context.enabled
-        ? { model }
-        : {
-            model,
-            commands: [
-              GenieCommands.CreateTurn({ question: message.question.trim() }),
-            ],
-          };
+    case "SendQuestion": {
+      const question = message.question.trim();
+      if (busy(model) || !question || !context.filters || !context.enabled)
+        return { model };
+      return {
+        model,
+        commands: [
+          GenieCommands.CreateTurn({
+            question,
+            filters: context.filters,
+            context: model.genieSelection ?? context.context,
+          }),
+        ],
+      };
+    }
     case "CreatedTurn": {
       if (busy(model)) return { model };
       const turn = {
         id: message.id,
         question: message.question,
-        filters: context.filters ?? {},
-        context: model.genieSelection ?? context.context,
+        filters: message.filters,
+        context: message.context,
         state: "submitting" as const,
       };
       const previous = model.turns

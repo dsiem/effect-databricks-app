@@ -18,7 +18,7 @@ import type { Model } from "./model";
 function withBrowser(
   model: Model,
   changed: FeatureUpdate<Browser.Model, Message>,
-): FeatureUpdate<Model, Message, Out> {
+): FeatureUpdate<Model, Message> {
   return {
     model:
       changed.model === model.browser
@@ -26,6 +26,14 @@ function withBrowser(
         : { ...model, browser: changed.model },
     commands: changed.commands ?? [],
   };
+}
+
+export function closeSavedViewsPicker(
+  model: Model,
+): FeatureUpdate<Model, Message> {
+  return model.browser.picker.isOpen
+    ? withBrowser(model, clearBrowser(model.browser))
+    : { model };
 }
 
 function updateSavedViewsState(

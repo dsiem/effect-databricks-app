@@ -17,7 +17,10 @@ import { updateGps } from "../features/gps/update";
 import * as Overview from "../features/overview/model";
 import { updateOverview } from "../features/overview/update";
 import * as SavedViews from "../features/saved-views/model";
-import { updateSavedViews } from "../features/saved-views/update";
+import {
+  closeSavedViewsPicker,
+  updateSavedViews,
+} from "../features/saved-views/update";
 import * as Trips from "../features/trips/model";
 import { updateTrips } from "../features/trips/update";
 import type { ApiClient } from "../lib/api-client";
@@ -105,6 +108,10 @@ function updateApplication(
         };
       const location = parseLocation(message.path, message.query);
       const reset = updateTrips(model.tripsState, M.ResetTrips());
+      const savedViews =
+        showsExplore(route) && !showsExplore(location.route)
+          ? closeSavedViewsPicker(model.savedViewsState)
+          : { model: model.savedViewsState };
       const loaded = loadPage({
         ...model,
         location,
@@ -115,13 +122,19 @@ function updateApplication(
           location.filters ?? {},
           model.metadata.data,
         ),
-        savedViewsState: { ...model.savedViewsState, notice: "" },
+        savedViewsState: { ...savedViews.model, notice: "" },
         tripsState: reset.model,
         genieState: { ...model.genieState, genieSelection: null },
       });
       return {
         ...loaded,
-        commands: [...(reset.commands ?? []), ...(loaded.commands ?? [])],
+        commands: [
+          ...(reset.commands ?? []),
+          ...(savedViews.commands ?? []).map((command) =>
+            Command.mapMessage(command, savedViewsMessage),
+          ),
+          ...(loaded.commands ?? []),
+        ],
       };
     }
     case "Booted":

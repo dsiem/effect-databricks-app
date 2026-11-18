@@ -85,6 +85,36 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
+test("browser history closes the Saved Views picker when it leaves Explore", async ({
+  page,
+}) => {
+  await page.route("**/api/analysis-runs", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.goto("/analysis");
+  await page.getByRole("link", { name: "Trip explorer", exact: true }).click();
+  const trigger = page.getByRole("button", {
+    name: "Saved views",
+    exact: true,
+  });
+  const picker = page.getByRole("dialog", { name: "Saved views", exact: true });
+  await trigger.click();
+  await expect(picker).toBeVisible();
+  await expect(page.locator("html")).toHaveCSS("overflow", "hidden");
+
+  await page.goBack();
+  await expect(page).toHaveURL("/analysis");
+  await expect(page.locator("html")).not.toHaveCSS("overflow", "hidden");
+  await expect(
+    page.getByRole("heading", { name: "Analysis runs", exact: true }),
+  ).toBeVisible();
+
+  await page.goForward();
+  await expect(page).toHaveURL("/trips");
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(picker).not.toBeVisible();
+});
+
 test("pending edits must be applied before saving and the saved view keeps those values", async ({
   page,
 }) => {

@@ -35,10 +35,10 @@ const open = (path: string) =>
   init(Option.getOrThrow(Url.fromString(`http://localhost${path}`)));
 const app = (path: string) => open(path).model;
 
-function respond(
+function runRequest(
   load: ReturnType<typeof init>,
   name: string,
-  response: Response,
+  fetch: typeof globalThis.fetch,
 ) {
   const command = load.commands?.find((command) => command.name === name);
   assert.ok(command);
@@ -54,10 +54,16 @@ function respond(
           })).app;
         }).pipe(Effect.provide(FetchHttpClient.layer)),
       ),
-      Effect.provideService(FetchHttpClient.Fetch, async () => response),
+      Effect.provideService(FetchHttpClient.Fetch, fetch),
     ),
   );
 }
+
+const respond = (
+  load: ReturnType<typeof init>,
+  name: string,
+  response: Response,
+) => runRequest(load, name, async () => response);
 
 const originalTimeout = () =>
   Response.json(
@@ -479,6 +485,64 @@ test("Genie owns its modal presentation without discarding the conversation on r
   );
   assert.equal(closed.model.genieOpen, false);
   assert.equal(closed.model.helperDialog.isOpen, false);
+});
+
+test("Genie submits the filters and pinned chart from Send after navigation", async () => {
+  const ready = update(
+    app("/?zip=10001"),
+    AppMessage.LoadedStatus({
+      data: {
+        dataset: "fixtures",
+        warehouse: true,
+        genie: true,
+        lakebase: false,
+        capabilities: {
+          warehouse: "available",
+          genie: "available",
+          lakebase: "unconfigured",
+        },
+        auth: "Test identity",
+      },
+      error: "",
+    }),
+  ).model;
+  const chart = {
+    page: "overview" as const,
+    title: "Pinned fare chart",
+    data: "[]",
+  };
+  const pinned = update(
+    ready,
+    AppMessage.OpenGenie({ context: chart, question: null }),
+  ).model;
+  const sent = update(
+    pinned,
+    AppMessage.SendQuestion({ question: "Explain these fares" }),
+  );
+  const navigated = update(
+    sent.model,
+    AppMessage.Navigated({ path: "/trips", query: "zip=10002" }),
+  ).model;
+  const created = await runRequest(sent, "CreateQuestion", async () => {
+    assert.fail("Creating a turn should not make a request");
+  });
+  const submitting = update(navigated, created);
+  let payload: unknown;
+  await runRequest(submitting, "SubmitQuestion", async (input, options) => {
+    const request = new Request(input, options);
+    assert.equal(request.method, "POST");
+    assert.equal(new URL(request.url).pathname, "/api/genie");
+    payload = await request.json();
+    return Response.json({
+      conversationId: "conversation",
+      messageId: "message",
+    });
+  });
+  assert.deepEqual(payload, {
+    content: "Explain these fares",
+    filters: { zip: "10001" },
+    context: chart,
+  });
 });
 
 test("Genie resumes restored reads without replaying conversation submissions", () => {

@@ -3,7 +3,7 @@ import { Command } from "foldkit";
 import { ApiError } from "../../../../shared/api";
 import { request } from "../../lib/api-client";
 import { failure, result } from "../../lib/command-result";
-import { Message as M } from "./messages";
+import { Message as M, QuestionSnapshot } from "./messages";
 import { History, Turn, turnBase } from "./model";
 const genieStorageKey = "databricks-effect-app.genie.v1";
 
@@ -34,10 +34,10 @@ export const RestoreConversation = Command.define("RestoreConversation", {
   }),
 });
 export const CreateTurn = Command.define("CreateQuestion", {
-  args: { question: Schema.String },
+  args: QuestionSnapshot.fields,
   messages: [M.CreatedTurn],
-  execute: ({ question }) =>
-    Effect.sync(() => M.CreatedTurn({ id: crypto.randomUUID(), question })),
+  execute: (snapshot) =>
+    Effect.sync(() => M.CreatedTurn({ ...snapshot, id: crypto.randomUUID() })),
 });
 export const SubmitQuestion = Command.define("SubmitQuestion", {
   args: { turn: Turn, conversationId: Schema.NullOr(Schema.String) },
