@@ -67,8 +67,19 @@ test("refreshing history keeps the recent list visible through a failure", () =>
 test("a completed submission can refresh pending history without accepting older replies", () => {
   const opened = openAnalysisRuns(init(), { _tag: "NoRun" }).model;
   const form = updateAnalysisRuns(opened, M.OpenAnalysisForm(), "").model;
-  const submitted = updateAnalysisRuns(form, M.StartAnalysis(), "").model;
-  const reopened = openAnalysisRuns(submitted, { _tag: "NoRun" });
+  const withBaseline = updateAnalysisRuns(
+    form,
+    M.AnalysisFieldChanged({ field: "baselineWeek", value: "2016-01-04" }),
+    "",
+  ).model;
+  const withDates = updateAnalysisRuns(
+    withBaseline,
+    M.AnalysisFieldChanged({ field: "comparisonWeek", value: "2016-01-11" }),
+    "",
+  ).model;
+  const submitted = updateAnalysisRuns(withDates, M.StartAnalysis(), "");
+  assert.equal(submitted.model.submission._tag, "Submitting");
+  const reopened = openAnalysisRuns(submitted.model, { _tag: "NoRun" });
   assert.deepEqual(
     reopened.commands?.map(({ name }) => name),
     ["LoadAnalysisHistory"],
@@ -77,7 +88,7 @@ test("a completed submission can refresh pending history without accepting older
   const refreshed = updateAnalysisRuns(
     reopened.model,
     M.AnalysisSubmitted({
-      generation: submitted.generation,
+      generation: submitted.model.generation,
       data: { id: run.id },
       requestId: "00000000-0000-4000-8000-000000000001",
       error: "",
