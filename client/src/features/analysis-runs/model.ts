@@ -72,8 +72,8 @@ export const Model = Schema.Struct({
 export type Model = typeof Model.Type;
 
 export const defaultDraft: Model["draft"] = {
-  baselineWeek: "2016-01-04",
-  comparisonWeek: "2016-01-11",
+  baselineWeek: "",
+  comparisonWeek: "",
   minimumTrips: "50",
 };
 

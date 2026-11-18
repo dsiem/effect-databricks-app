@@ -83,6 +83,8 @@ test("analysis retries safely and a run link resumes monitoring and reuses input
   const minimum = form.getByLabel("Minimum trips per week");
   await expect(baseline).toHaveAttribute("type", "text");
   await expect(comparison).toHaveAttribute("type", "text");
+  await expect(baseline).toHaveValue("");
+  await expect(comparison).toHaveValue("");
   const [baselineBox, comparisonBox, minimumBox] = await Promise.all(
     [baseline, comparison, minimum].map((input) => input.boundingBox()),
   );
@@ -92,6 +94,7 @@ test("analysis retries safely and a run link resumes monitoring and reuses input
   expect(baselineBox.height).toBeCloseTo(minimumBox.height, 0);
   expect(comparisonBox.x).toBeGreaterThan(baselineBox.x + baselineBox.width);
 
+  await baseline.fill(input.baselineWeek);
   await page
     .getByRole("button", { name: "Choose comparison week start" })
     .click();
@@ -148,11 +151,14 @@ test("analysis retries safely and a run link resumes monitoring and reuses input
 
   const reuse = page.getByRole("button", { name: "Use these inputs" });
   await reuse.click();
+  await expect(baseline).toHaveValue(input.baselineWeek);
   await expect(comparison).toHaveValue(input.comparisonWeek);
   await expect(minimum).toHaveValue(String(input.minimumTrips));
   await form.getByRole("button", { name: "Cancel" }).click();
   await expect(reuse).toBeFocused();
   await page.getByRole("button", { name: "New run", exact: true }).click();
+  await expect(baseline).toHaveValue("");
+  await expect(comparison).toHaveValue("");
   await expect(minimum).toHaveValue("50");
   await page.keyboard.press("Escape");
   await expect(form).toBeHidden();
