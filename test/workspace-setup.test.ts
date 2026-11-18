@@ -56,7 +56,7 @@ async function setup(t: TestContext, operation: string, failure = "") {
         cwd: directory,
         env: {
           ...process.env,
-          BUNDLE_TARGET: "prod",
+          DATABRICKS_BUNDLE_TARGET: "prod",
           DATABRICKS_HOST: "https://workspace.invalid",
           PGHOST: "local.invalid",
           SETUP_OPERATION: operation,

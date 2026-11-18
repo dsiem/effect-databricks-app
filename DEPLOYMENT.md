@@ -133,8 +133,23 @@ and data names for each target.
    the Databricks service principal and that environment. [GitHub federation guide](https://docs.databricks.com/aws/en/dev-tools/auth/provider-github)
 2. In the GitHub environment's **Variables** settings, set `DATABRICKS_HOST` and
    `DATABRICKS_CLIENT_ID`. Set `DATABRICKS_APP_NAME` to the target's `app_name`.
-3. Set the bundle variables and a restricted `workspace.root_path` in
-   `databricks.yml`. Use the same values for target setup and GitHub releases.
-   Give both identities access to that path and the resources they manage.
-4. [Set up the target](#set-up-a-target) once from the CLI. For app updates, run
-   the [Deploy workflow](.github/workflows/deploy.yml) and select the target.
+3. Use the same bundle variable values for setup and releases.
+
+   If `dev` uses different identities for setup and releases, set a restricted
+   `workspace.root_path` in `databricks.yml`. Give both identities access to the
+   path and bundle resources.
+
+   For `prod`, use the production service principal for setup and releases.
+   The CLI creates missing folders if the principal has permission. Otherwise,
+   have a workspace admin create the bundle folder under `/Workspace/Production`
+   and grant the principal `CAN MANAGE`. Restrict write access to that principal.
+
+4. For a new deployment, [set up the target](#set-up-a-target) once from the CLI.
+
+   If `prod` already uses a path under `/Workspace/Users`, get the resource IDs
+   with `databricks bundle summary -t prod` using the old configuration and
+   identity. Bind the resources at the new path and confirm that
+   `databricks bundle plan -t prod` uses them. [Databricks bundle binding](https://docs.databricks.com/aws/en/dev-tools/cli/bundle-commands#databricks-bundle-deployment-bind)
+
+   For app updates, run the [Deploy workflow](.github/workflows/deploy.yml)
+   and select the target.

@@ -31,8 +31,8 @@ include:
 
 scripts:
   bootstrap:
+    # Forward resolved values, including --var overrides, to nested bundle commands.
     env:
-      BUNDLE_TARGET: ${bundle.target}
       BUNDLE_VAR_app_name: ${var.app_name}
       BUNDLE_VAR_data_name: ${var.data_name}
       BUNDLE_VAR_data_catalog: ${var.data_catalog}
@@ -42,23 +42,18 @@ scripts:
       BUNDLE_VAR_warehouse_name: ${var.warehouse_name}
     content: node scripts/setup-workspace.mjs bootstrap
   local_env:
-    env:
-      BUNDLE_TARGET: ${bundle.target}
     content: node scripts/setup-workspace.mjs local-env
 
 sync:
   exclude:
-    - .github/**
-    - scripts/**
-    - test/**
-    - server/test/**
-    - client/test/**
-    - packages/*/test/**
+    - /.github/
+    - /scripts/
+    - test/
     - README.md
     - DEPLOYMENT.md
-    - .oxlintrc.json
-    - .oxfmtrc.json
-    - playwright.config.ts
+    - /.oxlintrc.json
+    - /.oxfmtrc.json
+    - /playwright.config.ts
 
 targets:
   dev:
@@ -68,4 +63,4 @@ targets:
     variables:
       app_name: ${bundle.name}
     workspace:
-      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+      root_path: /Workspace/Production/.bundle/${bundle.name}/${bundle.target}

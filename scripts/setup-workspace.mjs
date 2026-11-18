@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const operation = process.argv[2];
-const target = process.env.BUNDLE_TARGET;
+const target = process.env.DATABRICKS_BUNDLE_TARGET;
 const host = process.env.DATABRICKS_HOST;
 if (!target || !host || !["bootstrap", "local-env"].includes(operation)) {
   throw new Error(
