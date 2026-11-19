@@ -102,7 +102,7 @@ export function updateGenie(
           GenieCommands.PersistTurns({ turns }),
           GenieCommands.SubmitQuestion({
             turn,
-            conversationId: conversationFor(model.turns, turn.mode ?? "chat"),
+            conversation: conversationFor(model.turns, turn.mode ?? "chat"),
           }),
         ],
       };
@@ -188,7 +188,7 @@ export function updateGenie(
           GenieCommands.PersistTurns({ turns }),
           GenieCommands.SubmitQuestion({
             turn,
-            conversationId: conversationFor(model.turns, "chat"),
+            conversation: conversationFor(model.turns, "chat"),
           }),
         ],
       };
@@ -221,9 +221,14 @@ function conversationFor(turns: ReadonlyArray<Turn>, mode: D.GenieMode) {
       (prior.mode ?? "chat") === mode,
   );
   return previous && "operation" in previous
-    ? previous.operation.conversationId
+    ? previous.operation
     : previous?.state === "complete"
-      ? previous.reply.conversationId
+      ? {
+          conversationId: previous.reply.conversationId,
+          messageId: previous.reply.messageId,
+          ...(previous.reply.mode ? { mode: previous.reply.mode } : {}),
+          ...(previous.reply.grant ? { grant: previous.reply.grant } : {}),
+        }
       : null;
 }
 

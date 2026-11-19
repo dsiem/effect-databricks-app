@@ -4,6 +4,7 @@ const operation = {
   conversationId: "agent-conversation",
   messageId: "agent-response",
   mode: "agent",
+  grant: "test-agent-grant",
 };
 const messagePath = "/api/genie/agent-conversation/messages/agent-response";
 const cancelPath =
@@ -23,13 +24,14 @@ for (const scenario of [
       submissions++;
       return route.fulfill({ json: operation });
     });
-    await page.route(`**${messagePath}?mode=agent`, (route) =>
-      route.fulfill({
+    await page.route(`**${messagePath}?mode=agent`, (route) => {
+      expect(route.request().headers()["x-genie-access"]).toBe(operation.grant);
+      return route.fulfill({
         json: stopRequests
           ? stopped
           : { ...operation, status: "in_progress", state: "pending" },
-      }),
-    );
+      });
+    });
     await page.route(`**${messagePath}/result?mode=agent`, (route) =>
       route.fulfill({
         json: {
@@ -41,6 +43,7 @@ for (const scenario of [
     );
     await page.route(`**${cancelPath}`, (route) => {
       expect(route.request().method()).toBe("POST");
+      expect(route.request().headers()["x-genie-access"]).toBe(operation.grant);
       stopRequests++;
       return scenario === "response lost"
         ? route.abort("failed")

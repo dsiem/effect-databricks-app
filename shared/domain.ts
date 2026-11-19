@@ -275,6 +275,7 @@ export type GenieQueryPath = typeof GenieQueryPath.Type;
 export const GenieOperation = Schema.Struct({
   ...ChatOperation.fields,
   ...GenieModeQuery.fields,
+  grant: Schema.optionalKey(Schema.String),
 });
 export type GenieOperation = typeof GenieOperation.Type;
 export { GenieAgentPhase };

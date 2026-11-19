@@ -1,6 +1,11 @@
 import { Effect, Schema } from "effect";
 import { Command } from "foldkit";
-import { ApiError, genieResultTimeoutMs } from "../../../../shared/api";
+import {
+  ApiError,
+  genieAccessHeaders,
+  genieResultTimeoutMs,
+} from "../../../../shared/api";
+import { GenieOperation } from "../../../../shared/domain";
 import { request } from "../../lib/api-client";
 import { failure } from "../../lib/command-result";
 import { Message as M, QuestionSnapshot } from "./messages";
@@ -46,17 +51,20 @@ export const CreateTurn = Command.define("CreateQuestion", {
     Effect.sync(() => M.CreatedTurn({ ...snapshot, id: crypto.randomUUID() })),
 });
 export const SubmitQuestion = Command.define("SubmitQuestion", {
-  args: { turn: Turn, conversationId: Schema.NullOr(Schema.String) },
+  args: { turn: Turn, conversation: Schema.NullOr(GenieOperation) },
   messages: [M.ChangedTurn],
-  execute: ({ turn, conversationId }) =>
+  execute: ({ turn, conversation }) =>
     request((client) =>
       client.submitGenie({
+        headers: genieAccessHeaders(conversation?.grant),
         payload: {
           content: turn.question,
           ...(turn.mode ? { mode: turn.mode } : {}),
           ...(turn.filters ? { filters: turn.filters } : {}),
           ...(turn.context ? { context: turn.context } : {}),
-          ...(conversationId ? { conversationId } : {}),
+          ...(conversation
+            ? { conversationId: conversation.conversationId }
+            : {}),
         },
       }),
     ).pipe(
@@ -109,6 +117,7 @@ export const StopQuestion = Command.define("StopQuestion", {
     const accepted = { ...turnBase(turn), operation };
     return request((client) =>
       client.cancelGenieAgent({
+        headers: genieAccessHeaders(operation.grant),
         params: {
           conversationId: operation.conversationId,
           responseId: operation.messageId,
@@ -166,6 +175,7 @@ export const RetrieveQuestion = Command.define("RetrieveQuestion", {
     return request(
       (client) =>
         client.genieResult({
+          headers: genieAccessHeaders(operation.grant),
           params: operation,
           query: operation.mode ? { mode: operation.mode } : {},
         }),

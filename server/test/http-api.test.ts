@@ -242,12 +242,13 @@ test("generated client round-trips every endpoint through the real HTTP contract
       );
       assert.deepEqual(
         yield* client.submitGenie({
+          headers: {},
           payload: { content: "Count trips", conversationId: "previous-1" },
         }),
         operation,
       );
       assert.deepEqual(
-        yield* client.pollGenie({ params: operation, query: {} }),
+        yield* client.pollGenie({ headers: {}, params: operation, query: {} }),
         {
           ...operation,
           state: "completed",
@@ -259,7 +260,7 @@ test("generated client round-trips every endpoint through the real HTTP contract
         responseId: operation.messageId,
       };
       assert.deepEqual(
-        yield* client.cancelGenieAgent({ params: cancelTarget }),
+        yield* client.cancelGenieAgent({ headers: {}, params: cancelTarget }),
         {
           ...operation,
           mode: "agent",
@@ -268,7 +269,11 @@ test("generated client round-trips every endpoint through the real HTTP contract
         },
       );
       assert.deepEqual(
-        yield* client.genieResult({ params: operation, query: {} }),
+        yield* client.genieResult({
+          headers: {},
+          params: operation,
+          query: {},
+        }),
         {
           ...operation,
           text: "Ten trips",
@@ -632,7 +637,10 @@ for (const { status, error } of [
           )
         : await Effect.runPromise(
             Effect.flip(
-              client.submitGenie({ payload: { content: "Count trips" } }),
+              client.submitGenie({
+                headers: {},
+                payload: { content: "Count trips" },
+              }),
             ),
           );
     assert.ok(Schema.is(ApiError)(failure));

@@ -5,7 +5,11 @@ test("downloads the full Chat CSV on demand without navigating away", async ({
   page,
   context,
 }) => {
-  const operation = { conversationId: "conv", messageId: "msg" };
+  const operation = {
+    conversationId: "conv",
+    messageId: "msg",
+    grant: "test-chat-grant",
+  };
   const path = "/api/genie/conv/messages/msg";
   const csv = "trips\r\n1\r\n2\r\n";
   const filePath = `${path}/attachments/query/csv`;
@@ -38,6 +42,8 @@ test("downloads the full Chat CSV on demand without navigating away", async ({
   let downloads = 0;
   await context.route(`**${filePath}`, (route) => {
     expect(route.request().method()).toBe("POST");
+    expect(route.request().postData()).toBe("grant=test-chat-grant");
+    expect(new URL(route.request().url()).search).toBe("");
     downloads++;
     return route.fulfill({
       headers: {

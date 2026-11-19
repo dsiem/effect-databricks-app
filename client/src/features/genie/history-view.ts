@@ -82,6 +82,15 @@ function answer(h: H, clipboard: string, reply: GenieReply): Child[] {
                     h.Rel("noopener"),
                   ],
                   [
+                    ...(reply.grant
+                      ? [
+                          h.input([
+                            h.Type("hidden"),
+                            h.Name("grant"),
+                            h.Value(reply.grant),
+                          ]),
+                        ]
+                      : []),
                     button(h, {
                       label: "Download full CSV",
                       type: "submit",

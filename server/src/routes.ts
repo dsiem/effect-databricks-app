@@ -18,6 +18,7 @@ import { Analytics } from "./analytics.js";
 import { makeCurrentUser } from "./current-user.js";
 import { InvalidRequest, type ServiceError } from "./errors.js";
 import { Genie } from "./genie.js";
+import { makeGenieAccess, type GenieViewerAccess } from "./genie-access.js";
 import { SavedViews } from "./saved-views.js";
 import { TripComments } from "./trip-comments.js";
 
@@ -96,6 +97,15 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
     const savedViews = yield* SavedViews;
     const comments = yield* TripComments;
     const currentUser = yield* makeCurrentUser;
+    const genieAccess = yield* makeGenieAccess;
+    const asGenieViewer = <A, E, R>(
+      run: (access: GenieViewerAccess) => Effect.Effect<A, E, R>,
+    ) =>
+      Effect.gen(function* () {
+        const { headers } = yield* HttpServerRequest.HttpServerRequest;
+        const access = yield* genieAccess(headers);
+        return yield* run(access);
+      });
     return handlers
       .handle("currentUser", () =>
         Effect.flatMap(HttpServerRequest.HttpServerRequest, (request) =>
@@ -122,33 +132,96 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
       .handle("analysisResult", ({ params }) =>
         respond(analysisRuns.result(params.id)),
       )
-      .handle("submitGenie", ({ payload }) => respond(genie.submit(payload)))
-      .handle("pollGenie", ({ params, query }) =>
-        respond(genie.poll({ ...params, ...query })),
-      )
-      .handle("cancelGenieAgent", ({ params }) => respond(genie.cancel(params)))
-      .handle("genieResult", ({ params, query }) =>
-        respond(genie.result({ ...params, ...query })),
-      )
-      .handle("downloadGenieCsv", ({ params }) =>
+      .handle("submitGenie", ({ payload, headers }) =>
         respond(
-          Effect.gen(function* () {
-            const { headers } = yield* HttpServerRequest.HttpServerRequest;
-            const site = headers["sec-fetch-site"];
-            if (site !== undefined && site !== "same-origin")
-              return yield* new InvalidRequest({
-                message: "Open the query in Genie to export its results.",
+          asGenieViewer((access) =>
+            Effect.gen(function* () {
+              if (payload.conversationId)
+                yield* access.requireGrant(
+                  {
+                    conversationId: payload.conversationId,
+                    ...(payload.mode === undefined
+                      ? {}
+                      : { mode: payload.mode }),
+                  },
+                  headers["x-genie-access"],
+                );
+              const operation = yield* genie.submit(payload);
+              const grant = access.grantFor(operation);
+              return {
+                ...operation,
+                ...(grant === undefined ? {} : { grant }),
+              };
+            }),
+          ),
+        ),
+      )
+      .handle("pollGenie", ({ params, query, headers }) =>
+        respond(
+          asGenieViewer((access) =>
+            Effect.gen(function* () {
+              const operation = { ...params, ...query };
+              yield* access.requireGrant(operation, headers["x-genie-access"]);
+              return yield* genie.poll(operation);
+            }),
+          ),
+        ),
+      )
+      .handle("cancelGenieAgent", ({ params, headers }) =>
+        respond(
+          asGenieViewer((access) =>
+            Effect.gen(function* () {
+              yield* access.requireGrant(
+                {
+                  conversationId: params.conversationId,
+                  mode: "agent",
+                },
+                headers["x-genie-access"],
+              );
+              return yield* genie.cancel(params);
+            }),
+          ),
+        ),
+      )
+      .handle("genieResult", ({ params, query, headers }) =>
+        respond(
+          asGenieViewer((access) =>
+            Effect.gen(function* () {
+              const operation = { ...params, ...query };
+              const grant = headers["x-genie-access"];
+              yield* access.requireGrant(operation, grant);
+              const reply = yield* genie.result(operation);
+              const replyGrant = access.grantFor(reply);
+              return {
+                ...reply,
+                ...(replyGrant === undefined ? {} : { grant: replyGrant }),
+              };
+            }),
+          ),
+        ),
+      )
+      .handle("downloadGenieCsv", ({ params, payload }) =>
+        respond(
+          asGenieViewer((access) =>
+            Effect.gen(function* () {
+              const { headers } = yield* HttpServerRequest.HttpServerRequest;
+              const site = headers["sec-fetch-site"];
+              if (site !== undefined && site !== "same-origin")
+                return yield* new InvalidRequest({
+                  message: "Open the query in Genie to export its results.",
+                });
+              yield* access.requireGrant(params, payload?.grant);
+              const csv = yield* genie.downloadCsv(params);
+              return HttpServerResponse.stream(csv, {
+                contentType: "text/csv; charset=utf-8",
+                headers: {
+                  "Content-Disposition":
+                    'attachment; filename="genie-results.csv"',
+                  "X-Content-Type-Options": "nosniff",
+                },
               });
-            const csv = yield* genie.downloadCsv(params);
-            return HttpServerResponse.stream(csv, {
-              contentType: "text/csv; charset=utf-8",
-              headers: {
-                "Content-Disposition":
-                  'attachment; filename="genie-results.csv"',
-                "X-Content-Type-Options": "nosniff",
-              },
-            });
-          }),
+            }),
+          ),
         ),
       )
       .handle("savedViews", ({ query }) => respond(savedViews.list(query)))

@@ -142,6 +142,18 @@ const savedViewWriteErrors = [
   SavedViewConflictBody,
 ] as const;
 
+const GenieAccessHeaders = Schema.Struct({
+  "x-genie-access": Schema.optionalKey(Schema.String),
+});
+export const genieAccessHeaders = (
+  grant?: string,
+): typeof GenieAccessHeaders.Type =>
+  grant === undefined ? {} : { "x-genie-access": grant };
+
+const GenieCsvForm = Schema.Struct({
+  grant: Schema.optionalKey(Schema.String),
+}).pipe(HttpApiSchema.asFormUrlEncoded());
+
 export const AppApi = HttpApi.make("taxi").add(
   HttpApiGroup.make("app")
     .add(
@@ -197,6 +209,7 @@ export const AppApi = HttpApi.make("taxi").add(
       }),
       HttpApiEndpoint.post("submitGenie", "/api/genie", {
         payload: GenieInput,
+        headers: GenieAccessHeaders,
         success: GenieOperation,
         error: [InvalidRequestBody, ...workspaceErrors],
       }),
@@ -205,6 +218,7 @@ export const AppApi = HttpApi.make("taxi").add(
         "/api/genie/:conversationId/messages/:messageId",
         {
           params: GeniePath,
+          headers: GenieAccessHeaders,
           query: GenieModeQuery,
           success: GenieProgress,
           error: [InvalidRequestBody, ...workspaceErrors],
@@ -215,6 +229,7 @@ export const AppApi = HttpApi.make("taxi").add(
         "/api/genie/:conversationId/responses/:responseId/cancel",
         {
           params: GenieAgentPath,
+          headers: GenieAccessHeaders,
           success: GenieProgress,
           error: [InvalidRequestBody, ...workspaceErrors],
         },
@@ -224,6 +239,7 @@ export const AppApi = HttpApi.make("taxi").add(
         "/api/genie/:conversationId/messages/:messageId/result",
         {
           params: GeniePath,
+          headers: GenieAccessHeaders,
           query: GenieModeQuery,
           success: GenieReply,
           error: [InvalidRequestBody, GenieFailedBody, ...workspaceErrors],
@@ -234,6 +250,7 @@ export const AppApi = HttpApi.make("taxi").add(
         "/api/genie/:conversationId/messages/:messageId/attachments/:attachmentId/csv",
         {
           params: GenieQueryPath,
+          payload: [GenieCsvForm, Schema.Undefined],
           success: HttpApiSchema.StreamUint8Array({ contentType: "text/csv" }),
           error: [InvalidRequestBody, ...workspaceErrors],
         },

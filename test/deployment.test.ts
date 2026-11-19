@@ -163,12 +163,14 @@ for (const failure of [
         return reply({
           conversationId: `conversation-${mode}`,
           messageId: `message-${mode}`,
+          grant: `viewer-grant-${mode}`,
           ...(mode === "agent" ? { mode } : {}),
         });
       }
       if (url.pathname.startsWith("/api/genie/") && request.method === "GET") {
         const mode = url.searchParams.get("mode");
         assert.ok(mode === "chat" || mode === "agent");
+        assert.equal(request.headers["x-genie-access"], `viewer-grant-${mode}`);
         const operation = {
           conversationId: `conversation-${mode}`,
           messageId: `message-${mode}`,

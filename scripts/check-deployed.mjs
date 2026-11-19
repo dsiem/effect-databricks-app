@@ -20,6 +20,7 @@ const request = async (
   method = "GET",
   body,
   signal = AbortSignal.timeout(190000),
+  grant,
 ) => {
   const response = await fetch(`${app.url}${path}`, {
     method,
@@ -28,6 +29,7 @@ const request = async (
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      ...(grant === undefined ? {} : { "x-genie-access": grant }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
@@ -131,10 +133,12 @@ const verifyGenie = async (mode, pollIntervalMs) => {
     );
     assert.ok(operation.conversationId);
     assert.ok(operation.messageId);
+    assert.ok(operation.grant, "Genie did not return a viewer grant");
     assert.equal(operation.mode ?? "chat", mode);
     const messagePath = `/api/genie/${encodeURIComponent(operation.conversationId)}/messages/${encodeURIComponent(operation.messageId)}`;
     const query = `?mode=${mode}`;
-    const read = (path) => request(`${path}${query}`, "GET", undefined, signal);
+    const read = (path) =>
+      request(`${path}${query}`, "GET", undefined, signal, operation.grant);
     let progress = await read(messagePath);
     while (progress.state === "pending") {
       await sleep(pollIntervalMs, undefined, { signal });

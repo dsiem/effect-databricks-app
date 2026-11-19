@@ -1,4 +1,5 @@
 import { Clock, Effect, Result, Schema, Stream } from "effect";
+import { genieAccessHeaders } from "../../../../shared/api";
 import { Subscription } from "foldkit";
 import type { GenieAgentPhase } from "../../../../shared/domain";
 import { type ApiClient, request } from "../../lib/api-client";
@@ -18,6 +19,7 @@ function poll(target: typeof PollTarget.Type, generation: number) {
     complete({ state: "paused", stage: "waiting", error });
   const read = request((client) =>
     client.pollGenie({
+      headers: genieAccessHeaders(target.operation.grant),
       params: target.operation,
       query: target.operation.mode ? { mode: target.operation.mode } : {},
     }),

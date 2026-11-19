@@ -1,9 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ConfigProvider, Effect, Layer, Redacted, Stream } from "effect";
+import {
+  ConfigProvider,
+  Effect,
+  Layer,
+  Redacted,
+  Schema,
+  Stream,
+} from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
 import { OpenApi } from "effect/http-api";
 import { AppApi } from "../../shared/api.js";
+import { GenieOperation } from "../../shared/domain.js";
 import { Analytics } from "../src/analytics.js";
 import {
   GenieFailed,
@@ -31,6 +39,7 @@ const appFor = (
     "Unexpected service call",
   ),
   overrides: Services = {},
+  env: Readonly<Record<string, string>> = {},
 ) =>
   HttpRouter.toWebHandler(
     Routes.pipe(
@@ -72,7 +81,7 @@ const appFor = (
             Layer.provide(
               Layer.succeed(
                 ConfigProvider.ConfigProvider,
-                ConfigProvider.fromEnvRecord({}),
+                ConfigProvider.fromEnvRecord(env),
               ),
             ),
           ),
@@ -369,6 +378,194 @@ test("Genie CSV exports use a same-origin POST and stream a downloadable attachm
     assert.equal(file.headers.get("cache-control"), "no-store");
     assert.equal(await file.text(), "count\r\n123\r\n");
     assert.equal(exports, 1);
+  } finally {
+    await dispose();
+  }
+});
+
+test("hosted Genie grants bind followups, reads, cancellation, and CSV to the submitting viewer", async () => {
+  const calls: string[] = [];
+  const chat = {
+    conversationId: "chat-conversation",
+    messageId: "chat-message",
+  };
+  const agent = {
+    conversationId: "agent-conversation",
+    messageId: "agent-response",
+    mode: "agent" as const,
+  };
+  const record = <A>(name: string, value: A) =>
+    Effect.sync(() => {
+      calls.push(name);
+      return value;
+    });
+  const { handler, dispose } = appFor(
+    undefined,
+    {
+      genie: {
+        submit: ({ mode, conversationId }) =>
+          record(
+            conversationId ? "follow-up" : "submit",
+            mode === "agent" ? agent : chat,
+          ),
+        poll: (operation) =>
+          record("poll", {
+            ...operation,
+            state: "completed" as const,
+            status: "COMPLETED",
+          }),
+        result: (operation) =>
+          record("result", { ...operation, text: "Query ready", queries: [] }),
+        cancel: ({ conversationId, responseId }) =>
+          record("cancel", {
+            conversationId,
+            messageId: responseId,
+            mode: "agent" as const,
+            state: "cancelled" as const,
+            status: "CANCELLED",
+          }),
+        downloadCsv: () =>
+          record(
+            "download",
+            Stream.make(new TextEncoder().encode("total\r\n1\r\n")),
+          ),
+      },
+    },
+    {
+      DATABRICKS_APP_NAME: "test-app",
+      DATABRICKS_CLIENT_SECRET: "fixture-only-secret",
+      GENIE_SPACE_ID: "space",
+    },
+  );
+  const owner = "123@456";
+  const otherViewer = "789@456";
+  const json = (body: unknown): RequestInit => ({
+    method: "POST",
+    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json" },
+  });
+  const request = (
+    path: string,
+    viewer?: string,
+    grant?: string,
+    init?: RequestInit,
+  ) => {
+    const headers = new Headers(init?.headers);
+    if (viewer) headers.set("x-forwarded-user", viewer);
+    if (grant) headers.set("x-genie-access", grant);
+    return handler(
+      new Request(`http://localhost${path}`, { ...init, headers }),
+    );
+  };
+  const csv = (grant?: string): RequestInit => ({
+    method: "POST",
+    headers: { "sec-fetch-site": "same-origin" },
+    body: new URLSearchParams(grant ? { grant } : undefined),
+  });
+  const chatPath = `/api/genie/${chat.conversationId}/messages/${chat.messageId}`;
+  const agentPath = `/api/genie/${agent.conversationId}/messages/${agent.messageId}?mode=agent`;
+  const cancelPath = `/api/genie/${agent.conversationId}/responses/${agent.messageId}/cancel`;
+  const exportPath = `${chatPath}/attachments/attachment/csv`;
+  const followUp = json({
+    content: "Next question",
+    conversationId: chat.conversationId,
+  });
+  try {
+    assert.equal(
+      (
+        await request(
+          "/api/genie",
+          undefined,
+          undefined,
+          json({ content: "First question" }),
+        )
+      ).status,
+      403,
+    );
+    assert.deepEqual(calls, []);
+    const chatSubmission = await request(
+      "/api/genie",
+      owner,
+      undefined,
+      json({ content: "First question" }),
+    );
+    const agentSubmission = await request(
+      "/api/genie",
+      owner,
+      undefined,
+      json({ content: "First question", mode: "agent" }),
+    );
+    assert.equal(chatSubmission.status, 200);
+    assert.equal(agentSubmission.status, 200);
+    const decodeOperation = Schema.decodeUnknownSync(GenieOperation);
+    const { grant: chatGrant } = decodeOperation(await chatSubmission.json());
+    const { grant: agentGrant } = decodeOperation(await agentSubmission.json());
+    assert.ok(chatGrant && agentGrant);
+    assert.match(chatGrant, /^[A-Za-z0-9_-]{43}$/);
+    assert.match(agentGrant, /^[A-Za-z0-9_-]{43}$/);
+    assert.notEqual(chatGrant, agentGrant);
+
+    assert.equal(
+      (await request("/api/genie", owner, undefined, followUp)).status,
+      403,
+    );
+    assert.equal(
+      (await request("/api/genie", otherViewer, chatGrant, followUp)).status,
+      403,
+    );
+    assert.equal((await request(chatPath, owner)).status, 403);
+    assert.equal((await request(chatPath, otherViewer, chatGrant)).status, 403);
+    assert.equal(
+      (await request(`${chatPath}/result`, otherViewer, chatGrant)).status,
+      403,
+    );
+    assert.equal((await request(agentPath, owner, chatGrant)).status, 403);
+    assert.equal(
+      (await request(cancelPath, otherViewer, agentGrant, { method: "POST" }))
+        .status,
+      403,
+    );
+    assert.equal(
+      (await request(exportPath, otherViewer, undefined, csv(chatGrant)))
+        .status,
+      403,
+    );
+    assert.deepEqual(calls, ["submit", "submit"]);
+
+    assert.equal(
+      (await request("/api/genie", owner, chatGrant, followUp)).status,
+      200,
+    );
+    assert.equal((await request(agentPath, owner, agentGrant)).status, 200);
+    const result = await request(`${chatPath}/result`, owner, chatGrant);
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), {
+      ...chat,
+      grant: chatGrant,
+      text: "Query ready",
+      queries: [],
+    });
+    assert.equal(
+      (await request(cancelPath, owner, agentGrant, { method: "POST" })).status,
+      200,
+    );
+    const download = await request(
+      exportPath,
+      owner,
+      undefined,
+      csv(chatGrant),
+    );
+    assert.equal(download.status, 200);
+    assert.equal(await download.text(), "total\r\n1\r\n");
+    assert.deepEqual(calls, [
+      "submit",
+      "submit",
+      "follow-up",
+      "poll",
+      "result",
+      "cancel",
+      "download",
+    ]);
   } finally {
     await dispose();
   }
