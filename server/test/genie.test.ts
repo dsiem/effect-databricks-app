@@ -509,8 +509,12 @@ test(
           messageId: "response",
         });
         assert.equal(released, true);
-        assert.equal((yield* genie.poll(accepted)).phase, "running-sql");
-        assert.equal((yield* genie.poll(accepted)).phase, "preparing-report");
+        const running = yield* genie.poll(accepted);
+        assert.equal(running.state, "pending");
+        assert.equal(running.phase, "running-sql");
+        const reporting = yield* genie.poll(accepted);
+        assert.equal(reporting.state, "pending");
+        assert.equal(reporting.phase, "preparing-report");
         assert.equal((yield* genie.poll(accepted)).state, "completed");
         return yield* genie.result(accepted);
       }).pipe(

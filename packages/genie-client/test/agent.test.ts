@@ -85,3 +85,21 @@ test("retrieves an older Agent turn across pages in its original order", async (
   ]);
   assert.deepEqual(cursors, [null, "newer_input"]);
 });
+
+test("an Agent turn absent from history has an unresolved outcome", async () => {
+  const { client } = history([
+    user("other"),
+    assistant("other-answer", "An unrelated answer"),
+  ]);
+  const operation = { conversationId: "conversation", responseId: "target" };
+
+  const progress = await Effect.runPromise(client.poll(operation));
+  assert.equal(progress.state, "unresolved");
+  assert.equal("phase" in progress, false);
+
+  const unavailable = await Effect.runPromise(
+    Effect.flip(client.result(operation)),
+  );
+  assert.equal(unavailable._tag, "GenieMessageUnavailable");
+  assert.equal(unavailable.state, "unresolved");
+});

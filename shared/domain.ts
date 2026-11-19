@@ -286,6 +286,15 @@ export const GenieProgress = Schema.Struct({
   ...GenieModeQuery.fields,
 });
 export type GenieProgress = typeof GenieProgress.Type;
+export const GeniePollProgress = Schema.Union([
+  GenieProgress,
+  Schema.Struct({
+    ...ChatProgress.fields,
+    mode: Schema.Literal("agent"),
+    state: Schema.Literal("unresolved"),
+  }),
+]);
+export type GeniePollProgress = typeof GeniePollProgress.Type;
 export const GenieReply = Schema.Struct({
   ...GenieOperation.fields,
   text: Schema.String,

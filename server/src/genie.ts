@@ -19,6 +19,7 @@ import {
 import { genieResultTimeoutMs } from "../../shared/api.js";
 import {
   type GenieInput,
+  type GeniePollProgress,
   type GenieOperation,
   type GenieProgress,
   type GenieQueryPath,
@@ -81,7 +82,7 @@ export class Genie extends Context.Service<
     ) => Effect.Effect<GenieOperation, WorkspaceRequestError>;
     readonly poll: (
       operation: GenieOperation,
-    ) => Effect.Effect<GenieProgress, WorkspaceRequestError>;
+    ) => Effect.Effect<GeniePollProgress, WorkspaceRequestError>;
     readonly cancel: (
       operation: GenieAgentOperation,
     ) => Effect.Effect<GenieProgress, WorkspaceRequestError>;
@@ -236,17 +237,19 @@ export class Genie extends Context.Service<
       };
 
       const poll = (operation: GenieOperation) =>
-        (operation.mode === "agent"
-          ? agent.poll(agentReference(operation)).pipe(
-              Effect.map(({ state, status, phase }): GenieProgress => ({
-                ...operation,
-                state,
-                status,
-                ...(phase === undefined ? {} : { phase }),
-              })),
-            )
-          : client.poll(operation)
-        ).pipe(Effect.mapError(mapProtocolError));
+        Effect.gen(function* () {
+          if (operation.mode !== "agent") return yield* client.poll(operation);
+          const progress = yield* agent.poll(agentReference(operation));
+          const { state, status } = progress;
+          if (state === "unresolved")
+            return { ...operation, mode: "agent" as const, state, status };
+          return {
+            ...operation,
+            state,
+            status,
+            ...(progress.phase === undefined ? {} : { phase: progress.phase }),
+          };
+        }).pipe(Effect.mapError(mapProtocolError));
 
       const cancel = (operation: GenieAgentOperation) =>
         agent.cancel(operation).pipe(
@@ -284,7 +287,9 @@ export class Genie extends Context.Service<
                   message:
                     state === "failed"
                       ? `Genie could not complete this question (${status}).`
-                      : "This answer is still processing. Resume waiting for it.",
+                      : state === "unresolved"
+                        ? "Genie has not made this response visible yet. Resume to check it again."
+                        : "This answer is still processing. Resume waiting for it.",
                 }),
               ),
             GenieQueryFailed: () =>

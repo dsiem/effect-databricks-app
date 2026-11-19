@@ -11,6 +11,7 @@ const PollSelection = Schema.Struct({
   generation: Schema.Int,
   waiting: Schema.Array(PollTarget),
 });
+const agentVisibilityGraceMs = 30_000;
 
 function poll(target: typeof PollTarget.Type, generation: number) {
   const complete = (outcome: ReturnType<typeof M.PolledQuestion>["outcome"]) =>
@@ -31,6 +32,7 @@ function poll(target: typeof PollTarget.Type, generation: number) {
         readonly step: "next";
         readonly deadline: number;
         readonly phase: GenieAgentPhase | undefined;
+        readonly unresolvedSince: number | undefined;
       }
     | { readonly step: "done" };
   return Stream.unfold<PollState, Message | undefined, never, ApiClient>(
@@ -68,7 +70,23 @@ function poll(target: typeof PollTarget.Type, generation: number) {
       }
       if (data.state === "completed")
         return [complete({ state: "retrieving" }), done] as const;
-      if ((yield* Clock.currentTimeMillis) >= deadline) {
+      const now = yield* Clock.currentTimeMillis;
+      const unresolvedSince =
+        data.state === "unresolved"
+          ? ((state.step === "next" ? state.unresolvedSince : undefined) ?? now)
+          : undefined;
+      if (
+        unresolvedSince !== undefined &&
+        now - unresolvedSince >= agentVisibilityGraceMs
+      ) {
+        return [
+          pause(
+            "Genie could not locate this response. Resume waiting to check again.",
+          ),
+          done,
+        ] as const;
+      }
+      if (now >= deadline) {
         return [
           pause(
             "Genie is taking longer than expected. Resume waiting for this answer.",
@@ -77,12 +95,12 @@ function poll(target: typeof PollTarget.Type, generation: number) {
         ] as const;
       }
       const previous = state.step === "next" ? state.phase : undefined;
-      const phase = agent ? data.phase : undefined;
+      const phase = agent && data.state === "pending" ? data.phase : undefined;
       return [
         phase !== undefined && phase !== previous
           ? complete({ state: "waiting", phase })
           : undefined,
-        { step: "next", deadline, phase },
+        { step: "next", deadline, phase, unresolvedSince },
       ] as const;
     }),
   ).pipe(Stream.filter((message) => message !== undefined));

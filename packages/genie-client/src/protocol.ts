@@ -12,7 +12,7 @@ export class GenieMessageUnavailable extends Data.TaggedError(
   "GenieMessageUnavailable",
 )<{
   readonly status: string;
-  readonly state: "pending" | "failed";
+  readonly state: "pending" | "failed" | "unresolved";
 }> {}
 
 export const decode = <A>(schema: Schema.Decoder<A>, value: unknown) =>

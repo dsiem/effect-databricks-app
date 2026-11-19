@@ -50,3 +50,6 @@ Use `submit`, `poll`, and `result` as in Chat mode. Agent operations carry a
 response ID, and `result` returns the final report. Use each conversation ID
 with the mode that created it. Call `cancel(operation)` to stop an Agent
 response in Databricks.
+
+If `poll` returns `unresolved`, Genie has yet to show that response in its
+conversation history. Retry within your polling deadline using the same IDs.

@@ -120,6 +120,7 @@ const Table = Schema.Struct({
 const decodeTable = Schema.decodeUnknownOption(Table);
 const userInput = (item: Item) =>
   item.type === "message" && item.role === "user";
+const responseNotVisible = "RESPONSE_NOT_VISIBLE";
 
 const stateOf = (status: string): GenieProgress["state"] | "cancelled" => {
   switch (status.toLowerCase()) {
@@ -216,6 +217,7 @@ export const makeGenieAgentClient = <E, R>(options: {
                 (entry.role === "assistant" || entry.role === "system"),
             );
             return {
+              kind: "found" as const,
               items: items.reverse(),
               status: latestTurn
                 ? latestStatus
@@ -227,7 +229,7 @@ export const makeGenieAgentClient = <E, R>(options: {
           latestTurn = false;
           items.length = 0;
         }
-        if (!page.has_more) return { items: [], status: "in_progress" };
+        if (!page.has_more) return { kind: "unresolved" as const };
         if (!page.last_id || cursors.has(page.last_id)) {
           return yield* new GenieResponseError({
             cause: new Error("Genie returned an invalid items cursor"),
@@ -240,7 +242,14 @@ export const makeGenieAgentClient = <E, R>(options: {
 
   const poll = (operation: GenieAgentOperation) =>
     readTurn(operation).pipe(
-      Effect.map(({ status, items }) => {
+      Effect.map((turn) => {
+        if (turn.kind === "unresolved")
+          return {
+            ...operation,
+            state: "unresolved" as const,
+            status: responseNotVisible,
+          };
+        const { status, items } = turn;
         const state = stateOf(status);
         return {
           ...operation,
@@ -266,7 +275,13 @@ export const makeGenieAgentClient = <E, R>(options: {
 
   const result = (operation: GenieAgentOperation) =>
     Effect.gen(function* () {
-      const { items, status } = yield* readTurn(operation);
+      const turn = yield* readTurn(operation);
+      if (turn.kind === "unresolved")
+        return yield* new GenieMessageUnavailable({
+          state: "unresolved",
+          status: responseNotVisible,
+        });
+      const { items, status } = turn;
       const state = stateOf(status);
       if (state !== "completed")
         return yield* new GenieMessageUnavailable({
