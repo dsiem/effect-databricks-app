@@ -32,7 +32,7 @@ test("a denied report leaves the completed run and its inputs visible", async ({
   await expect(page.getByRole("heading", { name: "Run #123" })).toBeVisible();
   await expect(page.getByText("Minimum trips per week")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Use these inputs" }),
+    page.getByRole("button", { name: "Reuse these inputs" }),
   ).toBeEnabled();
   await expect(
     page.getByRole("alert").locator('svg[aria-hidden="true"]'),
@@ -229,7 +229,25 @@ test("analysis retries safely and a run link resumes monitoring and reuses input
   expect(submissions).toHaveLength(2);
   expect(reportReads).toBe(1);
 
-  const reuse = page.getByRole("button", { name: "Use these inputs" });
+  const reuse = page.getByRole("button", { name: "Reuse these inputs" });
+  const tooltip = page.getByRole("tooltip", {
+    name: "Same question, different week?",
+  });
+  await expect(tooltip).toBeHidden();
+  await reuse.focus();
+  await expect(tooltip).toBeVisible();
+  await expect(reuse).toHaveAccessibleDescription(
+    "Same question, different week?",
+  );
+  await page.screenshot({
+    path: test.info().outputPath("reuse-inputs.png"),
+    animations: "disabled",
+  });
+  await page.keyboard.press("Escape");
+  await expect(tooltip).toBeHidden();
+  await page.getByRole("button", { name: "New run", exact: true }).focus();
+  await reuse.hover();
+  await expect(tooltip).toBeVisible();
   await reuse.click();
   await expect(baseline).toHaveValue(input.baselineWeek);
   await expect(comparison).toHaveValue(input.comparisonWeek);

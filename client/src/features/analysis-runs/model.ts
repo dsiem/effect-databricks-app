@@ -1,4 +1,4 @@
-import { DatePicker, Dialog } from "@foldkit/ui";
+import { DatePicker, Dialog, Tooltip } from "@foldkit/ui";
 import { Option, Schema } from "effect";
 import { AsyncData } from "foldkit";
 import {
@@ -47,8 +47,11 @@ export const readyToSubmit = (
   error: Notice = "",
 ) => Ready.make({ retryId, error });
 
+export const initReuseTooltip = () => Tooltip.init({ id: "reuse-inputs" });
+
 export const Model = Schema.Struct({
   dialog: Dialog.Model,
+  reuseTooltip: Tooltip.Model,
   draft: Draft,
   datePickers: Schema.NullOr(
     Schema.Struct({
@@ -83,6 +86,7 @@ export const init = (): Model => ({
     id: "analysis-run-form",
     focusSelector: "#analysis-baseline-week",
   }),
+  reuseTooltip: initReuseTooltip(),
   draft: defaultDraft,
   datePickers: null,
   submission: readyToSubmit(),

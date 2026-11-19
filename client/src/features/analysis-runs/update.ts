@@ -1,4 +1,4 @@
-import { DatePicker, Dialog } from "@foldkit/ui";
+import { DatePicker, Dialog, Tooltip } from "@foldkit/ui";
 import { Option, Result, Schema } from "effect";
 import { AsyncData, Command, type Update } from "foldkit";
 import { AnalysisInput } from "../../../../shared/analysis-runs";
@@ -11,6 +11,7 @@ import { Message as M, type Message } from "./messages";
 import {
   type AnalysisRunLink,
   defaultDraft,
+  initReuseTooltip,
   type Model,
   readyToSubmit,
 } from "./model";
@@ -82,10 +83,12 @@ function loadHistory(model: Model): Change {
 
 export function openAnalysisRuns(model: Model, run: AnalysisRunLink): Change {
   const generation = model.generation + 1;
+  const reuseTooltip = initReuseTooltip();
   if (run._tag !== "SelectedRun") {
     return loadHistory({
       ...model,
       generation,
+      reuseTooltip,
       invalidLink: run._tag === "InvalidRun",
       selected: null,
     });
@@ -94,6 +97,7 @@ export function openAnalysisRuns(model: Model, run: AnalysisRunLink): Change {
     model: {
       ...model,
       generation,
+      reuseTooltip,
       invalidLink: false,
       selected: {
         id: run.id,
@@ -131,6 +135,16 @@ export function updateAnalysisRuns(
   switch (message._tag) {
     case "Idle":
       return { model };
+    case "ReuseTooltip": {
+      if (model.dialog.isOpen) return { model };
+      const changed = Tooltip.update(model.reuseTooltip, message.message);
+      return {
+        model: { ...model, reuseTooltip: changed.model },
+        commands: (changed.commands ?? []).map((command) =>
+          Command.mapMessage(command, (message) => M.ReuseTooltip({ message })),
+        ),
+      };
+    }
     case "OpenAnalysisForm":
     case "ReuseAnalysisInputs": {
       if (model.dialog.isOpen || model.submission._tag === "Submitting")
@@ -143,7 +157,12 @@ export function updateAnalysisRuns(
               minimumTrips: String(message.input.minimumTrips),
             };
       return updateFormDialog(
-        { ...model, draft, submission: readyToSubmit() },
+        {
+          ...model,
+          draft,
+          submission: readyToSubmit(),
+          reuseTooltip: initReuseTooltip(),
+        },
         Dialog.Message.RequestedOpen(),
       );
     }

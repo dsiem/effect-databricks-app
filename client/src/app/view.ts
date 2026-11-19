@@ -74,7 +74,7 @@ function sidebar(h: H, model: Model) {
             [
               render([...trigger]),
               ...(isVisible
-                ? [h.div([...panel, h.Class("nav-tooltip")], [text])]
+                ? [h.div([...panel, h.Class("tooltip-panel")], [text])]
                 : []),
             ],
           ),

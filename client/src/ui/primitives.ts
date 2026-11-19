@@ -1,7 +1,12 @@
 import type { Notice } from "../lib/request-state";
 import { icon } from "./icons";
 import { Button } from "@foldkit/ui";
-import type { Attribute, Html, HtmlBuilder } from "foldkit/html";
+import type {
+  Attribute,
+  ChildAttribute,
+  Html,
+  HtmlBuilder,
+} from "foldkit/html";
 export type H<Message> = HtmlBuilder<Message>;
 export type Child = Html | string;
 export const badge = <Message>(h: H<Message>, text: string) =>
@@ -17,7 +22,7 @@ export interface ButtonOptions<Message> {
   readonly size?: "default" | "small" | "icon";
   readonly className?: string;
   readonly attributes?: ReadonlyArray<
-    Exclude<Attribute<Message>, { readonly _tag: "Class" }>
+    Exclude<Attribute<Message>, { readonly _tag: "Class" }> | ChildAttribute
   >;
 }
 

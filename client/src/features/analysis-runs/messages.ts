@@ -1,5 +1,5 @@
 import { Notice } from "../../lib/request-state";
-import { DatePicker, Dialog } from "@foldkit/ui";
+import { DatePicker, Dialog, Tooltip } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
 import {
@@ -46,6 +46,7 @@ const messages = {
     error: Notice,
   },
   ReuseAnalysisInputs: { input: AnalysisInput },
+  ReuseTooltip: { message: Tooltip.Message },
 };
 
 export const Message = defineMessageUnion({ Idle: {}, ...messages });

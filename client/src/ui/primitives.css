@@ -1,4 +1,15 @@
 @layer components {
+  .tooltip-panel {
+    position: fixed;
+    z-index: 100;
+    max-width: 22rem;
+    padding: 0.4375rem 0.625rem;
+    border-radius: 0.375rem;
+    background: var(--foreground);
+    color: var(--surface);
+    font-size: 0.75rem;
+    box-shadow: var(--shadow);
+  }
   .error-text {
     color: var(--danger);
   }

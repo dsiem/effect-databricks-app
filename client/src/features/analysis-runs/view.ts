@@ -1,8 +1,11 @@
 import { AccessDenied } from "../../lib/request-state";
+import { Tooltip } from "@foldkit/ui";
 import { Option } from "effect";
 import { AsyncData } from "foldkit";
 import { defineView } from "foldkit/submodel";
+import type { ChildAttribute } from "foldkit/html";
 import type {
+  AnalysisInput,
   AnalysisRunState,
   AnalysisRunSummary,
   RouteReliabilityReport,
@@ -24,6 +27,49 @@ import { historyHref, type Model, runHref } from "./model";
 
 type H = Builder<Message>;
 type ViewInputs = { readonly query: string };
+
+function reuseInputs(
+  h: H,
+  model: Model,
+  input: AnalysisInput,
+  succeeded: boolean,
+) {
+  const disabled = model.submission._tag === "Submitting";
+  const trigger = (attributes: ReadonlyArray<ChildAttribute> = []) =>
+    button(h, {
+      label: "Reuse these inputs",
+      onClick: M.ReuseAnalysisInputs({ input }),
+      disabled,
+      size: "small",
+      attributes,
+    });
+  if (!succeeded) return trigger();
+  return h.submodel({
+    slotId: "reuse-tooltip",
+    view: Tooltip.view,
+    model: model.reuseTooltip,
+    toParentMessage: (message) => M.ReuseTooltip({ message }),
+    viewInputs: {
+      anchor: { placement: "top", gap: 8 },
+      isDisabled: disabled,
+      toView: ({ trigger: attributes, panel, isVisible }) =>
+        h.div(
+          [],
+          [
+            trigger(attributes),
+            ...(isVisible
+              ? [
+                  h.div(
+                    [...panel, h.Class("tooltip-panel")],
+                    ["Same question, different week?"],
+                  ),
+                ]
+              : []),
+          ],
+        ),
+    },
+  });
+}
 
 const states = {
   queued: "Queued",
@@ -324,14 +370,7 @@ function selectedRun(
                   ],
                 ),
                 ...(terminal
-                  ? [
-                      button(h, {
-                        label: "Use these inputs",
-                        onClick: M.ReuseAnalysisInputs({ input }),
-                        size: "small",
-                        disabled: model.submission._tag === "Submitting",
-                      }),
-                    ]
+                  ? [reuseInputs(h, model, input, run.state === "succeeded")]
                   : []),
               ],
               "analysis-input-summary",
