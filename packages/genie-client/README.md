@@ -1,93 +1,51 @@
 # Genie Client for Effect
 
-`@dsiem/genie-client` is a private npm workspace package for Chat and Agent mode in the
-[Databricks Genie API](https://docs.databricks.com/api/genie/v1/conversation).
+Use Databricks Genie in Chat and Agent mode from Node.js 22.19+ with Effect
+`~4.1.4`. `@dsiem/genie-client` is a private npm workspace package.
+[Databricks Genie API](https://docs.databricks.com/api/genie/v1/conversation)
 
 This project is independently maintained and is not affiliated with or endorsed by Databricks, Inc.
 
-Build it with `npm run build --workspace @dsiem/genie-client`.
+## Build from this workspace
 
-Create a Chat client with a space ID and an Effect that makes authenticated requests.
-The client passes through errors and requirements from your transport. Each
-client can use a different space, workspace, or identity.
+Run `npm run build --workspace @dsiem/genie-client` at the repository root.
+
+## Chat mode
+
+Pass a Genie space ID and a `request` function that sends authenticated
+requests and returns the parsed JSON body in an Effect.
+[App transport](../../server/src/genie.ts)
 
 ```ts
-import { Effect, Redacted } from "effect";
+import { Effect } from "effect";
 import { makeGenieClient } from "@dsiem/genie-client";
 
-const client = makeGenieClient({
-  spaceId,
-  request: ({ path, method, body }) =>
-    Effect.gen(function* () {
-      const token = yield* accessToken;
-      return yield* Effect.tryPromise({
-        try: async (signal) => {
-          const response = await fetch(new URL(path, workspaceUrl), {
-            method,
-            headers: {
-              Authorization: `Bearer ${Redacted.value(token)}`,
-              "Content-Type": "application/json",
-            },
-            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-            redirect: "error",
-            signal,
-          });
-          if (!response.ok)
-            throw new Error(`Databricks HTTP ${response.status}`);
-          const data: unknown = await response.json();
-          return data;
-        },
-        catch: (cause) => cause,
-      });
-    }),
-});
+const client = makeGenieClient({ spaceId, request });
+const operation = await Effect.runPromise(
+  client.submit({ content: "What data is available?" }),
+);
 ```
 
-In the example, `workspaceUrl` is your workspace URL and `accessToken` is
-your Effect that supplies a redacted token for the caller's identity.
+- Save the operation from `submit` to resume the turn later. Pass its
+  `conversationId` to `submit` for follow-up questions.
+- Call `poll(operation)` to check status once. Set the polling interval and
+  deadline in your application.
+- Call `result(operation)` when the turn completes to get the message
+  attachments. Inline query results can be partial.
 
-- `submit({ content, conversationId? })` returns the accepted conversation and
-  message IDs. Save them to resume later. Use the conversation ID for follow-ups.
-  A lost submission response can leave an accepted turn. Check Genie before
-  repeating the POST.
-- `poll(operation)` reads status once. Set the interval and deadline at the
-  call site. Interrupting a local wait leaves the remote turn available.
-- `result(operation)` reads a completed turn and fetches each query attachment's
-  inline result. It returns attachments in message order, including all returned
-  inline rows and any available column, row count, and next chunk metadata.
-  Databricks can return a partial result. Full-result downloads use separate API
-  endpoints.
-
-Transport errors pass through directly. Invalid responses fail with
-`GenieResponseError`. Genie reports message state, warehouse or query permission
-failures, and attachment execution errors through distinct tagged errors.
+A lost submission response can leave an accepted turn. Check Genie before
+resubmitting.
 
 ## Agent mode
 
-Use `makeGenieAgentClient({ agentId, request })` with the same Genie space ID.
-When the request kind is `agent-submit`, send the provided body as JSON and pass
-the SSE response body to `readGenieAgentAcceptance`. The helper accepts an
-Effect stream of bytes and stops at `response.created`. Return the decoded
-JSON body for `agent-items` and `agent-cancel`.
+Agent mode requires workspace access to the Databricks Agent mode API. Pass the
+Genie space ID as `agentId` to `makeGenieAgentClient({ agentId, request })`.
+For `agent-submit`, send the supplied JSON body. Pass the server-sent events to
+`readGenieAgentAcceptance` as an Effect stream of bytes and return the resulting
+Effect. For `agent-items` and `agent-cancel`, return the parsed JSON body in an
+Effect.
 
-Save the returned conversation and response IDs. Use them with `poll` and
-`result` to resume the turn through the conversation items API. The result
-contains the final report, including its citation links and structured SQL
-previews. Use mode-specific conversation IDs for follow-ups. The app uses
-`GENIE_SPACE_ID` for both modes and exposes the mode selector in the Genie
-composer. Databricks workspace access to Agent mode is required.
-
-Call `cancel(operation)` to stop an in-flight Agent response in Databricks.
-Treat its returned state as authoritative and retrieve the answer if the
-Agent completed before cancellation. If the cancellation result is unknown,
-use `poll(operation)` to check the same response.
-
-## Export full Chat results
-
-Use `makeGenieDownloadClient({ spaceId, request })` with the same workspace
-transport. Call `download({ conversationId, messageId, attachmentId })` with a
-Chat query attachment ID to rerun its SQL and retrieve a CSV byte stream.
-Apply your deadline around preparation. The transport should exclude download
-status request URLs from traces because they contain a signature. The client
-streams ordered chunks from supported cloud storage without workspace
-credentials. Databricks applies its full-result download limits.
+Use `submit`, `poll`, and `result` as in Chat mode. Agent operations carry a
+response ID, and `result` returns the final report. Use each conversation ID
+with the mode that created it. Call `cancel(operation)` to stop an Agent
+response in Databricks.
