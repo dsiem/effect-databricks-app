@@ -188,18 +188,5 @@ and data names for each target.
 
 4. For a new deployment, [set up the target](#set-up-a-target) once from the CLI.
 
-   If `prod` already uses a path under `/Workspace/Users`, get the resource IDs
-   with `databricks bundle summary -t prod` using the old configuration and
-   identity. Bind the resources at the new path and confirm that
-   `databricks bundle plan -t prod` uses them. [Databricks bundle binding](https://docs.databricks.com/aws/en/dev-tools/cli/bundle-commands#databricks-bundle-deployment-bind)
-
    For app updates, run the [Deploy workflow](.github/workflows/deploy.yml)
    and select the target.
-
-### After a GitHub repository rename
-
-Before the next deployment, update the Databricks federation policy for each
-configured GitHub environment to match the renamed repository's exact OIDC
-subject. GitHub.com includes numeric owner and repository IDs in the default
-subject format for repositories renamed on or after July 15, 2026.
-[GitHub federation guide](https://docs.databricks.com/aws/en/dev-tools/auth/provider-github#create-a-federation-policy)
