@@ -1,7 +1,7 @@
 import { Effect, Schema } from "effect";
 import { AuthenticationError, isSqlError, SqlError } from "effect/sql/SqlError";
 import * as SqlSchema from "effect/sql/SqlSchema";
-import { DatabricksClient } from "effect-sql-databricks";
+import { DatabricksClient } from "@dsiem/sql-warehouse";
 import { makeAdmission } from "./admission.js";
 import { OperationTimeout, permissionDenied, unavailable } from "./errors.js";
 import { Settings } from "./settings.js";

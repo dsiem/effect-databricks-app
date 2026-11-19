@@ -1,4 +1,4 @@
-import type { DatabricksClient } from "effect-sql-databricks";
+import type { DatabricksClient } from "@dsiem/sql-warehouse";
 
 export const tripDetailsProjection = (sql: DatabricksClient.DatabricksClient) =>
   sql`to_json(named_struct(

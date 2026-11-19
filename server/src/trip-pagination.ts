@@ -1,6 +1,6 @@
 import { Schema, Struct } from "effect";
 import type { Fragment } from "effect/sql/Statement";
-import type { DatabricksClient } from "effect-sql-databricks";
+import type { DatabricksClient } from "@dsiem/sql-warehouse";
 import {
   Trip,
   TripDetails,

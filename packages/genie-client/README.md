@@ -1,8 +1,11 @@
-# Databricks Genie for Effect
+# Genie Client for Effect
 
-`effect-genie-databricks` is a private npm workspace package for Chat and Agent mode in the
-[Genie API](https://docs.databricks.com/api/genie/v1/conversation).
-Build it with `npm run build --workspace effect-genie-databricks`.
+`@dsiem/genie-client` is a private npm workspace package for Chat and Agent mode in the
+[Databricks Genie API](https://docs.databricks.com/api/genie/v1/conversation).
+
+This project is independently maintained and is not affiliated with or endorsed by Databricks, Inc.
+
+Build it with `npm run build --workspace @dsiem/genie-client`.
 
 Create a Chat client with a space ID and an Effect that makes authenticated requests.
 The client passes through errors and requirements from your transport. Each
@@ -10,7 +13,7 @@ client can use a different space, workspace, or identity.
 
 ```ts
 import { Effect, Redacted } from "effect";
-import { makeGenieClient } from "effect-genie-databricks";
+import { makeGenieClient } from "@dsiem/genie-client";
 
 const client = makeGenieClient({
   spaceId,

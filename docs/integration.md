@@ -15,7 +15,7 @@ to connect the server to Foldkit.
    `warehouse.read` uses `SqlSchema.findAll` to decode the returned rows. Choose
    a string representation for IDs and decimals that need exact precision in
    JSON. [Overview queries](../server/src/analytics.ts) ·
-   [Warehouse service](../server/src/warehouse.ts) · [SQL adapter](../packages/sql-databricks/README.md)
+   [Warehouse service](../server/src/warehouse.ts) · [SQL adapter](../packages/sql-warehouse/README.md)
 3. Provide `ApiClient.layer` once in Foldkit's `Runtime.makeApplication`.
    `LoadOverview` calls the generated client and returns a `LoadedOverview`
    message. The command scopes the request through response decoding, so the
@@ -127,8 +127,8 @@ scope closes, the SQL adapter attempts to cancel a known pending or running
 statement. A submission timeout before the statement ID arrives leaves the
 outcome uncertain. The adapter retries transient connection errors on metadata
 reads and leaves submission recovery to the caller.
-[Statement lifecycle](../packages/sql-databricks/src/internal/execution.ts) ·
-[Retry policy](../packages/sql-databricks/src/internal/transport.ts)
+[Statement lifecycle](../packages/sql-warehouse/src/internal/execution.ts) ·
+[Retry policy](../packages/sql-warehouse/src/internal/transport.ts)
 
 Use the hosted smoke check to exercise the resources through the deployed app
 and detect missing grants or setup. Playwright waits for the built app to serve

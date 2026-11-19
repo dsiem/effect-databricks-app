@@ -1,10 +1,12 @@
-# Databricks SQL for Effect
+# SQL Warehouse Adapter for Effect
 
 Query a Databricks SQL warehouse from Node.js 22.19+ with Effect `~4.1.4`. The adapter provides Effect's `SqlClient` for rows and `DatabricksClient` for Apache Arrow results.
 
+This project is independently maintained and is not affiliated with or endorsed by Databricks, Inc.
+
 ## Install from this workspace
 
-Run `npm ci` and `npm pack --workspace effect-sql-databricks --pack-destination /tmp` at the repository root. In your application, run `npm install /tmp/effect-sql-databricks-0.1.0.tgz effect@4.1.4`.
+Run `npm ci` and `npm pack --workspace @dsiem/sql-warehouse --pack-destination /tmp` at the repository root. In your application, run `npm install /tmp/dsiem-sql-warehouse-0.1.0.tgz effect@4.1.4`.
 
 ## A small query helper
 
@@ -14,7 +16,7 @@ Run `npm ci` and `npm pack --workspace effect-sql-databricks --pack-destination 
 import { Config, Effect, Layer, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
-import { DatabricksClient } from "effect-sql-databricks";
+import { DatabricksClient } from "@dsiem/sql-warehouse";
 
 const countRows = SqlSchema.findOne({
   Request: Schema.String,

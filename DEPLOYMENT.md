@@ -187,3 +187,11 @@ and data names for each target.
 
    For app updates, run the [Deploy workflow](.github/workflows/deploy.yml)
    and select the target.
+
+### After a GitHub repository rename
+
+Before the next deployment, update the Databricks federation policy for each
+configured GitHub environment to match the renamed repository's exact OIDC
+subject. GitHub.com includes numeric owner and repository IDs in the default
+subject format for repositories renamed on or after July 15, 2026.
+[GitHub federation guide](https://docs.databricks.com/aws/en/dev-tools/auth/provider-github#create-a-federation-policy)

@@ -9,7 +9,7 @@ import {
   makeGenieAgentClient,
   readGenieAgentAcceptance,
   type GenieRequest,
-} from "effect-genie-databricks";
+} from "@dsiem/genie-client";
 import { genieResultTimeoutMs } from "../../shared/api.js";
 import {
   type GenieInput,

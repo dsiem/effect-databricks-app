@@ -7,7 +7,7 @@ import {
   HttpClientRequest,
   type HttpClientResponse,
 } from "effect/http";
-import { Credentials } from "effect-sql-databricks";
+import { Credentials } from "@dsiem/sql-warehouse";
 import {
   OperationTimeout,
   type ServiceUnavailable,

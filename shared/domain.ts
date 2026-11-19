@@ -2,7 +2,7 @@ import {
   GenieId,
   GenieOperation as ChatOperation,
   GenieProgress as ChatProgress,
-} from "effect-genie-databricks";
+} from "@dsiem/genie-client";
 import { Schema } from "effect";
 
 const boundedText = (max: number) =>

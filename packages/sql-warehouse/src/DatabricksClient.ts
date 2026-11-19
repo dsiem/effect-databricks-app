@@ -46,7 +46,7 @@ export interface DatabricksClient extends Client.Base {
 }
 
 export const DatabricksClient = Context.Service<DatabricksClient>(
-  "effect-sql-databricks/DatabricksClient",
+  "@dsiem/sql-warehouse/DatabricksClient",
 );
 
 export interface DatabricksClientConfig {

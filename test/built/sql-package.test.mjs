@@ -9,7 +9,7 @@ import { Effect, Redacted } from "effect";
 
 // Import and execute the actual distribution, outside the source tree. This
 // catches missing runtime files and bad package exports without a registry.
-const directory = mkdtempSync(join(tmpdir(), "effect-sql-databricks-package-"));
+const directory = mkdtempSync(join(tmpdir(), "sql-warehouse-package-"));
 try {
   const packed = JSON.parse(
     execFileSync(
@@ -17,7 +17,7 @@ try {
       [
         "pack",
         "--workspace",
-        "effect-sql-databricks",
+        "@dsiem/sql-warehouse",
         "--pack-destination",
         directory,
         "--cache",
@@ -37,7 +37,7 @@ try {
   ]);
   symlinkSync(resolve("node_modules"), join(directory, "node_modules"), "dir");
   const consumer = join(directory, "package/consumer.mjs");
-  writeFileSync(consumer, 'export * from "effect-sql-databricks";\n');
+  writeFileSync(consumer, 'export * from "@dsiem/sql-warehouse";\n');
   const exports = await import(pathToFileURL(consumer));
   const ipc = tableToIPC(
     tableFromArrays({ id: BigInt64Array.of(9007199254740993n) }),

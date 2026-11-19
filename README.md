@@ -1,13 +1,15 @@
-# Databricks Apps + Effect
+# Effective Analytics Workbench
 
-This TypeScript starter for Databricks Apps uses historical NYC taxi trips to
-show how to query Databricks SQL, ask Genie about the current view, save
-shared work in Lakebase, and run a Databricks job.
+This TypeScript example for Databricks Apps uses Effect and Foldkit. Explore
+historical NYC taxi trips with Databricks SQL, ask Genie about the current view,
+save shared work in Lakebase, and run a Databricks job.
+
+This project is independently maintained and is not affiliated with or endorsed by Databricks, Inc.
 
 [Deploy the example](DEPLOYMENT.md) ·
 [Use your own data](#use-your-own-data) ·
 [Integration patterns](docs/integration.md) ·
-[Reuse the SQL adapter](packages/sql-databricks/README.md)
+[Reuse the SQL adapter](packages/sql-warehouse/README.md)
 
 ![January 2016 NYC taxi trip metrics and daily activity with the Genie helper open](.github/assets/nyc-taxi.png)
 
