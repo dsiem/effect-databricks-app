@@ -542,7 +542,9 @@ test("cancels a running warehouse statement when the query deadline expires", as
   );
   assert.equal(result._tag, "Failure");
   if (result._tag === "Failure")
-    assert.equal(result.failure.reason._tag, "StatementTimeoutError");
+    assert.partialDeepStrictEqual(result.failure.reason.cause, {
+      reason: "StatementTimeoutError",
+    });
   assert.equal(
     server.requests.filter((request) => request.path.endsWith("/cancel"))
       .length,
@@ -620,8 +622,12 @@ test("a stalled Arrow body is aborted by the request timeout", async (t) => {
     ),
   );
   assert.equal(result._tag, "Failure");
-  if (result._tag === "Failure")
-    assert.equal(result.failure.reason._tag, "StatementTimeoutError");
+  if (result._tag === "Failure") {
+    assert.partialDeepStrictEqual(result.failure.reason.cause, {
+      reason: "StatementTimeoutError",
+    });
+    assert.equal(result.failure.reason.operation, "download");
+  }
 });
 
 test("preserves decimal precision and scale in columnar results", async (t) => {

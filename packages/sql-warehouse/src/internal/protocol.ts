@@ -5,6 +5,7 @@ import {
   AuthorizationError,
   ConnectionError,
   SqlError,
+  SqlErrorReason,
   SqlSyntaxError,
   StatementTimeoutError,
   UnknownError,
@@ -19,14 +20,17 @@ export const StatementId = Schema.NonEmptyString.pipe(
 );
 const ExternalLink = Schema.Struct({
   chunk_index: Index,
+  row_count: Schema.optional(Index),
   external_link: Schema.NonEmptyString,
   http_headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
 });
 export type ExternalLink = typeof ExternalLink.Type;
 export const ResultChunk = Schema.Struct({
+  chunk_index: Schema.optional(Index),
+  row_count: Schema.optional(Index),
   external_links: Schema.optional(Schema.Array(ExternalLink)),
 });
-export const StatementResponse = Schema.Struct({
+export const StatementHandle = Schema.Struct({
   statement_id: StatementId,
   status: Schema.Struct({
     state: Schema.Literals([
@@ -37,6 +41,14 @@ export const StatementResponse = Schema.Struct({
       "CANCELED",
       "CLOSED",
     ]),
+  }),
+});
+export type StatementHandle = typeof StatementHandle.Type;
+
+export const StatementResponse = Schema.Struct({
+  ...StatementHandle.fields,
+  status: Schema.Struct({
+    ...StatementHandle.fields.status.fields,
     error: Schema.optional(
       Schema.Struct({
         error_code: Schema.optional(Schema.String),
@@ -49,7 +61,16 @@ export const StatementResponse = Schema.Struct({
     Schema.Struct({
       format: Schema.String,
       total_chunk_count: Index,
+      total_row_count: Schema.optional(Index),
       truncated: Schema.optional(Schema.Boolean),
+      chunks: Schema.optional(
+        Schema.Array(
+          Schema.Struct({
+            chunk_index: Index,
+            row_count: Schema.optional(Index),
+          }),
+        ),
+      ),
     }),
   ),
   result: Schema.optional(ResultChunk),
@@ -62,26 +83,47 @@ export const failure = (message: string, operation: string) =>
     reason: new UnknownError({ cause: undefined, message, operation }),
   });
 
-// A statement or result deadline can expire after a write has committed.
-class SubmittedStatementTimeout extends StatementTimeoutError {
-  override get isRetryable(): boolean {
-    return false;
-  }
-}
+const hasOriginalReason = Schema.is(
+  Schema.Struct({
+    reason: Schema.Literals(
+      SqlErrorReason.members.map((member) => member.fields._tag.schema.literal),
+    ),
+  }),
+);
+const decodeSqlErrorReason = Schema.decodeUnknownSync(SqlErrorReason);
 
-export const afterSubmission = (error: SqlError): SqlError => {
-  if (!error.isRetryable) return error;
-  const { operation } = error.reason;
-  const props = {
-    cause: undefined,
-    operation,
-    message: `${error.message}. Check the statement outcome before resubmitting.`,
-  };
+export const afterSubmission = (
+  error: SqlError,
+  statementId?: typeof StatementId.Type,
+): SqlError => {
+  // A write may have committed. Use a nonretryable tag that survives serialization.
+  if (error.isRetryable) {
+    return new SqlError({
+      reason: new UnknownError({
+        cause: {
+          reason: error.reason._tag,
+          ...(statementId === undefined ? {} : { statementId }),
+        },
+        operation: error.reason.operation,
+        message: `${error.message}. Check the statement outcome before resubmitting.`,
+      }),
+    });
+  }
+  if (statementId === undefined) return error;
+  const previous = error.reason.cause;
   return new SqlError({
-    reason:
-      error.reason._tag === "StatementTimeoutError"
-        ? new SubmittedStatementTimeout(props)
-        : new UnknownError(props),
+    reason: decodeSqlErrorReason({
+      _tag: error.reason._tag,
+      message: error.reason.message,
+      operation: error.reason.operation,
+      ...(error.reason._tag === "UniqueViolation"
+        ? { constraint: error.reason.constraint }
+        : {}),
+      cause: {
+        statementId,
+        ...(hasOriginalReason(previous) ? { reason: previous.reason } : {}),
+      },
+    }),
   });
 };
 

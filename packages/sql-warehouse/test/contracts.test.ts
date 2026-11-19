@@ -80,7 +80,9 @@ test(
     );
     assert.equal(result._tag, "Failure");
     if (result._tag === "Failure") {
-      assert.equal(result.failure.reason._tag, "StatementTimeoutError");
+      assert.partialDeepStrictEqual(result.failure.reason.cause, {
+        reason: "StatementTimeoutError",
+      });
       assert.equal(result.failure.reason.operation, "query");
     }
     assert.equal(aborted, true);
@@ -177,7 +179,9 @@ for (const shape of [
     );
     assert.equal(result._tag, "Failure");
     if (result._tag === "Failure") {
-      assert.equal(result.failure.reason._tag, "StatementTimeoutError");
+      assert.partialDeepStrictEqual(result.failure.reason.cause, {
+        reason: "StatementTimeoutError",
+      });
       assert.equal(result.failure.reason.operation, "query");
     }
     assert.equal(consumerReleased, true);

@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Cause, Effect, Exit, Fiber, Latch, Redacted, Stream } from "effect";
+import {
+  Cause,
+  Effect,
+  Exit,
+  Fiber,
+  Latch,
+  Redacted,
+  Schema,
+  Stream,
+} from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 import { SqlError } from "effect/sql/SqlError";
 import * as TestClock from "effect/testing/TestClock";
@@ -278,7 +287,16 @@ test("a rejected submission can retry while a gateway timeout preserves its unce
       ),
     );
     assert.equal(error.isRetryable, retryable);
-    if (status === 504)
-      assert.equal(error.reason._tag, "StatementTimeoutError");
+    const encoded = Schema.encodeSync(SqlError)(error);
+    const decoded = Schema.decodeUnknownSync(SqlError)(
+      JSON.parse(JSON.stringify(encoded)),
+    );
+    assert.equal(decoded.isRetryable, retryable);
+    if (status === 504) {
+      assert.deepEqual(decoded.reason.cause, {
+        reason: "StatementTimeoutError",
+      });
+      assert.equal(decoded.reason.operation, "submit");
+    }
   }
 });
