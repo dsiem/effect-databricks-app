@@ -144,7 +144,7 @@ test("pending edits must be applied before saving and the saved view keeps those
   await expect(page).toHaveURL("/trips?zip=10002");
   await form.getByRole("button", { name: "Save view", exact: true }).click();
   const editor = page.getByRole("dialog", {
-    name: "Save this view",
+    name: "What would you call this view?",
     exact: true,
   });
   await editor.getByLabel("View name", { exact: true }).fill("Fare review");

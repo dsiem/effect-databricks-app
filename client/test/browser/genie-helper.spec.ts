@@ -114,6 +114,7 @@ test("a denied Genie question keeps the chart and its filters available", async 
     .getByRole("button", { name: "Ask Genie about trips by pickup date" })
     .click();
   const helper = page.getByRole("dialog", { name: "Genie", exact: true });
+  await expect(helper.getByText("Your data, in context")).toHaveCount(0);
   await helper.getByRole("textbox").fill("Which day had the most pickups?");
   await helper
     .getByRole("button", { name: "Send question", exact: true })

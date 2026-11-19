@@ -178,7 +178,7 @@ function trips(h: H, model: Model, sort: typeof Sort.Type): Child[] {
                 [h.Class("p-14 muted text-center")],
                 [
                   page === 1
-                    ? "No trips match these filters."
+                    ? "No pickups here. Try another ZIP code or a wider date range."
                     : "No trips remain on this page.",
                 ],
               ),

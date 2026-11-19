@@ -275,7 +275,10 @@ test("saved view chooser creates, edits, reloads, and deletes views with their f
     .getByRole("textbox", { name: "Finding (optional)", exact: true })
     .fill("Initial finding");
   await page
-    .getByRole("dialog", { name: "Save this view", exact: true })
+    .getByRole("dialog", {
+      name: "What would you call this view?",
+      exact: true,
+    })
     .getByRole("button", { name: "Save view", exact: true })
     .click();
   await expect(
@@ -324,14 +327,20 @@ test("modal backdrop dismissal restores the opener and page scrolling", async ({
   });
   await trigger.click();
   await expect(
-    page.getByRole("dialog", { name: "Save this view", exact: true }),
+    page.getByRole("dialog", {
+      name: "What would you call this view?",
+      exact: true,
+    }),
   ).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.style.overflow),
   ).toBe("hidden");
   await page.mouse.click(4, 4);
   await expect(
-    page.getByRole("dialog", { name: "Save this view", exact: true }),
+    page.getByRole("dialog", {
+      name: "What would you call this view?",
+      exact: true,
+    }),
   ).not.toBeVisible();
   await expect(trigger).toBeFocused();
   expect(

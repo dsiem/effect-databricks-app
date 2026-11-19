@@ -13,6 +13,16 @@ import { Message as M } from "./view-messages";
 import type { ViewModel as Model } from "./view-model";
 
 function header(h: H, model: Model, floating: boolean, working: boolean) {
+  const title = h.h2(
+    [
+      h.Id(
+        floating && model.mobile
+          ? Dialog.titleId(model.helperDialog)
+          : "genie-title",
+      ),
+    ],
+    ["Genie"],
+  );
   return h.div(
     [h.Class("genie-header")],
     [
@@ -20,22 +30,15 @@ function header(h: H, model: Model, floating: boolean, working: boolean) {
         [h.Class("flex items-center gap-3")],
         [
           h.span([h.Class("icon-tile")], [icon(h, "sparkles")]),
-          h.div(
-            [],
-            [
-              h.h2(
+          floating
+            ? title
+            : h.div(
+                [],
                 [
-                  h.Id(
-                    floating && model.mobile
-                      ? Dialog.titleId(model.helperDialog)
-                      : "genie-title",
-                  ),
+                  title,
+                  h.p([h.Class("muted text-xs")], ["Your data, in context"]),
                 ],
-                ["Genie"],
               ),
-              h.p([h.Class("muted text-xs")], ["Your data, in context"]),
-            ],
-          ),
         ],
       ),
       h.div(

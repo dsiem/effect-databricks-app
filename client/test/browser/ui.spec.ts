@@ -167,7 +167,7 @@ test("saved view dialog has labelled fields, keyboard dismissal, and restores fo
   });
   await trigger.click();
   const dialog = page.getByRole("dialog", {
-    name: "Save this view",
+    name: "What would you call this view?",
     exact: true,
   });
   await expect(

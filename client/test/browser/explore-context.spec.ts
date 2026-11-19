@@ -42,7 +42,7 @@ test("Explore applies changes before saving, and saved views reopen on the curre
     .getByRole("button", { name: "Save view", exact: true })
     .click();
   const dialog = page.getByRole("dialog", {
-    name: "Save this view",
+    name: "What would you call this view?",
     exact: true,
   });
   await expect(dialog).toContainText("Jan 10, 2016 – Jan 20, 2016");
@@ -185,7 +185,7 @@ for (const [search, dates] of [
       .getByRole("button", { name: "Save view", exact: true })
       .click();
     const context = page.getByRole("dialog", {
-      name: "Save this view",
+      name: "What would you call this view?",
       exact: true,
     });
     await expect(context).toContainText(dates);

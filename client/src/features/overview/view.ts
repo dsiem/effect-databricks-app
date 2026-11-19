@@ -75,9 +75,7 @@ function overview(h: H, model: Model): Child[] {
       ? [
           card(
             h,
-            [
-              "No trips match these filters. Try another date range or pickup ZIP.",
-            ],
+            ["No pickups here. Try another ZIP code or a wider date range."],
             "p-10 text-center muted",
           ),
         ]

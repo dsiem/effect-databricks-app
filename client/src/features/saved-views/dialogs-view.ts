@@ -20,7 +20,10 @@ function editor(h: H, model: Model) {
   const editor = model.editor;
   if (!editor) return null;
   const { draft, saving } = editor;
-  const name = draft.version !== null ? "Edit saved view" : "Save this view";
+  const name =
+    draft.version === null
+      ? "What would you call this view?"
+      : "Edit saved view";
   return dialog(h, {
     model: model.dialogs.savedView,
     onMessage: (message) => M.SavedViewDialog({ message }),
@@ -31,10 +34,14 @@ function editor(h: H, model: Model) {
         [h.Class("dialog-header")],
         [
           h.h2([h.Id(Dialog.titleId(model.dialogs.savedView))], [name]),
-          h.p(
-            [h.Class("muted text-sm mt-2")],
-            ["Give this view a name so you and your team can return to it."],
-          ),
+          ...(draft.version !== null
+            ? [
+                h.p(
+                  [h.Class("muted text-sm mt-2")],
+                  ["Update the name or finding for your team."],
+                ),
+              ]
+            : []),
         ],
       ),
       h.form(

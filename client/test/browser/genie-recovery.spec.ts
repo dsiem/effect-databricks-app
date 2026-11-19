@@ -84,7 +84,7 @@ test("result retry survives navigation and reload, and follow-ups reuse the conv
     .getByRole("button", { name: "Ask Genie", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Go deeper into this view" }),
+    page.getByRole("heading", { name: "What caught your eye?" }),
   ).toBeVisible();
 });
 

@@ -265,7 +265,7 @@ export function dateField<Message>(
                             h.Type("button"),
                             h.Disabled(true),
                             h.AriaLabel(options.calendarLabel),
-                            h.Title("The available date range is loading"),
+                            h.Title("Enter the date as YYYY-MM-DD"),
                             h.Class("date-trigger"),
                           ],
                           [icon(h, "calendar-days")],

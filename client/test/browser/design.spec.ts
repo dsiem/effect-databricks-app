@@ -284,7 +284,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         .getByRole("button", { name: "Save this view", exact: true })
         .click();
       const editor = page.getByRole("dialog", {
-        name: "Save this view",
+        name: "What would you call this view?",
         exact: true,
       });
       await editor
@@ -306,7 +306,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await capture(page, info, "pickup-map");
       await page.goto(`/genie${query}`);
       await expect(
-        page.getByRole("heading", { name: "Go deeper into this view" }),
+        page.getByRole("heading", { name: "What caught your eye?" }),
       ).toBeVisible();
       await fitsViewport(page);
       await capture(page, info, "genie-page");
@@ -343,7 +343,7 @@ test("loading, empty, and error states retain the workspace layout", async ({
   release();
   await expect(
     page.getByText(
-      "No trips match these filters. Try another date range or pickup ZIP.",
+      "No pickups here. Try another ZIP code or a wider date range.",
     ),
   ).toBeVisible();
   await capture(page, info, "empty");

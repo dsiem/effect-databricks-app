@@ -105,7 +105,7 @@ function suggestions(h: H, page: Model["context"]["page"]) {
   return h.div(
     [h.Class("genie-welcome")],
     [
-      h.h3([h.Class("text-lg font-semibold")], ["Go deeper into this view"]),
+      h.h3([h.Class("text-lg font-semibold")], ["What caught your eye?"]),
       h.p(
         [h.Class("muted text-sm leading-6 mt-2 mb-5")],
         ["Explain what you’re seeing or ask Genie to run another analysis."],

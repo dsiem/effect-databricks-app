@@ -80,7 +80,7 @@ test("reopens a saved view after a full reload", async ({ page }) => {
   await openApp(page, `/trips?${filters}`);
   await page.getByRole("button", { name: "Save view", exact: true }).click();
   const editor = page.getByRole("dialog", {
-    name: "Save this view",
+    name: "What would you call this view?",
     exact: true,
   });
   const title = `Browser E2E ${randomUUID()}`;

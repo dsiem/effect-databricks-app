@@ -269,7 +269,7 @@ test("unavailable counts remain unknown while details and comments still open", 
   await unknown.click();
   await expect(
     page.getByRole("dialog", { name: "Trip details" }),
-  ).toContainText("Start the conversation");
+  ).toContainText("Know the story behind this ride?");
 });
 
 test("denied comment access leaves trip records, details and navigation usable", async ({
@@ -362,10 +362,14 @@ for (const width of [1440, 360]) {
     await expect(
       panel.getByRole("region", { name: "Selected trip" }),
     ).toContainText("$18.50");
-    await expect(panel).toContainText("Start the conversation");
+    await expect(panel).toContainText("Know the story behind this ride?");
     await expect(
       panel.getByRole("button", { name: "Post comment", exact: true }),
     ).toBeDisabled();
+    await page.screenshot({
+      path: test.info().outputPath("first-comment.png"),
+      animations: "disabled",
+    });
     await panel
       .getByRole("textbox", { name: "Add a comment", exact: true })
       .fill("Check this fare against nearby trips.");
@@ -406,7 +410,7 @@ for (const width of [1440, 360]) {
     await page.keyboard.press("Escape");
     await inspect.nth(1).click();
     await expect(panel).toContainText("$18.50");
-    await expect(panel).toContainText("Start the conversation");
+    await expect(panel).toContainText("Know the story behind this ride?");
     await expect(
       panel.getByText("Check this fare against nearby trips.", { exact: true }),
     ).toHaveCount(0);

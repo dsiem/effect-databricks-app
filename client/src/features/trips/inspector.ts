@@ -70,11 +70,11 @@ function inspector(h: H, model: Model) {
                     [
                       h.p(
                         [h.Class("text-sm font-medium")],
-                        ["Start the conversation"],
+                        ["Know the story behind this ride?"],
                       ),
                       h.p(
                         [h.Class("muted text-xs leading-5 mt-1")],
-                        ["Share a finding or question about this trip."],
+                        ["Add the first comment."],
                       ),
                     ],
                   ),
