@@ -46,6 +46,8 @@ const appFor = (
       Layer.provide(
         Layer.mergeAll(
           Layer.succeed(Workspace, {
+            requestEvents: () =>
+              Effect.die("Unexpected workspace event request"),
             accessToken: Effect.succeed(Redacted.make("unused")),
             request: () => Effect.die("Unexpected workspace request"),
           }),

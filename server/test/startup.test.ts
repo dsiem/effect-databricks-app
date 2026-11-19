@@ -39,6 +39,7 @@ test("Lakebase discovery failures leave other services running and can be retrie
     Layer.provideMerge(Lakebase.layer),
     Layer.provide(
       Layer.succeed(Workspace, {
+        requestEvents: () => Effect.die("Unexpected workspace event request"),
         accessToken: Effect.succeed(Redacted.make("unused")),
         request: () =>
           Effect.suspend(() => {

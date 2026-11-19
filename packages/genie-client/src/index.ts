@@ -15,9 +15,9 @@ export {
 export {
   GenieAgentPhase,
   makeGenieAgentClient,
-  readGenieAgentAcceptance,
+  type GenieAgentJsonRequest,
   type GenieAgentOperation,
-  type GenieAgentRequest,
+  type GenieAgentSubmitRequest,
 } from "./agent.js";
 
 export const GenieOperation = Schema.Struct({

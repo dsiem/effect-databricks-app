@@ -36,6 +36,8 @@ function readTrips(search: TripSearch) {
         Analytics.layer.pipe(
           Layer.provide(
             Layer.succeed(Workspace, {
+              requestEvents: () =>
+                Effect.die("Unexpected workspace event request"),
               accessToken: Effect.succeed(Redacted.make("test")),
               request: () => Effect.die("Unexpected workspace request"),
             }),

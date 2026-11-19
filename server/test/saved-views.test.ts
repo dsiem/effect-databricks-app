@@ -64,6 +64,8 @@ const runSavedViews = <A, E>(
           Layer.provide(Lakebase.layer),
           Layer.provide(
             Layer.succeed(Workspace, {
+              requestEvents: () =>
+                Effect.die("Unexpected workspace event request"),
               accessToken: Effect.succeed(Redacted.make("unused")),
               request: () => credentials,
             }),

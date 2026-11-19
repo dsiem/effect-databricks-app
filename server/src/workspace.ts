@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { Context, Effect, Layer, Redacted, Schema } from "effect";
+import { Context, Effect, Layer, Redacted, Schema, Stream } from "effect";
 import {
   FetchHttpClient,
   HttpClient,
@@ -23,9 +23,9 @@ const featureDisabled = Schema.is(
   Schema.Struct({ error_code: Schema.Literal("FEATURE_DISABLED") }),
 );
 
-type ReadEventStream = (
-  body: HttpClientResponse.HttpClientResponse["stream"],
-) => Effect.Effect<unknown, unknown>;
+type ReadEventStream<A, E, R> = (
+  body: Stream.Stream<Uint8Array, WorkspaceRequestError>,
+) => Effect.Effect<A, E, R>;
 
 export class Workspace extends Context.Service<
   Workspace,
@@ -38,8 +38,12 @@ export class Workspace extends Context.Service<
       path: string,
       method?: "GET" | "POST",
       body?: unknown,
-      readEventStream?: ReadEventStream,
     ) => Effect.Effect<unknown, WorkspaceRequestError>;
+    readonly requestEvents: <A, E, R>(
+      path: string,
+      body: unknown,
+      read: ReadEventStream<A, E, R>,
+    ) => Effect.Effect<A, WorkspaceRequestError | E, R>;
   }
 >()("app/Workspace") {
   static readonly layer = Layer.effect(
@@ -85,11 +89,22 @@ export class Workspace extends Context.Service<
               scope: "all-apis",
             }).pipe(Effect.mapError(authError))
           : cli;
-      const request = (
+      const requestFailure = (cause: unknown) =>
+        cause instanceof UpstreamError
+          ? cause
+          : unavailable(
+              "workspace",
+              "The Databricks request could not be completed.",
+              cause,
+            );
+      const withResponse = <A, E, R>(
         path: string,
-        method: "GET" | "POST" = "GET",
-        body?: unknown,
-        readEventStream?: ReadEventStream,
+        method: "GET" | "POST",
+        body: unknown,
+        read: (
+          response: HttpClientResponse.HttpClientResponse,
+        ) => Effect.Effect<A, E, R>,
+        accept?: "text/event-stream",
       ) =>
         Effect.gen(function* () {
           if (!settings.host)
@@ -107,12 +122,8 @@ export class Workspace extends Context.Service<
               HttpClientRequest.bearerToken(token),
               HttpClientRequest.setHeader("Content-Type", "application/json"),
             );
-            const request = readEventStream
-              ? HttpClientRequest.setHeader(
-                  jsonRequest,
-                  "Accept",
-                  "text/event-stream",
-                )
+            const request = accept
+              ? HttpClientRequest.setHeader(jsonRequest, "Accept", accept)
               : jsonRequest;
             const response = yield* HttpClient.withScope(client).execute(
               body === undefined
@@ -122,7 +133,7 @@ export class Workspace extends Context.Service<
             if (response.status < 200 || response.status >= 300) {
               const disabled =
                 response.status === 404 &&
-                readEventStream !== undefined &&
+                accept === "text/event-stream" &&
                 (yield* response.json.pipe(
                   Effect.map(featureDisabled),
                   Effect.orElseSucceed(() => false),
@@ -138,24 +149,15 @@ export class Workspace extends Context.Service<
                 }),
               );
             }
-            return yield* readEventStream
-              ? readEventStream(response.stream)
-              : response.json;
+            return response;
           }).pipe(
+            Effect.mapError(requestFailure),
+            Effect.flatMap(read),
             Effect.scoped,
             Effect.provideService(FetchHttpClient.RequestInit, {
               redirect: "error",
               credentials: "omit",
             }),
-            Effect.mapError((cause) =>
-              cause instanceof UpstreamError
-                ? cause
-                : unavailable(
-                    "workspace",
-                    "The Databricks request could not be completed.",
-                    cause,
-                  ),
-            ),
           );
         }).pipe(
           Effect.timeoutOrElse({
@@ -169,7 +171,27 @@ export class Workspace extends Context.Service<
               ),
           }),
         );
-      return { accessToken, request };
+      const request = (
+        path: string,
+        method: "GET" | "POST" = "GET",
+        body?: unknown,
+      ) =>
+        withResponse(path, method, body, (response) =>
+          Effect.mapError(response.json, requestFailure),
+        );
+      const requestEvents = <A, E, R>(
+        path: string,
+        body: unknown,
+        read: ReadEventStream<A, E, R>,
+      ) =>
+        withResponse(
+          path,
+          "POST",
+          body,
+          (response) => read(Stream.mapError(response.stream, requestFailure)),
+          "text/event-stream",
+        );
+      return { accessToken, request, requestEvents };
     }),
   ).pipe(Layer.provide(FetchHttpClient.layer));
 }

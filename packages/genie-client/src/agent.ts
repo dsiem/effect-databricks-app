@@ -32,13 +32,13 @@ type SubmitBody = {
   readonly conversation_id?: string;
 };
 
-export type GenieAgentRequest =
-  | {
-      readonly kind: "agent-submit";
-      readonly method: "POST";
-      readonly path: string;
-      readonly body: SubmitBody;
-    }
+export type GenieAgentSubmitRequest = {
+  readonly method: "POST";
+  readonly path: string;
+  readonly body: SubmitBody;
+};
+
+export type GenieAgentJsonRequest =
   | {
       readonly kind: "agent-cancel";
       readonly method: "POST";
@@ -59,23 +59,30 @@ const Acceptance = Schema.fromJsonString(
   }),
 );
 
-export const readGenieAgentAcceptance = <E, R>(
-  body: Stream.Stream<Uint8Array, E, R>,
-) =>
+const readGenieAgentAcceptance = <E>(body: Stream.Stream<Uint8Array, E>) =>
   body.pipe(
     Stream.decodeText,
     Stream.pipeThroughChannel(Sse.decode()),
     Stream.filter(({ event }) => event === "response.created"),
     Stream.runHead,
+    Effect.mapError((cause) =>
+      cause instanceof Sse.SseError || cause instanceof Sse.Retry
+        ? new GenieResponseError({ cause })
+        : cause,
+    ),
     Effect.flatMap((event) =>
       Option.isSome(event)
-        ? Effect.succeed(event.value.data)
+        ? decode(Acceptance, event.value.data)
         : Effect.fail(
             new GenieResponseError({
               cause: new Error("Genie stream ended before response.created"),
             }),
           ),
     ),
+    Effect.map(({ response }) => ({
+      conversationId: response.conversation_id,
+      responseId: response.id,
+    })),
   );
 
 const Cancellation = Schema.Struct({ status: Schema.String });
@@ -149,13 +156,26 @@ const phaseOf = (items: ReadonlyArray<Item>): GenieAgentPhase => {
   return "analyzing";
 };
 
-export const makeGenieAgentClient = <E, R>(options: {
+export const makeGenieAgentClient = <
+  E,
+  R,
+  StreamError,
+  StreamRequirements,
+>(options: {
   readonly agentId: string;
-  readonly request: (
-    request: GenieAgentRequest,
+  readonly requestJson: (
+    request: GenieAgentJsonRequest,
   ) => Effect.Effect<unknown, E, R>;
+  readonly requestEvents: (
+    request: GenieAgentSubmitRequest,
+    read: typeof readGenieAgentAcceptance,
+  ) => Effect.Effect<
+    GenieAgentOperation,
+    GenieResponseError | StreamError,
+    StreamRequirements
+  >;
 }) => {
-  const { request } = options;
+  const { requestJson, requestEvents } = options;
   const agent = `/api/2.0/genie/agents/${encodeURIComponent(options.agentId)}`;
 
   const submit = (input: {
@@ -163,28 +183,25 @@ export const makeGenieAgentClient = <E, R>(options: {
     readonly conversationId?: string;
   }) =>
     Effect.gen(function* () {
-      const data = yield* request({
-        kind: "agent-submit",
-        method: "POST",
-        path: `${agent}/responses`,
-        body: {
-          input: [
-            {
-              type: "message",
-              role: "user",
-              content: [{ type: "input_text", text: input.content }],
-            },
-          ],
-          ...(input.conversationId === undefined
-            ? {}
-            : { conversation_id: input.conversationId }),
+      return yield* requestEvents(
+        {
+          method: "POST",
+          path: `${agent}/responses`,
+          body: {
+            input: [
+              {
+                type: "message",
+                role: "user",
+                content: [{ type: "input_text", text: input.content }],
+              },
+            ],
+            ...(input.conversationId === undefined
+              ? {}
+              : { conversation_id: input.conversationId }),
+          },
         },
-      });
-      const { response } = yield* decode(Acceptance, data);
-      return {
-        conversationId: response.conversation_id,
-        responseId: response.id,
-      };
+        readGenieAgentAcceptance,
+      );
     }).pipe(Effect.withSpan("genie.agent.submit"));
 
   const readTurn = ({ conversationId, responseId }: GenieAgentOperation) =>
@@ -197,7 +214,7 @@ export const makeGenieAgentClient = <E, R>(options: {
       let latestStatus: string | undefined;
       let latestTurn = true;
       while (true) {
-        const data = yield* request({
+        const data = yield* requestJson({
           kind: "agent-items",
           method: "GET",
           path: `${path}?${query.toString()}`,
@@ -264,7 +281,7 @@ export const makeGenieAgentClient = <E, R>(options: {
   const cancel = (operation: GenieAgentOperation) =>
     Effect.gen(function* () {
       const { conversationId, responseId } = operation;
-      const data = yield* request({
+      const data = yield* requestJson({
         kind: "agent-cancel",
         method: "POST",
         path: `${agent}/conversations/${encodeURIComponent(conversationId)}/responses/${encodeURIComponent(responseId)}/cancel`,

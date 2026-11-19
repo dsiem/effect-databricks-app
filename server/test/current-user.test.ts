@@ -19,6 +19,7 @@ const resolver = (
     makeCurrentUser.pipe(
       Effect.provideService(Workspace, {
         accessToken: Effect.succeed(Redacted.make("unused")),
+        requestEvents: () => Effect.die("Unexpected workspace event request"),
         request: (path) =>
           Effect.suspend(() => {
             paths.push(path);

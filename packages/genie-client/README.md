@@ -40,11 +40,13 @@ resubmitting.
 ## Agent mode
 
 Agent mode requires workspace access to the Databricks Agent mode API. Pass the
-Genie space ID as `agentId` to `makeGenieAgentClient({ agentId, request })`.
-For `agent-submit`, send the supplied JSON body. Pass the server-sent events to
-`readGenieAgentAcceptance` as an Effect stream of bytes and return the resulting
-Effect. For `agent-items` and `agent-cancel`, return the parsed JSON body in an
-Effect.
+Genie space ID as `agentId` to
+`makeGenieAgentClient({ agentId, requestJson, requestEvents })`.
+`requestJson` returns the parsed body for item and cancel requests.
+`requestEvents` sends the submission body with `Accept: text/event-stream`
+and runs the supplied reader on the response byte stream within the HTTP
+response scope. The reader returns the operation IDs from `response.created`.
+[App transport](../../server/src/genie.ts)
 
 Use `submit`, `poll`, and `result` as in Chat mode. Agent operations carry a
 response ID, and `result` returns the final report. Use each conversation ID

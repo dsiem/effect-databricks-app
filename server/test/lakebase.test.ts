@@ -22,6 +22,7 @@ const databaseLayer = (
   Lakebase.layer.pipe(
     Layer.provide(
       Layer.succeed(Workspace, {
+        requestEvents: () => Effect.die("Unexpected workspace event request"),
         accessToken: Effect.succeed(Redacted.make("unused")),
         request,
       }),

@@ -21,7 +21,8 @@ const history = (items: ReadonlyArray<{ id: string; type: string }>) => {
   const cursors: Array<string | null> = [];
   const client = makeGenieAgentClient({
     agentId: "space",
-    request: ({ path }) =>
+    requestEvents: () => Effect.die("Unexpected event stream request"),
+    requestJson: ({ path }) =>
       Effect.sync(() => {
         const params = new URL(path, "https://workspace.invalid").searchParams;
         const after = params.get("after");

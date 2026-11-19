@@ -12,15 +12,14 @@ import {
   GenieDownloadError,
   GenieId,
   makeGenieAgentClient,
-  readGenieAgentAcceptance,
   type GenieRequest,
   type GenieAgentOperation,
 } from "@dsiem/genie-client";
 import { genieResultTimeoutMs } from "../../shared/api.js";
 import {
   type GenieInput,
-  type GeniePollProgress,
   type GenieOperation,
+  type GeniePollProgress,
   type GenieProgress,
   type GenieQueryPath,
   type GenieReply,
@@ -177,33 +176,33 @@ export class Genie extends Context.Service<
 
       const agent = makeGenieAgentClient({
         agentId: spaceId,
-        request: ({ kind, path, method, body }) =>
+        requestJson: ({ kind, path, method }) =>
           workspace
-            .request(
-              path,
-              method,
-              body,
-              kind === "agent-submit" ? readGenieAgentAcceptance : undefined,
-            )
+            .request(path, method)
             .pipe(
-              Effect.mapError((error) =>
-                error instanceof UpstreamError &&
-                error.upstreamCode === "FEATURE_DISABLED"
-                  ? unavailable(
-                      "genie_agent_mode",
-                      "Agent mode is disabled in this Databricks workspace. Select Chat, or ask a workspace admin about Agent mode access.",
-                    )
-                  : mapWorkspacePermission(
-                      permissionCopy[
-                        kind === "agent-submit"
-                          ? "submit"
-                          : kind === "agent-cancel"
-                            ? "cancel"
-                            : "message"
-                      ],
-                    )(error),
+              Effect.mapError(
+                mapWorkspacePermission(
+                  kind === "agent-cancel"
+                    ? permissionCopy.cancel
+                    : permissionCopy.message,
+                ),
               ),
             ),
+        requestEvents: ({ path, body }, read) =>
+          workspace.requestEvents(path, body, read).pipe(
+            Effect.mapError((error) => {
+              if (error instanceof GenieResponseError) return error;
+              if (
+                error instanceof UpstreamError &&
+                error.upstreamCode === "FEATURE_DISABLED"
+              )
+                return unavailable(
+                  "genie_agent_mode",
+                  "Agent mode is disabled in this Databricks workspace. Select Chat, or ask a workspace admin about Agent mode access.",
+                );
+              return mapWorkspacePermission(permissionCopy.submit)(error);
+            }),
+          ),
       });
       const agentReference = ({
         conversationId,

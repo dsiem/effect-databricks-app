@@ -38,6 +38,7 @@ test("Genie accepts ID-less text and visualization attachments and retains follo
     ],
   };
   const workspace = Layer.succeed(Workspace, {
+    requestEvents: () => Effect.die("Unexpected workspace event request"),
     accessToken: Effect.succeed(Redacted.make("unused")),
     request: (path, method = "GET") => {
       calls.push({ path, method });
@@ -131,6 +132,7 @@ const provideGenie = (
   Genie.layer.pipe(
     Layer.provide(
       Layer.succeed(Workspace, {
+        requestEvents: () => Effect.die("Unexpected workspace event request"),
         accessToken: Effect.succeed(Redacted.make("unused")),
         request,
       }),
@@ -418,6 +420,8 @@ test("Genie builds structured filter context server-side for initial and follow-
         Genie.layer.pipe(
           Layer.provide(
             Layer.succeed(Workspace, {
+              requestEvents: () =>
+                Effect.die("Unexpected workspace event request"),
               accessToken: Effect.succeed(Redacted.make("unused")),
               request: (path, _method, body) =>
                 Effect.sync(() => {
@@ -704,6 +708,38 @@ test("Agent mode reports workspace feature gating separately from a missing agen
       assert.equal(error.upstreamStatus, 404);
     }
   }
+});
+
+test("Agent submission without an acceptance event fails as an invalid response", async () => {
+  const layer = Genie.layer.pipe(
+    Layer.provide(Workspace.layer),
+    Layer.provide(Settings.layer),
+  );
+  let submissions = 0;
+  const error = await Effect.runPromise(
+    Effect.flatMap(Genie, (genie) =>
+      Effect.flip(genie.submit({ content: "Count trips", mode: "agent" })),
+    ).pipe(
+      Effect.provide(layer),
+      Effect.provideService(
+        ConfigProvider.ConfigProvider,
+        ConfigProvider.fromEnvRecord({
+          DATABRICKS_HOST: "https://workspace.invalid",
+          DATABRICKS_TOKEN: "fixture-token",
+          GENIE_SPACE_ID: "space",
+        }),
+      ),
+      Effect.provideService(FetchHttpClient.Fetch, async () => {
+        submissions++;
+        return new Response("event: response.failed\ndata: {}\n\n", {
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }),
+    ),
+  );
+  assert.equal(error._tag, "UpstreamError");
+  assert.equal(error.service, "genie");
+  assert.equal(submissions, 1);
 });
 
 test("Agent cancellation uses the accepted response IDs and returns Databricks' outcome", async () => {
