@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { setTimeout as sleep } from "node:timers/promises";
 
 const target = process.argv[2] ?? "dev";
 const cli = (args) =>
@@ -14,11 +15,16 @@ const summary = cli(["bundle", "summary", "-t", target]);
 const app = cli(["apps", "get", summary.resources.apps.app.name]);
 assert.equal(app.app_status.state, "RUNNING");
 const token = cli(["auth", "token"]).access_token;
-const request = async (path, method = "GET", body) => {
+const request = async (
+  path,
+  method = "GET",
+  body,
+  signal = AbortSignal.timeout(190000),
+) => {
   const response = await fetch(`${app.url}${path}`, {
     method,
     redirect: "error",
-    signal: AbortSignal.timeout(190000),
+    signal,
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
@@ -109,32 +115,62 @@ try {
 } finally {
   await request(`/api/saved-views/${id}?version=${created.version}`, "DELETE");
 }
-const operation = await request("/api/genie", "POST", {
-  content:
-    "How many trips are in the configured trips table? Return a single total_trips column.",
-});
-assert.ok(operation.conversationId);
-assert.ok(operation.messageId);
-const messagePath = `/api/genie/${encodeURIComponent(operation.conversationId)}/messages/${encodeURIComponent(operation.messageId)}`;
-const deadline = Date.now() + 180000;
-let progress = await request(messagePath);
-while (progress.state === "pending") {
-  assert.ok(
-    Date.now() < deadline,
-    "Genie answer timed out; retain operation IDs to recover it",
-  );
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  progress = await request(messagePath);
-}
-assert.equal(progress.state, "completed");
-const reply = await request(`${messagePath}/result`);
-assert.ok(
-  reply.queries.some((query) =>
-    query.rows.some((row) =>
-      row.some((cell) => Number(cell) === metadata.trips),
-    ),
-  ),
-);
+const verifyGenie = async (mode, pollIntervalMs) => {
+  const signal = AbortSignal.timeout(180_000);
+  let operation;
+  try {
+    operation = await request(
+      "/api/genie",
+      "POST",
+      {
+        mode,
+        content:
+          "How many trips are in the configured trips table? Return a single total_trips column.",
+      },
+      signal,
+    );
+    assert.ok(operation.conversationId);
+    assert.ok(operation.messageId);
+    assert.equal(operation.mode ?? "chat", mode);
+    const messagePath = `/api/genie/${encodeURIComponent(operation.conversationId)}/messages/${encodeURIComponent(operation.messageId)}`;
+    const query = `?mode=${mode}`;
+    const read = (path) => request(`${path}${query}`, "GET", undefined, signal);
+    let progress = await read(messagePath);
+    while (progress.state === "pending") {
+      await sleep(pollIntervalMs, undefined, { signal });
+      progress = await read(messagePath);
+    }
+    assert.equal(progress.mode ?? "chat", mode);
+    assert.equal(
+      progress.state,
+      "completed",
+      `Genie returned ${progress.status}`,
+    );
+    const reply = await read(`${messagePath}/result`);
+    assert.equal(reply.mode ?? "chat", mode);
+    assert.ok(
+      reply.queries.some((query) =>
+        query.rows.some((row) =>
+          row.some((cell) => Number(cell) === metadata.trips),
+        ),
+      ),
+      "Genie SQL results did not contain the expected trip count",
+    );
+    return operation.conversationId;
+  } catch (cause) {
+    const reference = operation
+      ? ` Conversation ${operation.conversationId}, message ${operation.messageId}.`
+      : "";
+    const problem = signal.aborted
+      ? "Timed out after 3 minutes."
+      : "Verification failed.";
+    throw new Error(`Genie ${mode}: ${problem}${reference}`, { cause });
+  }
+};
+
+const chatConversation = await verifyGenie("chat", 1_000);
+const agentConversation = await verifyGenie("agent", 5_000);
+assert.notEqual(agentConversation, chatConversation);
 console.log(
-  `Deployed app verified: SQL, pickup/drop-off GPS maps, Lakebase persistence, and a grounded Genie answer using the app identity. ${app.url}`,
+  `Deployed app verified: SQL, pickup/drop-off GPS maps, Lakebase persistence, and grounded answers in Genie Chat and Agent mode using the app identity. ${app.url}`,
 );

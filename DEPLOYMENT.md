@@ -102,12 +102,20 @@ npm run test:browser
 
 ### Check hosted APIs
 
-After a release, verify that SQL queries, trip maps, Lakebase, and Genie work
-through the hosted app. The check creates and deletes a temporary saved view.
+After a release, verify that SQL queries, trip maps, Lakebase, and both Genie
+modes work through the hosted app. The script signs in with your Databricks CLI
+identity and calls the app, which runs Genie with its service principal. It
+creates and deletes a temporary saved view and submits one read-only question
+per mode.
 
 ```sh
 node scripts/check-deployed.mjs dev
 ```
+
+Each Genie check has a three-minute deadline. The check fails if either mode
+cannot complete or returns a count that differs from the warehouse count.
+If the app returns `genie_agent_mode_unavailable`, have a workspace admin
+verify that Agent mode is available in the target workspace before rerunning.
 
 ### Run hosted browser tests
 

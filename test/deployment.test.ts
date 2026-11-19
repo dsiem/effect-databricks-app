@@ -22,15 +22,17 @@ for (const failure of [
   "create",
   "list",
   "genie",
+  "agent",
+  "agent unavailable",
 ] as const) {
-  test(`hosted verification ${failure ? `fails on ${failure} errors despite RUNNING` : "checks SQL, paginated persistence, and Genie"}`, async (t) => {
+  test(`hosted verification ${failure ? `fails on ${failure} errors despite RUNNING` : "checks SQL, paginated persistence, and both Genie modes"}`, async (t) => {
     const directory = await mkdtemp(join(tmpdir(), "deployed-check-"));
     t.after(() => rm(directory, { recursive: true, force: true }));
     let saved: SavedView | undefined;
     let created = 0;
     let deleted = 0;
     let followedCursor = false;
-    const operation = { conversationId: "conversation", messageId: "message" };
+    const genieRequests: string[] = [];
     const cursor = {
       id: "472a6613-2337-4af1-a416-e9b6b61064dd",
       pinned: true,
@@ -138,18 +140,54 @@ for (const failure of [
         saved = undefined;
         return reply({ deleted: true });
       }
-      if (url.pathname === "/api/genie") return reply(operation);
-      if (url.pathname.endsWith("/result"))
+      if (url.pathname === "/api/genie" && request.method === "POST") {
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        const { mode, conversationId, content } = JSON.parse(
+          Buffer.concat(chunks).toString(),
+        );
+        assert.ok(mode === "chat" || mode === "agent");
+        assert.equal(conversationId, undefined);
+        assert.match(content, /total_trips/);
+        genieRequests.push(`submit:${mode}`);
+        if (mode === "agent" && failure === "agent unavailable")
+          return reply(
+            {
+              error: {
+                code: "genie_agent_mode_unavailable",
+                message: "Agent mode is disabled in this Databricks workspace.",
+              },
+            },
+            503,
+          );
         return reply({
-          ...operation,
-          queries: [{ rows: [[failure === "genie" ? "999" : "10"]] }],
+          conversationId: `conversation-${mode}`,
+          messageId: `message-${mode}`,
+          ...(mode === "agent" ? { mode } : {}),
         });
-      if (url.pathname === "/api/genie/conversation/messages/message")
-        return reply({
-          ...operation,
-          state: "completed",
-          status: "COMPLETED",
-        });
+      }
+      if (url.pathname.startsWith("/api/genie/") && request.method === "GET") {
+        const mode = url.searchParams.get("mode");
+        assert.ok(mode === "chat" || mode === "agent");
+        const operation = {
+          conversationId: `conversation-${mode}`,
+          messageId: `message-${mode}`,
+          ...(mode === "agent" ? { mode } : {}),
+        };
+        const path = `/api/genie/${operation.conversationId}/messages/${operation.messageId}`;
+        if (url.pathname === `${path}/result`) {
+          genieRequests.push(`result:${mode}`);
+          const incorrectCount =
+            mode === "chat" ? failure === "genie" : failure === "agent";
+          return reply({
+            ...operation,
+            queries: [{ rows: [[incorrectCount ? "999" : "10"]] }],
+          });
+        }
+        assert.equal(url.pathname, path);
+        genieRequests.push(`poll:${mode}`);
+        return reply({ ...operation, state: "completed", status: "COMPLETED" });
+      }
       reply({ error: "Unexpected route" }, 404);
     });
     server.listen(0, "127.0.0.1");
@@ -186,8 +224,19 @@ console.log(JSON.stringify(responses[process.argv.slice(2, 4).join(" ")]));
         timeout: 15_000,
       },
     );
-    if (failure) await assert.rejects(verification);
-    else assert.match((await verification).stdout, /Deployed app verified/);
+    if (failure === "agent unavailable")
+      await assert.rejects(verification, /genie_agent_mode_unavailable/);
+    else if (failure === "agent")
+      await assert.rejects(
+        verification,
+        /Genie SQL results did not contain the expected trip count/,
+      );
+    else if (failure) await assert.rejects(verification);
+    else
+      assert.match(
+        (await verification).stdout,
+        /grounded answers in Genie Chat and Agent mode/,
+      );
     assert.equal(
       created,
       [
@@ -206,6 +255,22 @@ console.log(JSON.stringify(responses[process.argv.slice(2, 4).join(" ")]));
       created,
       "verification must clean up its temporary saved view on success and failure",
     );
-    assert.equal(followedCursor, !failure || failure === "genie");
+    const checksGenie =
+      failure === null || failure.startsWith("agent") || failure === "genie";
+    assert.equal(followedCursor, checksGenie);
+    assert.deepEqual(
+      genieRequests,
+      checksGenie
+        ? [
+            "submit:chat",
+            "poll:chat",
+            "result:chat",
+            ...(failure === "genie" ? [] : ["submit:agent"]),
+            ...(failure === "agent unavailable" || failure === "genie"
+              ? []
+              : ["poll:agent", "result:agent"]),
+          ]
+        : [],
+    );
   });
 }
