@@ -102,10 +102,6 @@ END;
 
 -- COMMAND ----------
 
-DECLARE OR REPLACE VARIABLE trip_archive STRING DEFAULT '`' || :catalog || '`.`' || :schema || '`.`trips_raw`';
-
--- COMMAND ----------
-
 CREATE OR REPLACE TEMPORARY VIEW snapshot_source AS
 SELECT source.*,
   coalesce(tpep_pickup_datetime >= CAST(session.pickup_start AS TIMESTAMP_NTZ)
@@ -116,7 +112,7 @@ SELECT source.*,
     AND fare_amount > 0 AND fare_amount < double('Infinity'), false) AS analytics_valid,
   coalesce(pickup_longitude BETWEEN -75 AND -72 AND pickup_latitude BETWEEN 40 AND 42, false) AS pickup_coordinates_valid,
   coalesce(dropoff_longitude BETWEEN -75 AND -72 AND dropoff_latitude BETWEEN 40 AND 42, false) AS dropoff_coordinates_valid
-FROM IDENTIFIER(session.trip_archive) AS source
+FROM IDENTIFIER('`' || :catalog || '`.`' || :schema || '`.`trips_raw`') AS source
 WHERE array_contains(session.trip_source_files, source_file);
 
 -- COMMAND ----------
@@ -167,7 +163,8 @@ GROUP BY longitude, latitude;
 
 CREATE OR REPLACE TABLE IDENTIFIER('`' || :catalog || '`.`' || :schema || '`.`trips`')
 USING DELTA
-CLUSTER BY (tpep_pickup_datetime, pickup_zip) AS
+CLUSTER BY (tpep_pickup_datetime, pickup_zip)
+TBLPROPERTIES ('delta.feature.timestampNtz' = 'supported') AS
 SELECT q.*, p.zip AS pickup_zip, d.zip AS dropoff_zip
 FROM snapshot_source AS q
 LEFT JOIN IDENTIFIER('`' || :catalog || '`.`' || :schema || '`.`trip_locations`') AS p
