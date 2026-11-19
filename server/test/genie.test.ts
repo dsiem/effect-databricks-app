@@ -99,6 +99,10 @@ test("Genie accepts ID-less text and visualization attachments and retains follo
   );
   assert.equal(result.first.text, "There are **21,932 trips**.");
   assert.deepEqual(result.first.queries[0]?.rows, [["21932"]]);
+  assert.deepEqual(result.first.warning, {
+    kind: "unsupported-attachments",
+    count: 2,
+  });
   assert.equal(result.second.conversationId, result.first.conversationId);
   assert.equal(
     calls.filter((call) => call.path.endsWith("start-conversation")).length,
@@ -390,7 +394,7 @@ test("accepted submission IDs and status polling do not depend on result attachm
   assert.ok(error._tag === "Some" && error.value._tag === "UpstreamError");
 });
 
-test("Chat returns supported attachments with a warning for unfamiliar attachment types", async () => {
+test("Chat counts all undisplayed attachments in its warning", async () => {
   const reply = await Effect.runPromise(
     Effect.flatMap(Genie, (genie) => genie.result(operation)).pipe(
       Effect.provide(
@@ -410,6 +414,7 @@ test("Chat returns supported attachments with a warning for unfamiliar attachmen
                     { text: { content: "Trips rose 12%." } },
                     { future_attachment: { internal: "unused payload" } },
                     ...message.attachments,
+                    { viz: { query_attachment_id: "query" } },
                     { another_attachment: {} },
                   ],
                 },
@@ -422,8 +427,31 @@ test("Chat returns supported attachments with a warning for unfamiliar attachmen
   assert.deepEqual(reply.queries[0]?.rows, [["1"]]);
   assert.deepEqual(reply.warning, {
     kind: "unsupported-attachments",
-    count: 2,
+    count: 3,
   });
+});
+
+test("Chat marks inline results as a preview when another chunk is available", async () => {
+  const reply = await Effect.runPromise(
+    Effect.flatMap(Genie, (genie) => genie.result(operation)).pipe(
+      Effect.provide(
+        provideGenie((path) =>
+          Effect.succeed(
+            path.endsWith("query-result")
+              ? {
+                  statement_response: {
+                    status: { state: "SUCCEEDED" },
+                    manifest: { schema: { columns: [{ name: "one" }] } },
+                    result: { data_array: [["1"]], next_chunk_index: 1 },
+                  },
+                }
+              : message,
+          ),
+        ),
+      ),
+    ),
+  );
+  assert.equal(reply.queries[0]?.truncated, true);
 });
 
 test("Genie builds structured filter context server-side for initial and follow-up questions", async () => {
