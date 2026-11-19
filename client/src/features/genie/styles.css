@@ -44,6 +44,9 @@
     padding: 1rem 1.25rem;
     border-bottom: 1px solid var(--border);
   }
+  .genie-panel .genie-header {
+    padding-block: 0.75rem;
+  }
   .genie-header .btn {
     width: 2rem;
     min-height: 2rem;
