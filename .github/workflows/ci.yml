@@ -26,6 +26,7 @@ jobs:
           name: browser-test-build
           path: |
             dist/
+            client/dist/
             packages/genie-client/dist/
             packages/sql-warehouse/dist/
           if-no-files-found: error
