@@ -352,7 +352,13 @@ test("interrupted Genie reads remain interrupted and the same operation can be r
 });
 
 test("accepted submission IDs and status polling do not depend on result attachment decoding", async () => {
-  const payload = { ...message, attachments: [{ future_attachment: {} }] };
+  const payload = {
+    ...message,
+    attachments: [
+      { attachment_id: "query", query: { description: "Missing SQL" } },
+      { future_attachment: {} },
+    ],
+  };
   const result = await Effect.runPromise(
     Effect.gen(function* () {
       const genie = yield* Genie;
@@ -382,6 +388,42 @@ test("accepted submission IDs and status polling do not depend on result attachm
   assert.ok(Exit.isFailure(result.downloaded));
   const error = Cause.findErrorOption(result.downloaded.cause);
   assert.ok(error._tag === "Some" && error.value._tag === "UpstreamError");
+});
+
+test("Chat returns supported attachments with a warning for unfamiliar attachment types", async () => {
+  const reply = await Effect.runPromise(
+    Effect.flatMap(Genie, (genie) => genie.result(operation)).pipe(
+      Effect.provide(
+        provideGenie((path) =>
+          Effect.succeed(
+            path.endsWith("query-result")
+              ? {
+                  statement_response: {
+                    status: { state: "SUCCEEDED" },
+                    manifest: { schema: { columns: [{ name: "one" }] } },
+                    result: { data_array: [["1"]] },
+                  },
+                }
+              : {
+                  ...message,
+                  attachments: [
+                    { text: { content: "Trips rose 12%." } },
+                    { future_attachment: { internal: "unused payload" } },
+                    ...message.attachments,
+                    { another_attachment: {} },
+                  ],
+                },
+          ),
+        ),
+      ),
+    ),
+  );
+  assert.equal(reply.text, "Trips rose 12%.");
+  assert.deepEqual(reply.queries[0]?.rows, [["1"]]);
+  assert.deepEqual(reply.warning, {
+    kind: "unsupported-attachments",
+    count: 2,
+  });
 });
 
 test("Genie builds structured filter context server-side for initial and follow-up questions", async () => {

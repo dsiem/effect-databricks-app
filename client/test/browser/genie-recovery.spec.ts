@@ -126,6 +126,74 @@ test("pending answers resume after reload without resubmission", async ({
   expect(submissions).toBe(1);
 });
 
+for (const { hasAnswer, count, noticeText } of [
+  {
+    hasAnswer: true,
+    count: 1,
+    noticeText: "Genie returned an attachment this app can’t display.",
+  },
+  {
+    hasAnswer: false,
+    count: 2,
+    noticeText: "Genie returned 2 attachments this app can’t display.",
+  },
+]) {
+  test(
+    hasAnswer
+      ? "a partial Genie answer keeps its text, results, and attachment warning after reload"
+      : "a warning-only Genie answer stays visible after reload",
+    async ({ page }) => {
+      let submissions = 0;
+      let downloads = 0;
+      await page.route("**/api/**", (route) => route.fulfill({ status: 404 }));
+      await page.route("**/api/genie", (route) => {
+        submissions++;
+        return route.fulfill({ json: operation });
+      });
+      await page.route(`**${messagePath}`, (route) =>
+        route.fulfill({
+          json: { ...operation, state: "completed", status: "COMPLETED" },
+        }),
+      );
+      await page.route(`**${messagePath}/result`, (route) => {
+        downloads++;
+        return route.fulfill({
+          json: {
+            ...operation,
+            text: hasAnswer ? reply.text : "",
+            queries: hasAnswer ? reply.queries : [],
+            warning: { kind: "unsupported-attachments", count },
+          },
+        });
+      });
+
+      const notice = page.getByRole("status").filter({ hasText: noticeText });
+      const checkAnswer = async () => {
+        await expect(notice).toBeVisible();
+        if (hasAnswer) {
+          await expect(
+            page.getByText(reply.text, { exact: true }),
+          ).toBeVisible();
+          await expect(page.getByRole("cell", { name: "21932" })).toBeVisible();
+        } else {
+          await expect(
+            page.getByText("Query results", { exact: true }),
+          ).toHaveCount(0);
+          await expect(page.getByRole("table")).toHaveCount(0);
+        }
+      };
+
+      await page.goto("/genie");
+      await send(page);
+      await checkAnswer();
+      await page.reload();
+      await checkAnswer();
+      expect(submissions).toBe(1);
+      expect(downloads).toBe(1);
+    },
+  );
+}
+
 test("submission responses are saved when navigating away before acceptance", async ({
   page,
 }) => {

@@ -1,5 +1,6 @@
 import {
   GenieAgentPhase,
+  GenieAttachmentWarning,
   GenieId,
   GenieOperation as ChatOperation,
   GenieProgress as ChatProgress,
@@ -298,6 +299,7 @@ export type GeniePollProgress = typeof GeniePollProgress.Type;
 export const GenieReply = Schema.Struct({
   ...GenieOperation.fields,
   text: Schema.String,
+  warning: Schema.optionalKey(GenieAttachmentWarning),
   queries: Schema.Array(
     Schema.Struct({
       attachmentId: Schema.optionalKey(GenieId),

@@ -81,29 +81,30 @@ const MessageStatus = Schema.Struct({
 });
 
 const attachmentId = Schema.optionalKey(Schema.String);
+const AttachmentFields = Schema.Record(Schema.String, Schema.Unknown);
+const AttachmentByKey = {
+  text: Schema.Struct({
+    attachment_id: attachmentId,
+    text: Schema.Struct({ content: Schema.String }),
+  }),
+  query: Schema.Struct({
+    attachment_id: Schema.String,
+    query: Schema.Struct({
+      query: Schema.String,
+      description: Schema.optionalKey(Schema.String),
+    }),
+  }),
+  suggested_questions: Schema.Struct({
+    attachment_id: attachmentId,
+    suggested_questions: AttachmentFields,
+  }),
+  viz: Schema.Struct({ attachment_id: attachmentId, viz: AttachmentFields }),
+};
+type WireAttachment =
+  (typeof AttachmentByKey)[keyof typeof AttachmentByKey]["Type"];
+const attachmentSchemas = Object.entries(AttachmentByKey);
 const MessageAttachments = Schema.Struct({
-  attachments: Schema.optionalKey(
-    Schema.Array(
-      Schema.Union([
-        Schema.Struct({
-          attachment_id: attachmentId,
-          text: Schema.Struct({ content: Schema.String }),
-        }),
-        Schema.Struct({
-          attachment_id: Schema.String,
-          query: Schema.Struct({
-            query: Schema.String,
-            description: Schema.optionalKey(Schema.String),
-          }),
-        }),
-        Schema.Struct({
-          attachment_id: attachmentId,
-          suggested_questions: Schema.Unknown,
-        }),
-        Schema.Struct({ attachment_id: attachmentId, viz: Schema.Unknown }),
-      ]),
-    ),
-  ),
+  attachments: Schema.optionalKey(Schema.Array(AttachmentFields)),
 });
 
 const Started = Schema.Struct({
@@ -185,8 +186,15 @@ export type GenieAttachment =
       readonly nextChunkIndex?: number;
     };
 
+export const GenieAttachmentWarning = Schema.Struct({
+  kind: Schema.Literal("unsupported-attachments"),
+  count: Schema.Int.check(Schema.isGreaterThan(0)),
+});
+export type GenieAttachmentWarning = typeof GenieAttachmentWarning.Type;
+
 export interface GenieResult extends GenieOperation {
   readonly attachments: ReadonlyArray<GenieAttachment>;
+  readonly warning?: GenieAttachmentWarning;
 }
 
 const messageState = (status: string): GenieProgress["state"] => {
@@ -300,8 +308,26 @@ export const makeGenieClient = <E, R>(options: {
         });
       }
       const message = yield* decode(MessageAttachments, data);
+      const supported: WireAttachment[] = [];
+      let unsupportedCount = 0;
+      for (const attachment of message.attachments ?? []) {
+        const [known, second] = attachmentSchemas.filter(([key]) =>
+          Object.hasOwn(attachment, key),
+        );
+        if (
+          second ||
+          (!known &&
+            Object.keys(attachment).every((key) => key === "attachment_id"))
+        )
+          return yield* new GenieResponseError({
+            cause: new Error("Genie returned an invalid attachment shape"),
+          });
+        if (known)
+          supported.push(yield* decode<WireAttachment>(known[1], attachment));
+        else unsupportedCount++;
+      }
       const attachments = yield* Effect.forEach(
-        message.attachments ?? [],
+        supported,
         (
           attachment,
         ): Effect.Effect<
@@ -410,7 +436,18 @@ export const makeGenieClient = <E, R>(options: {
           }),
         { concurrency: options.attachmentConcurrency ?? 2 },
       );
-      return { ...operation, attachments };
+      return {
+        ...operation,
+        attachments,
+        ...(unsupportedCount === 0
+          ? {}
+          : {
+              warning: {
+                kind: "unsupported-attachments" as const,
+                count: unsupportedCount,
+              },
+            }),
+      };
     }).pipe(Effect.withSpan("genie.result"));
 
   return { submit, poll, result };

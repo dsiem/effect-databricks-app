@@ -33,6 +33,8 @@ const operation = await Effect.runPromise(
 - Call `result(operation)` when the turn completes to get the message
   attachments. Inline query results can be partial. A pending or unavailable
   SQL result fails with `GenieQueryUnavailable`.
+- If Genie returns unfamiliar attachment types, `result` returns the supported
+  attachments and a `warning` with the unsupported attachment count.
 
 A lost submission response can leave an accepted turn. Check Genie before
 resubmitting.

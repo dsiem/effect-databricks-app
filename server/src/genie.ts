@@ -5,7 +5,7 @@ import {
   GenieMessageUnavailable,
   GenieQueryFailed,
   GenieQueryUnavailable,
-  type GenieAttachment,
+  type GenieResult,
   GenieResponseError,
   makeGenieClient,
   makeGenieDownloadClient,
@@ -266,17 +266,16 @@ export class Genie extends Context.Service<
 
       const result = (operation: GenieOperation) => {
         const response: Effect.Effect<
-          { readonly attachments: ReadonlyArray<GenieAttachment> },
+          Pick<GenieResult, "attachments" | "warning">,
           | WorkspaceRequestError
           | GenieResponseError
           | GeniePermissionDenied
           | GenieMessageUnavailable
           | GenieQueryFailed
           | GenieQueryUnavailable
-        > =
-          operation.mode === "agent"
-            ? agent.result(agentReference(operation))
-            : client.result(operation);
+        > = operation.mode === "agent"
+          ? agent.result(agentReference(operation))
+          : client.result(operation);
         return response.pipe(
           Effect.catchTags({
             GenieMessageUnavailable: ({ state, status }) =>
@@ -312,8 +311,9 @@ export class Genie extends Context.Service<
           Effect.mapError((error) =>
             error instanceof GenieFailed ? error : mapProtocolError(error),
           ),
-          Effect.map(({ attachments }) => ({
+          Effect.map(({ attachments, warning }) => ({
             ...operation,
+            ...(warning === undefined ? {} : { warning }),
             text: attachments
               .filter((attachment) => attachment.kind === "text")
               .map((attachment) => attachment.content)

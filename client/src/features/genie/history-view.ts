@@ -35,11 +35,32 @@ const questions = {
   ],
 };
 function answer(h: H, clipboard: string, reply: GenieReply): Child[] {
+  const { warning } = reply;
+  const showMarkdown =
+    warning === undefined ||
+    reply.text.trim().length > 0 ||
+    reply.queries.length > 0;
   return [
-    h.div(
-      [h.Class("markdown")],
-      markdown(h, Lexer.lex(reply.text || "Query results")),
-    ),
+    ...(showMarkdown
+      ? [
+          h.div(
+            [h.Class("markdown")],
+            markdown(h, Lexer.lex(reply.text || "Query results")),
+          ),
+        ]
+      : []),
+    ...(warning === undefined
+      ? []
+      : [
+          h.p(
+            [h.Class("muted text-sm"), h.Role("status")],
+            [
+              warning.count === 1
+                ? "Genie returned an attachment this app can’t display."
+                : `Genie returned ${warning.count} attachments this app can’t display.`,
+            ],
+          ),
+        ]),
     ...reply.queries.map((result) =>
       h.div(
         [h.Class("query-result")],
