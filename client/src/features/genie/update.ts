@@ -20,6 +20,7 @@ export function updateGenie(
         model: {
           ...model,
           turns: message.turns,
+          genieMode: message.turns.at(-1)?.mode ?? "chat",
           pollGeneration: model.pollGeneration + 1,
           persistenceError: message.persistenceError,
         },
@@ -61,6 +62,8 @@ export function updateGenie(
       return { model: { ...model, genieSelection: null } };
     case "GenieDraft":
       return { model: { ...model, genieDraft: message.value } };
+    case "SetGenieMode":
+      return { model: { ...model, genieMode: message.mode } };
     case "SendQuestion": {
       const question = message.question.trim();
       if (busy(model) || !question || !context.filters) return { model };
@@ -71,6 +74,7 @@ export function updateGenie(
             question,
             filters: context.filters,
             context: model.genieSelection ?? context.context,
+            ...(model.genieMode === "agent" ? { mode: "agent" as const } : {}),
           }),
         ],
       };
@@ -82,11 +86,16 @@ export function updateGenie(
         question: message.question,
         filters: message.filters,
         context: message.context,
+        ...(message.mode ? { mode: message.mode } : {}),
         state: "submitting" as const,
       };
       const previous = model.turns
         .toReversed()
-        .find((turn) => "operation" in turn || turn.state === "complete");
+        .find(
+          (prior) =>
+            ("operation" in prior || prior.state === "complete") &&
+            (prior.mode ?? "chat") === (turn.mode ?? "chat"),
+        );
       const conversationId =
         previous && "operation" in previous
           ? previous.operation.conversationId

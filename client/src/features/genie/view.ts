@@ -1,4 +1,4 @@
-import { Dialog, Textarea } from "@foldkit/ui";
+import { Dialog, Select, Textarea } from "@foldkit/ui";
 import { Option } from "effect";
 import { defineView } from "foldkit/submodel";
 import { filterSummary } from "../../domain/filter-summary";
@@ -126,7 +126,8 @@ function scope(h: H, model: Model, context: Model["context"]) {
   );
 }
 
-function composer(h: H, draft: string, enabled: boolean, working: boolean) {
+function composer(h: H, model: Model, enabled: boolean, working: boolean) {
+  const draft = model.genieDraft;
   return h.div(
     [h.Class("genie-composer")],
     [
@@ -157,14 +158,35 @@ function composer(h: H, draft: string, enabled: boolean, working: boolean) {
           h.div(
             [h.Class("flex items-center justify-between gap-2 mt-2")],
             [
-              h.span(
-                [h.Class("muted text-[11px]")],
-                [
-                  working
-                    ? "Working on your question…"
-                    : "Enter to send · Shift + Enter for a new line",
-                ],
+              Select.view(
+                {
+                  id: "genie-mode",
+                  value: model.genieMode,
+                  onChange: (value) =>
+                    M.SetGenieMode({
+                      mode: value === "agent" ? "agent" : "chat",
+                    }),
+                  toView: ({ select }) =>
+                    h.select(
+                      [
+                        ...select,
+                        h.AriaLabel("Genie mode"),
+                        h.Class("input text-xs"),
+                      ],
+                      [
+                        h.option([h.Value("chat")], ["Chat"]),
+                        h.option([h.Value("agent")], ["Agent mode"]),
+                      ],
+                    ),
+                },
+                h,
               ),
+              working
+                ? h.span(
+                    [h.Class("muted text-[11px]")],
+                    ["Working on your question…"],
+                  )
+                : null,
               button(h, {
                 type: "submit",
                 variant: "primary",
@@ -193,7 +215,7 @@ function genie(h: H, model: Model, floating = false) {
     header(h, model, floating, working),
     scope(h, model, context),
     history(h, model, context.page, enabled, working),
-    composer(h, model.genieDraft, enabled, working),
+    composer(h, model, enabled, working),
   ];
   if (!floating) return h.div([h.Class("genie-full")], content);
   const classes = `genie-panel ${model.genieExpanded ? "expanded" : ""}`;

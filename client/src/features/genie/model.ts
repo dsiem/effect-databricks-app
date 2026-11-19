@@ -7,6 +7,7 @@ export const TurnBase = {
   question: Schema.String,
   filters: Schema.optionalKey(D.Filters),
   context: Schema.optionalKey(D.GenieContext),
+  ...D.GenieModeQuery.fields,
 };
 export const Turn = Schema.Union([
   Schema.Struct({ ...TurnBase, state: Schema.Literal("submitting") }),
@@ -40,11 +41,12 @@ export const Turn = Schema.Union([
   }),
 ]);
 export type Turn = typeof Turn.Type;
-export const turnBase = ({ id, question, filters, context }: Turn) => ({
+export const turnBase = ({ id, question, filters, context, mode }: Turn) => ({
   id,
   question,
   ...(filters ? { filters } : {}),
   ...(context ? { context } : {}),
+  ...(mode ? { mode } : {}),
 });
 export const History = Schema.Array(Turn);
 export const Model = Schema.Struct({
@@ -52,6 +54,7 @@ export const Model = Schema.Struct({
   genieOpen: Schema.Boolean,
   genieExpanded: Schema.Boolean,
   genieDraft: Schema.String,
+  genieMode: D.GenieMode,
   genieSelection: Schema.NullOr(D.GenieContext),
   turns: History,
   pollGeneration: Schema.Int,
@@ -74,6 +77,7 @@ export const init = (): Model => ({
   genieOpen: false,
   genieExpanded: false,
   genieDraft: "",
+  genieMode: "chat",
   genieSelection: null,
   turns: [],
   pollGeneration: 0,

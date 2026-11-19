@@ -123,8 +123,12 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
         respond(analysisRuns.result(params.id)),
       )
       .handle("submitGenie", ({ payload }) => respond(genie.submit(payload)))
-      .handle("pollGenie", ({ params }) => respond(genie.poll(params)))
-      .handle("genieResult", ({ params }) => respond(genie.result(params)))
+      .handle("pollGenie", ({ params, query }) =>
+        respond(genie.poll({ ...params, ...query })),
+      )
+      .handle("genieResult", ({ params, query }) =>
+        respond(genie.result({ ...params, ...query })),
+      )
       .handle("savedViews", ({ query }) => respond(savedViews.list(query)))
       .handle("tripComments", ({ query }) => respond(comments.list(query)))
       .handle("tripCommentCounts", ({ query }) =>

@@ -233,16 +233,22 @@ test("generated client round-trips every endpoint through the real HTTP contract
         }),
         operation,
       );
-      assert.deepEqual(yield* client.pollGenie({ params: operation }), {
-        ...operation,
-        state: "completed",
-        status: "COMPLETED",
-      });
-      assert.deepEqual(yield* client.genieResult({ params: operation }), {
-        ...operation,
-        text: "Ten trips",
-        queries: [],
-      });
+      assert.deepEqual(
+        yield* client.pollGenie({ params: operation, query: {} }),
+        {
+          ...operation,
+          state: "completed",
+          status: "COMPLETED",
+        },
+      );
+      assert.deepEqual(
+        yield* client.genieResult({ params: operation, query: {} }),
+        {
+          ...operation,
+          text: "Ten trips",
+          queries: [],
+        },
+      );
       const saved = yield* client.saveSavedView({ payload: savedView });
       assert.deepEqual(saved, {
         ...savedView,

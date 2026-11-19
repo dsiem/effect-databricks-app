@@ -1,7 +1,12 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { Context, Effect, Layer, Redacted, Schema } from "effect";
-import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
+import {
+  FetchHttpClient,
+  HttpClient,
+  HttpClientRequest,
+  type HttpClientResponse,
+} from "effect/http";
 import { Credentials } from "effect-sql-databricks";
 import {
   OperationTimeout,
@@ -15,6 +20,10 @@ import { Settings } from "./settings.js";
 const run = promisify(execFile);
 const CliToken = Schema.Struct({ access_token: Schema.NonEmptyString });
 
+type ReadEventStream = (
+  body: HttpClientResponse.HttpClientResponse["stream"],
+) => Effect.Effect<unknown, unknown>;
+
 export class Workspace extends Context.Service<
   Workspace,
   {
@@ -26,6 +35,7 @@ export class Workspace extends Context.Service<
       path: string,
       method?: "GET" | "POST",
       body?: unknown,
+      readEventStream?: ReadEventStream,
     ) => Effect.Effect<unknown, WorkspaceRequestError>;
   }
 >()("app/Workspace") {
@@ -76,6 +86,7 @@ export class Workspace extends Context.Service<
         path: string,
         method: "GET" | "POST" = "GET",
         body?: unknown,
+        readEventStream?: ReadEventStream,
       ) =>
         Effect.gen(function* () {
           if (!settings.host)
@@ -87,12 +98,19 @@ export class Workspace extends Context.Service<
             );
           const token = yield* accessToken;
           return yield* Effect.gen(function* () {
-            const request = HttpClientRequest.make(method)(
+            const jsonRequest = HttpClientRequest.make(method)(
               `${settings.host.replace(/\/$/, "")}${path}`,
             ).pipe(
               HttpClientRequest.bearerToken(token),
               HttpClientRequest.setHeader("Content-Type", "application/json"),
             );
+            const request = readEventStream
+              ? HttpClientRequest.setHeader(
+                  jsonRequest,
+                  "Accept",
+                  "text/event-stream",
+                )
+              : jsonRequest;
             const response = yield* HttpClient.withScope(client).execute(
               body === undefined
                 ? request
@@ -107,7 +125,9 @@ export class Workspace extends Context.Service<
                 }),
               );
             }
-            return yield* response.json;
+            return yield* readEventStream
+              ? readEventStream(response.stream)
+              : response.json;
           }).pipe(
             Effect.scoped,
             Effect.provideService(FetchHttpClient.RequestInit, {

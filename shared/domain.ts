@@ -1,3 +1,8 @@
+import {
+  GenieId,
+  GenieOperation as ChatOperation,
+  GenieProgress as ChatProgress,
+} from "effect-genie-databricks";
 import { Schema } from "effect";
 
 const boundedText = (max: number) =>
@@ -236,7 +241,6 @@ export const SavedViewsPage = Schema.Struct({
   nextCursor: Schema.NullOr(SavedViewCursor),
 });
 export type SavedViewsPage = typeof SavedViewsPage.Type;
-const GenieId = Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9-]{1,100}$/));
 export const genieContextDataLimit = 24_000;
 export const GenieContext = Schema.Struct({
   page: Schema.Literals(["overview", "trips", "map", "saved-views", "genie"]),
@@ -245,21 +249,27 @@ export const GenieContext = Schema.Struct({
   data: Schema.optionalKey(boundedText(genieContextDataLimit)),
 });
 export type GenieContext = typeof GenieContext.Type;
+export const GenieMode = Schema.Literals(["chat", "agent"]);
+export type GenieMode = typeof GenieMode.Type;
+export const GenieModeQuery = Schema.Struct({
+  mode: Schema.optionalKey(GenieMode),
+});
 export const GenieInput = Schema.Struct({
   content: boundedText(4000),
   filters: Schema.optionalKey(Filters),
   context: Schema.optionalKey(GenieContext),
   conversationId: Schema.optionalKey(GenieId),
+  ...GenieModeQuery.fields,
 });
+export const GeniePath = ChatOperation;
 export const GenieOperation = Schema.Struct({
-  conversationId: GenieId,
-  messageId: GenieId,
+  ...ChatOperation.fields,
+  ...GenieModeQuery.fields,
 });
 export type GenieOperation = typeof GenieOperation.Type;
 export const GenieProgress = Schema.Struct({
-  ...GenieOperation.fields,
-  state: Schema.Literals(["pending", "completed", "failed"]),
-  status: Schema.String,
+  ...ChatProgress.fields,
+  ...GenieModeQuery.fields,
 });
 export type GenieProgress = typeof GenieProgress.Type;
 export const GenieReply = Schema.Struct({

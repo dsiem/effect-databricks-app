@@ -47,6 +47,7 @@ export const SubmitQuestion = Command.define("SubmitQuestion", {
       client.submitGenie({
         payload: {
           content: turn.question,
+          ...(turn.mode ? { mode: turn.mode } : {}),
           ...(turn.filters ? { filters: turn.filters } : {}),
           ...(turn.context ? { context: turn.context } : {}),
           ...(conversationId ? { conversationId } : {}),
@@ -92,7 +93,11 @@ export const RetrieveQuestion = Command.define("RetrieveQuestion", {
     if (!("operation" in turn)) return Effect.succeed(M.ChangedTurn({ turn }));
     const operation = turn.operation;
     return request(
-      (client) => client.genieResult({ params: operation }),
+      (client) =>
+        client.genieResult({
+          params: operation,
+          query: operation.mode ? { mode: operation.mode } : {},
+        }),
       genieResultTimeoutMs + 15_000,
     ).pipe(
       Effect.scoped,

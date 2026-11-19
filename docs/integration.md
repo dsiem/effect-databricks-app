@@ -57,12 +57,16 @@ status to distinguish rejection from uncertain acceptance.
    [Job configuration](../resources/jobs.yml) · [Report SQL](../jobs/route-reliability.sql) ·
    [Jobs service](../server/src/analysis-runs.ts)
 
-Genie keeps its polling subscription active across navigation. Once Genie
-returns a conversation ID and a message ID, save both so the tab can resume
-polling or retrieval after a reload. If the submission response is lost before
-those IDs arrive, show the uncertain state and let the user check Genie before
-submitting again. Capture the question's filters and context when the user sends
-it so subsequent navigation leaves the submitted question intact.
+The Genie composer offers Chat and Agent mode. Both use `GENIE_SPACE_ID`
+and keep their follow-up conversations separate. Agent mode needs workspace
+access to the Databricks Agent mode API.
+
+Genie keeps polling across navigation. Save the mode, conversation ID, and
+message or response ID so the tab can resume after a reload. Agent mode reads the
+response ID from the initial SSE event and retrieves the final report through
+the conversation items API. If a submission response is lost before the IDs
+arrive, show the uncertain state and let the user check Genie before submitting
+again. Capture the question's filters and context when the user sends it.
 [Genie update](../client/src/features/genie/update.ts) ·
 [Genie commands](../client/src/features/genie/commands.ts) · [Recovery tests](../client/test/browser/genie-recovery.spec.ts)
 

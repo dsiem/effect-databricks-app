@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Cause, ConfigProvider, Effect, Exit, Layer, Redacted } from "effect";
+import {
+  Cause,
+  ConfigProvider,
+  Effect,
+  Exit,
+  Layer,
+  Redacted,
+  Schema,
+} from "effect";
+import { FetchHttpClient } from "effect/http";
 import { unavailable, UpstreamError } from "../src/errors.js";
 import { Genie } from "../src/genie.js";
 import { Settings } from "../src/settings.js";
@@ -463,3 +472,158 @@ test("Genie builds structured filter context server-side for initial and follow-
     assert.ok(String(body.content).includes(JSON.stringify(filters)));
   }
 });
+
+test(
+  "Agent mode releases the acceptance stream and retrieves the matching paginated report",
+  { timeout: 5000 },
+  async () => {
+    const config = ConfigProvider.fromEnvRecord({
+      DATABRICKS_HOST: "https://workspace.invalid",
+      DATABRICKS_TOKEN: "fixture-token",
+      GENIE_SPACE_ID: "space",
+    });
+    let released = false;
+    let submissions = 0;
+    let itemsReads = 0;
+    const body = new TextEncoder().encode(
+      'event: response.created\r\ndata: {"type":"response.created","response":{"id":"response","conversation_id":"conversation"}}\r\n\r\n',
+    );
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const genie = yield* Genie;
+        const accepted = yield* genie.submit({
+          mode: "agent",
+          content: "Compare trip counts",
+          conversationId: "conversation",
+        });
+        assert.deepEqual(accepted, {
+          mode: "agent",
+          conversationId: "conversation",
+          messageId: "response",
+        });
+        assert.equal(released, true);
+        assert.equal((yield* genie.poll(accepted)).state, "pending");
+        assert.equal((yield* genie.poll(accepted)).state, "completed");
+        return yield* genie.result(accepted);
+      }).pipe(
+        Effect.provide(
+          Genie.layer.pipe(
+            Layer.provide(Workspace.layer),
+            Layer.provide(Settings.layer),
+          ),
+        ),
+        Effect.provideService(ConfigProvider.ConfigProvider, config),
+        Effect.provideService(FetchHttpClient.Fetch, async (input, init) => {
+          const request = new Request(input, init);
+          const { pathname, searchParams } = new URL(request.url);
+          assert.equal(
+            request.headers.get("authorization"),
+            "Bearer fixture-token",
+          );
+          if (request.method === "POST") {
+            submissions++;
+            assert.equal(pathname, "/api/2.0/genie/agents/space/responses");
+            assert.equal(request.headers.get("accept"), "text/event-stream");
+            const payload = Schema.decodeUnknownSync(
+              Schema.Struct({
+                conversation_id: Schema.String,
+                input: Schema.Tuple([
+                  Schema.Struct({
+                    type: Schema.Literal("message"),
+                    role: Schema.Literal("user"),
+                    content: Schema.Tuple([
+                      Schema.Struct({
+                        type: Schema.Literal("input_text"),
+                        text: Schema.String,
+                      }),
+                    ]),
+                  }),
+                ]),
+              }),
+            )(await request.json());
+            assert.equal(payload.conversation_id, "conversation");
+            assert.match(
+              payload.input[0].content[0].text,
+              /^Compare trip counts/,
+            );
+            return new Response(
+              new ReadableStream({
+                start(controller) {
+                  controller.enqueue(body.slice(0, 21));
+                  controller.enqueue(body.slice(21));
+                },
+                cancel() {
+                  released = true;
+                },
+              }),
+              { headers: { "Content-Type": "text/event-stream" } },
+            );
+          }
+          assert.equal(
+            pathname,
+            "/api/2.0/genie/agents/space/conversations/conversation/items",
+          );
+          if (searchParams.has("after")) {
+            assert.equal(searchParams.get("after"), "response_input");
+            return Response.json({
+              status: "in_progress",
+              has_more: false,
+              data: [
+                {
+                  id: "answer",
+                  type: "message",
+                  role: "assistant",
+                  status: "completed",
+                  content: [
+                    {
+                      type: "output_text",
+                      text: "Trips increased [1](https://workspace.invalid/genie).",
+                    },
+                    {
+                      type: "output_text",
+                      text: "Table preview",
+                      metadata: {
+                        status: "available",
+                        sql: "SELECT 2",
+                        columns: [{ name: "trips", type: "INT" }],
+                        preview_rows: [["2"]],
+                        total_row_count: 5,
+                      },
+                    },
+                  ],
+                },
+                { id: "response-new_input", type: "message", role: "user" },
+                {
+                  id: "other",
+                  type: "message",
+                  role: "assistant",
+                  content: [{ type: "output_text", text: "Another turn" }],
+                },
+              ],
+            });
+          }
+          itemsReads++;
+          return Response.json({
+            status: "in_progress",
+            has_more: itemsReads > 1,
+            last_id: "response_input",
+            data: [{ id: "response_input", type: "message", role: "user" }],
+          });
+        }),
+      ),
+    );
+
+    assert.equal(submissions, 1);
+    assert.equal(result.mode, "agent");
+    assert.match(result.text, /^Trips increased \[1\]/);
+    assert.deepEqual(result.queries, [
+      {
+        sql: "SELECT 2",
+        description: "Query result",
+        columns: ["trips"],
+        rows: [["2"]],
+        truncated: true,
+      },
+    ]);
+  },
+);

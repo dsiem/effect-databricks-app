@@ -362,3 +362,66 @@ for (const { name, status, json } of [
     expect(submissions).toBe(1);
   });
 }
+
+test("Chat and Agent mode use separate follow-up conversations", async ({
+  page,
+}) => {
+  const agent = {
+    conversationId: "agent-conversation",
+    messageId: "response",
+    mode: "agent",
+  };
+  const submissions: unknown[] = [];
+  await page.route("**/api/genie", async (route) => {
+    const payload = route.request().postDataJSON();
+    submissions.push(payload);
+    await route.fulfill({ json: payload.mode === "agent" ? agent : operation });
+  });
+  await page.route(`**${messagePath}`, (route) =>
+    route.fulfill({
+      json: { ...operation, state: "completed", status: "COMPLETED" },
+    }),
+  );
+  await page.route(`**${messagePath}/result`, (route) =>
+    route.fulfill({ json: reply }),
+  );
+  await page.route(
+    /\/api\/genie\/agent-conversation\/messages\/response(\/result)?\?mode=agent$/,
+    (route) =>
+      route.fulfill({
+        json: route.request().url().includes("/result?")
+          ? { ...agent, text: "Agent report", queries: [] }
+          : { ...agent, state: "completed", status: "completed" },
+      }),
+  );
+
+  await page.goto("/genie?zip=10001");
+  await send(page);
+  await expect(page.getByText("Recovered answer", { exact: true })).toHaveCount(
+    1,
+  );
+  await page.getByLabel("Genie mode").selectOption("agent");
+  await send(page);
+  await expect(page.getByText("Agent report", { exact: true })).toHaveCount(1);
+  expect(submissions[1]).toMatchObject({ mode: "agent" });
+  expect(submissions[1]).not.toHaveProperty("conversationId");
+
+  await page.reload();
+  await expect(page.getByLabel("Genie mode")).toHaveValue("agent");
+  await send(page);
+  await expect(page.getByText("Agent report", { exact: true })).toHaveCount(2);
+  expect(submissions[2]).toMatchObject({
+    mode: "agent",
+    conversationId: agent.conversationId,
+  });
+
+  await page.getByLabel("Genie mode").selectOption("chat");
+  await send(page);
+  await expect(page.getByText("Recovered answer", { exact: true })).toHaveCount(
+    2,
+  );
+  expect(submissions[3]).toMatchObject({
+    conversationId: operation.conversationId,
+  });
+  expect(submissions[3]).not.toHaveProperty("mode");
+});

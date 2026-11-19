@@ -9,6 +9,7 @@ export const QuestionSnapshot = Schema.Struct({
   question: Schema.String,
   filters: D.Filters,
   context: D.GenieContext,
+  ...D.GenieModeQuery.fields,
 });
 
 export const PollTarget = Schema.Struct({
@@ -37,6 +38,7 @@ export const messages = {
   ExpandGenie: {},
   ClearSelection: {},
   GenieDraft: { value: Schema.String },
+  SetGenieMode: { mode: D.GenieMode },
   SendQuestion: { question: Schema.String },
   CreatedTurn: { id: Schema.String, ...QuestionSnapshot.fields },
   ChangedTurn: { turn: Turn },

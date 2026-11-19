@@ -16,11 +16,16 @@ function poll(target: typeof PollTarget.Type, generation: number) {
   const pause = (error: string) =>
     complete({ state: "paused", stage: "waiting", error });
   const read = request((client) =>
-    client.pollGenie({ params: target.operation }),
+    client.pollGenie({
+      params: target.operation,
+      query: target.operation.mode ? { mode: target.operation.mode } : {},
+    }),
   ).pipe(Effect.scoped, Effect.mapError(failure), Effect.result);
   return Stream.fromEffect(
     Effect.gen(function* () {
-      const deadline = (yield* Clock.currentTimeMillis) + 180_000;
+      const agent = target.operation.mode === "agent";
+      const deadline =
+        (yield* Clock.currentTimeMillis) + (agent ? 30 * 60_000 : 180_000);
       while (true) {
         const polled = yield* read;
         if (Result.isFailure(polled)) {
@@ -43,7 +48,7 @@ function poll(target: typeof PollTarget.Type, generation: number) {
             "Genie is taking longer than expected. Resume waiting for this answer.",
           );
         }
-        yield* Effect.sleep("1 second");
+        yield* Effect.sleep(agent ? "5 seconds" : "1 second");
       }
     }),
   );
