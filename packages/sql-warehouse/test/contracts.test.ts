@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Int64, Table, tableToIPC, vectorFromArray } from "apache-arrow";
-import { Effect, Fiber, Latch, Redacted, Schema, Stream } from "effect";
+import {
+  Config,
+  ConfigProvider,
+  Effect,
+  Fiber,
+  Latch,
+  Redacted,
+  Schema,
+  Stream,
+} from "effect";
+import { SqlClient } from "effect/sql/SqlClient";
 import { SqlError } from "effect/sql/SqlError";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import * as Statement from "effect/sql/Statement";
@@ -41,6 +51,58 @@ const fixture = () => {
   };
   return { fetch, submitted };
 };
+
+test("layerConfig supplies the same client under both SQL services", async () => {
+  const server = fixture();
+  const client = DatabricksClient.layerConfig({
+    host: Config.String("host"),
+    warehouseId: Config.String("warehouse"),
+    accessToken: Config.Redacted("token").pipe(Config.map(Effect.succeed)),
+    fetch: Config.succeed(server.fetch),
+  });
+  const rows = await Effect.runPromise(
+    Effect.gen(function* () {
+      const sql: SqlClient = yield* DatabricksClient.DatabricksClient;
+      assert.equal(sql, yield* SqlClient);
+      return yield* sql`SELECT 1 AS id`;
+    }).pipe(
+      Effect.provide(client),
+      Effect.provide(
+        ConfigProvider.layer(
+          ConfigProvider.fromUnknown({
+            host: "https://workspace.example",
+            warehouse: "warehouse",
+            token: "test-token",
+          }),
+        ),
+      ),
+    ),
+  );
+  assert.deepEqual(rows, [{ id: 9007199254740993n }]);
+});
+
+test("layerConfig distinguishes missing config from invalid client options", async () => {
+  const client = DatabricksClient.layerConfig({
+    host: Config.String("host"),
+    warehouseId: Config.succeed("warehouse"),
+    accessToken: Config.succeed(Effect.succeed(Redacted.make("test-token"))),
+  });
+  const errorWith = (values: Record<string, string>) =>
+    Effect.runPromise(
+      DatabricksClient.DatabricksClient.pipe(
+        Effect.provide(client),
+        Effect.provide(
+          ConfigProvider.layer(ConfigProvider.fromUnknown(values)),
+        ),
+        Effect.flip,
+      ),
+    );
+
+  assert.ok((await errorWith({})) instanceof Config.ConfigError);
+  const invalidClient = await errorWith({ host: "invalid-host" });
+  assert.ok(invalidClient instanceof SqlError);
+  assert.equal(invalidClient.reason.operation, "configure");
+});
 
 test(
   "the query deadline aborts an in-flight submission without replaying SQL",

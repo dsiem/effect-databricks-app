@@ -13,7 +13,7 @@ Run `npm ci` and `npm pack --workspace @dsiem/sql-warehouse --pack-destination /
 `countRows` quotes the table identifier and decodes the warehouse count as a `bigint`. The helper only needs Effect's `SqlClient`. Supply the Databricks layer once at application startup.
 
 ```ts
-import { Config, Effect, Layer, Schema } from "effect";
+import { Config, Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import { DatabricksClient } from "@dsiem/sql-warehouse";
@@ -25,15 +25,13 @@ const countRows = SqlSchema.findOne({
     SqlClient.use((sql) => sql`SELECT COUNT(*) AS total FROM ${sql(table)}`),
 });
 
-const Warehouse = Layer.unwrap(
-  Effect.gen(function* () {
-    return DatabricksClient.layer({
-      host: yield* Config.String("DATABRICKS_HOST"),
-      warehouseId: yield* Config.String("DATABRICKS_WAREHOUSE_ID"),
-      accessToken: Effect.succeed(yield* Config.Redacted("DATABRICKS_TOKEN")),
-    });
-  }),
-);
+const Warehouse = DatabricksClient.layerConfig({
+  host: Config.String("DATABRICKS_HOST"),
+  warehouseId: Config.String("DATABRICKS_WAREHOUSE_ID"),
+  accessToken: Config.Redacted("DATABRICKS_TOKEN").pipe(
+    Config.map(Effect.succeed),
+  ),
+});
 
 const { total } = await Effect.runPromise(
   countRows("samples.nyctaxi.trips").pipe(Effect.provide(Warehouse)),
@@ -41,7 +39,7 @@ const { total } = await Effect.runPromise(
 console.log(total);
 ```
 
-Use a table your identity can read. For OAuth, create one `Credentials.clientCredentials(...)` provider per identity and pass it as `accessToken`. To reuse your Effect HTTP middleware for warehouse requests, pass its client as `workspaceHttpClient`. Configure it to send each submission once. Signed storage downloads use a separate fetch client.
+Use a table your identity can read. Use `DatabricksClient.layer` when you already have resolved configuration values. For OAuth, create one `Credentials.clientCredentials(...)` provider per identity and pass it as `accessToken`. To reuse your Effect HTTP middleware for warehouse requests, pass its client as `workspaceHttpClient`. Configure it to send each submission once. Signed storage downloads use a separate fetch client.
 
 ## Arrow and Spark SQL
 

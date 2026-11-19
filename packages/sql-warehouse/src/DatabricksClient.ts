@@ -1,5 +1,6 @@
 import type { RecordBatch, Table } from "apache-arrow";
 import {
+  Config,
   Context,
   type Duration,
   Effect,
@@ -45,9 +46,10 @@ export interface DatabricksClient extends Client.Base {
   readonly param: (type: string, value: string | null) => Statement.Fragment;
 }
 
-export const DatabricksClient = Context.Service<DatabricksClient>(
-  "@dsiem/sql-warehouse/DatabricksClient",
-);
+export const DatabricksClient = Context.Service<
+  DatabricksClient,
+  DatabricksClient & Client.SqlClient
+>("@dsiem/sql-warehouse/DatabricksClient");
 
 export interface DatabricksClientConfig {
   readonly host: string;
@@ -79,7 +81,7 @@ const unsupportedFragment = (message: string) =>
   ] as const;
 
 /** Spark SQL uses backticks and the REST API requires named parameter markers. */
-export const makeCompiler = (): Statement.Compiler =>
+const makeCompiler = (): Statement.Compiler =>
   Statement.makeCompiler({
     // Effect 4.1's closed dialect union has no Spark entry. The mysql branch
     // supplies compatible generic helper behavior; this is still a Spark compiler.
@@ -194,14 +196,31 @@ export const make = (
     });
   });
 
-/** Provides both driver-specific and generic SQL services with shared client state. */
-export const layer = (
-  options: DatabricksClientConfig,
-): Layer.Layer<DatabricksClient | Client.SqlClient, SqlError> =>
+const layerFrom = <E>(
+  acquire: Effect.Effect<
+    DatabricksClient & Client.SqlClient,
+    E,
+    Reactivity.Reactivity
+  >,
+): Layer.Layer<DatabricksClient | Client.SqlClient, E> =>
   Layer.effectContext(
-    Effect.map(make(options), (client) =>
+    Effect.map(acquire, (client) =>
       Context.make(DatabricksClient, client).pipe(
         Context.add(Client.SqlClient, client),
       ),
     ),
   ).pipe(Layer.provide(Reactivity.layer));
+
+/** Provides both driver-specific and generic SQL services with shared client state. */
+export const layer = (
+  options: DatabricksClientConfig,
+): Layer.Layer<DatabricksClient | Client.SqlClient, SqlError> =>
+  layerFrom(make(options));
+
+/** Loads client options from the active Effect ConfigProvider. */
+export const layerConfig = (
+  options: Config.Wrap<DatabricksClientConfig>,
+): Layer.Layer<
+  DatabricksClient | Client.SqlClient,
+  Config.ConfigError | SqlError
+> => layerFrom(Effect.flatMap(Config.unwrap(options), make));

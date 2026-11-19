@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { tableFromArrays, tableToIPC } from "apache-arrow";
-import { Effect, Redacted } from "effect";
+import { Config, ConfigProvider, Effect } from "effect";
 
 // Import and execute the actual distribution, outside the source tree. This
 // catches missing runtime files and bad package exports without a registry.
@@ -39,6 +39,7 @@ try {
   const consumer = join(directory, "package/consumer.mjs");
   writeFileSync(consumer, 'export * from "@dsiem/sql-warehouse";\n');
   const exports = await import(pathToFileURL(consumer));
+  assert.equal("makeCompiler" in exports.DatabricksClient, false);
   const ipc = tableToIPC(
     tableFromArrays({ id: BigInt64Array.of(9007199254740993n) }),
     "stream",
@@ -49,27 +50,41 @@ try {
       return yield* sql.arrow(sql`SELECT ${9007199254740993n} AS id`);
     }).pipe(
       Effect.provide(
-        exports.DatabricksClient.layer({
-          host: "https://workspace.example",
-          warehouseId: "warehouse",
-          accessToken: Effect.succeed(Redacted.make("test-token")),
-          fetch: async (input) =>
-            new URL(String(input)).hostname === "storage.example"
-              ? new Response(ipc)
-              : Response.json({
-                  statement_id: "packed-statement",
-                  status: { state: "SUCCEEDED" },
-                  manifest: { format: "ARROW_STREAM", total_chunk_count: 1 },
-                  result: {
-                    external_links: [
-                      {
-                        chunk_index: 0,
-                        external_link: "https://storage.example/0",
-                      },
-                    ],
-                  },
-                }),
-        }),
+        exports.DatabricksClient.layerConfig(
+          Config.all({
+            host: Config.String("DATABRICKS_HOST"),
+            warehouseId: Config.String("DATABRICKS_WAREHOUSE_ID"),
+            accessToken: Config.Redacted("DATABRICKS_TOKEN").pipe(
+              Config.map(Effect.succeed),
+            ),
+            fetch: Config.succeed(async (input) =>
+              new URL(String(input)).hostname === "storage.example"
+                ? new Response(ipc)
+                : Response.json({
+                    statement_id: "packed-statement",
+                    status: { state: "SUCCEEDED" },
+                    manifest: { format: "ARROW_STREAM", total_chunk_count: 1 },
+                    result: {
+                      external_links: [
+                        {
+                          chunk_index: 0,
+                          external_link: "https://storage.example/0",
+                        },
+                      ],
+                    },
+                  }),
+            ),
+          }),
+        ),
+      ),
+      Effect.provide(
+        ConfigProvider.layer(
+          ConfigProvider.fromUnknown({
+            DATABRICKS_HOST: "https://workspace.example",
+            DATABRICKS_WAREHOUSE_ID: "warehouse",
+            DATABRICKS_TOKEN: "test-token",
+          }),
+        ),
       ),
     ),
   );
