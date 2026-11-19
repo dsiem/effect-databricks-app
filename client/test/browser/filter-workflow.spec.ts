@@ -375,3 +375,21 @@ test("loading more views preserves keyboard focus and returns it to the chooser 
   await page.keyboard.press("Escape");
   await expect(picker).not.toBeVisible();
 });
+
+test("the desktop sidebar stays hidden on mobile before viewport detection", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+  await page.addInitScript(() => {
+    const desktop = matchMedia("(max-width: 0px)");
+    const original = window.matchMedia.bind(window);
+    window.matchMedia = (query) =>
+      query === "(max-width: 767px)" ? desktop : original(query);
+  });
+  await page.goto("/trips?from=2016-01-10&to=2016-02-20&zip=10001");
+
+  const sidebar = page.locator(".workspace > .sidebar");
+  await expect(sidebar).toBeAttached();
+  await expect(sidebar).toBeHidden();
+  await expect(page.getByLabel("Pickup start date")).toBeVisible();
+});
