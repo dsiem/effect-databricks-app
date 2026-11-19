@@ -24,6 +24,7 @@
     "dev:client": "vite --host 127.0.0.1",
     "db:setup": "node --env-file-if-exists=.env --import tsx scripts/setup-lakebase.ts",
     "test:browser": "playwright test",
+    "test:browser:deployed": "playwright test --config client/test/deployed/playwright.config.ts",
     "format:check": "oxfmt --check ."
   },
   "dependencies": {
