@@ -190,50 +190,51 @@ export const makeGenieAgentClient = <E, R>(options: {
     Effect.gen(function* () {
       const path = `${agent}/conversations/${encodeURIComponent(conversationId)}/items`;
       const marker = `${responseId}_input`;
-      const items: Item[] = [];
+      const query = new URLSearchParams({ order: "desc" });
       const cursors = new Set<string>();
-      let after: string | undefined;
-      let found = false;
+      const items: Item[] = [];
+      let latestStatus: string | undefined;
+      let latestTurn = true;
       while (true) {
         const data = yield* request({
           kind: "agent-items",
           method: "GET",
-          path:
-            after === undefined
-              ? path
-              : `${path}?after=${encodeURIComponent(after)}`,
+          path: `${path}?${query.toString()}`,
         });
         const page = yield* decode(Page, data);
+        latestStatus ??= page.status;
         for (const item of page.data) {
-          if (userInput(item)) {
-            if (found) {
-              const last = items.findLast(
-                (entry) =>
-                  entry.type === "message" &&
-                  (entry.role === "assistant" || entry.role === "system"),
-              );
-              return {
-                items,
-                status:
-                  last?.role === "assistant"
-                    ? (last.status ?? "completed")
-                    : "failed",
-              };
-            }
-            found = item.id === marker;
-          } else if (found) {
+          if (!userInput(item)) {
             items.push(item);
+            continue;
           }
+          if (item.id === marker) {
+            // The page status describes only the conversation's latest turn.
+            const last = items.find(
+              (entry) =>
+                entry.type === "message" &&
+                (entry.role === "assistant" || entry.role === "system"),
+            );
+            return {
+              items: items.reverse(),
+              status: latestTurn
+                ? latestStatus
+                : last?.role === "assistant"
+                  ? (last.status ?? "completed")
+                  : "failed",
+            };
+          }
+          latestTurn = false;
+          items.length = 0;
         }
-        if (!page.has_more)
-          return { items, status: found ? page.status : "in_progress" };
+        if (!page.has_more) return { items: [], status: "in_progress" };
         if (!page.last_id || cursors.has(page.last_id)) {
           return yield* new GenieResponseError({
             cause: new Error("Genie returned an invalid items cursor"),
           });
         }
-        after = page.last_id;
-        cursors.add(after);
+        cursors.add(page.last_id);
+        query.set("after", page.last_id);
       }
     });
 

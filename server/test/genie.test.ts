@@ -564,11 +564,13 @@ test(
             pathname,
             "/api/2.0/genie/agents/space/conversations/conversation/items",
           );
+          assert.equal(searchParams.get("order"), "desc");
           if (searchParams.has("after")) {
-            assert.equal(searchParams.get("after"), "response_input");
+            assert.equal(searchParams.get("after"), "response-new_input");
             return Response.json({
               status: "in_progress",
-              has_more: false,
+              has_more: true,
+              last_id: "response_input",
               data: [
                 {
                   id: "answer",
@@ -593,41 +595,45 @@ test(
                     },
                   ],
                 },
-                { id: "response-new_input", type: "message", role: "user" },
+                { id: "response_input", type: "message", role: "user" },
+              ],
+            });
+          }
+          itemsReads++;
+          if (itemsReads > 2) {
+            return Response.json({
+              status: "in_progress",
+              has_more: true,
+              last_id: "response-new_input",
+              data: [
                 {
                   id: "other",
                   type: "message",
                   role: "assistant",
                   content: [{ type: "output_text", text: "Another turn" }],
                 },
+                { id: "response-new_input", type: "message", role: "user" },
               ],
             });
           }
-          itemsReads++;
           return Response.json({
             status: "in_progress",
-            has_more: itemsReads > 2,
+            has_more: false,
             last_id: "response_input",
             data: [
+              itemsReads === 1
+                ? {
+                    id: "query",
+                    type: "function_call_output",
+                    status: "in_progress",
+                  }
+                : {
+                    id: "draft-report",
+                    type: "message",
+                    role: "assistant",
+                    status: "in_progress",
+                  },
               { id: "response_input", type: "message", role: "user" },
-              ...(itemsReads === 1
-                ? [
-                    {
-                      id: "query",
-                      type: "function_call_output",
-                      status: "in_progress",
-                    },
-                  ]
-                : itemsReads === 2
-                  ? [
-                      {
-                        id: "draft-report",
-                        type: "message",
-                        role: "assistant",
-                        status: "in_progress",
-                      },
-                    ]
-                  : []),
             ],
           });
         }),
