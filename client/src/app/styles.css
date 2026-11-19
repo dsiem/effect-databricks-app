@@ -212,6 +212,9 @@
     }
   }
   @media (max-width: 767px) {
+    .workspace > .sidebar {
+      display: none;
+    }
     .workspace-content {
       padding: 1rem;
     }
