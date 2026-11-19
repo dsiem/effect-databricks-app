@@ -115,12 +115,18 @@ export class Genie extends Context.Service<
               kind === "agent-submit" ? readGenieAgentAcceptance : undefined,
             )
             .pipe(
-              Effect.mapError(
-                mapWorkspacePermission(
-                  permissionCopy[
-                    kind === "agent-submit" ? "submit" : "message"
-                  ],
-                ),
+              Effect.mapError((error) =>
+                error instanceof UpstreamError &&
+                error.upstreamCode === "FEATURE_DISABLED"
+                  ? unavailable(
+                      "genie_agent_mode",
+                      "Agent mode is disabled in this Databricks workspace. Select Chat, or ask a workspace admin about Agent mode access.",
+                    )
+                  : mapWorkspacePermission(
+                      permissionCopy[
+                        kind === "agent-submit" ? "submit" : "message"
+                      ],
+                    )(error),
               ),
             ),
       });

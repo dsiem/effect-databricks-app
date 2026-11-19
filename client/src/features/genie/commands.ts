@@ -66,6 +66,7 @@ export const SubmitQuestion = Command.define("SubmitQuestion", {
             Schema.is(ApiError)(error) &&
             (error.error.code === "invalid_request" ||
               error.error.code === "permission_denied" ||
+              error.error.code === "genie_agent_mode_unavailable" ||
               ("upstreamStatus" in error.error &&
                 [400, 401, 403, 404, 409, 422, 429].includes(
                   error.error.upstreamStatus ?? 0,

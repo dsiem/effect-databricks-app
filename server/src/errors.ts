@@ -41,6 +41,7 @@ export class UpstreamError extends Data.TaggedError("UpstreamError")<{
   readonly service: string;
   readonly message: string;
   readonly upstreamStatus?: number;
+  readonly upstreamCode?: "FEATURE_DISABLED";
   readonly cause?: unknown;
 }> {}
 

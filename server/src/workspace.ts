@@ -19,6 +19,9 @@ import { Settings } from "./settings.js";
 
 const run = promisify(execFile);
 const CliToken = Schema.Struct({ access_token: Schema.NonEmptyString });
+const featureDisabled = Schema.is(
+  Schema.Struct({ error_code: Schema.Literal("FEATURE_DISABLED") }),
+);
 
 type ReadEventStream = (
   body: HttpClientResponse.HttpClientResponse["stream"],
@@ -117,10 +120,20 @@ export class Workspace extends Context.Service<
                 : yield* HttpClientRequest.bodyJson(request, body),
             );
             if (response.status < 200 || response.status >= 300) {
+              const disabled =
+                response.status === 404 &&
+                readEventStream !== undefined &&
+                (yield* response.json.pipe(
+                  Effect.map(featureDisabled),
+                  Effect.orElseSucceed(() => false),
+                ));
               return yield* Effect.fail(
                 new UpstreamError({
                   service: "workspace",
                   upstreamStatus: response.status,
+                  ...(disabled
+                    ? { upstreamCode: "FEATURE_DISABLED" as const }
+                    : {}),
                   message: `Databricks returned HTTP ${response.status}. Check resource permissions and configuration.`,
                 }),
               );

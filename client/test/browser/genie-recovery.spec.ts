@@ -208,6 +208,15 @@ for (const { name, status, error } of [
       upstreamStatus: 429,
     },
   },
+  {
+    name: "Agent mode unavailable",
+    status: 503,
+    error: {
+      code: "genie_agent_mode_unavailable",
+      message:
+        "Agent mode is disabled in this Databricks workspace. Select Chat.",
+    },
+  },
 ] as const) {
   test(`${name} rejection survives reload and allows an explicit corrected submission`, async ({
     page,
@@ -230,6 +239,8 @@ for (const { name, status, error } of [
       route.fulfill({ json: reply }),
     );
     await page.goto("/genie");
+    if (name === "Agent mode unavailable")
+      await page.getByLabel("Genie mode").selectOption("agent");
     await send(page);
     const expectedMessage =
       name === "permission"
@@ -249,6 +260,10 @@ for (const { name, status, error } of [
     const composer = page.getByLabel("Ask a question about taxi data");
     await expect(composer).toBeFocused();
     await expect(composer).toHaveValue("Count trips");
+    if (name === "Agent mode unavailable") {
+      expect(submissions[0]).toMatchObject({ mode: "agent" });
+      await page.getByLabel("Genie mode").selectOption("chat");
+    }
     await composer.fill("Count trips by hour");
     await page
       .getByRole("button", { name: "Send question", exact: true })
@@ -258,6 +273,7 @@ for (const { name, status, error } of [
     ).toBeVisible();
     expect(submissions).toHaveLength(2);
     expect(submissions[1]).toMatchObject({ content: "Count trips by hour" });
+    expect(submissions[1]).not.toHaveProperty("mode");
   });
 }
 

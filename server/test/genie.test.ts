@@ -627,3 +627,43 @@ test(
     ]);
   },
 );
+
+test("Agent mode reports workspace feature gating separately from a missing agent", async () => {
+  const config = ConfigProvider.fromEnvRecord({
+    DATABRICKS_HOST: "https://workspace.invalid",
+    DATABRICKS_TOKEN: "fixture-token",
+    GENIE_SPACE_ID: "space",
+  });
+  const layer = Genie.layer.pipe(
+    Layer.provide(Workspace.layer),
+    Layer.provide(Settings.layer),
+  );
+
+  for (const [upstreamCode, expected] of [
+    ["FEATURE_DISABLED", "ServiceUnavailable"],
+    ["NOT_FOUND", "UpstreamError"],
+  ] as const) {
+    const error = await Effect.runPromise(
+      Effect.flatMap(Genie, (genie) =>
+        Effect.flip(genie.submit({ content: "Count trips", mode: "agent" })),
+      ).pipe(
+        Effect.provide(layer),
+        Effect.provideService(ConfigProvider.ConfigProvider, config),
+        Effect.provideService(FetchHttpClient.Fetch, async () =>
+          Response.json(
+            { error_code: upstreamCode, message: "private diagnostic" },
+            { status: 404 },
+          ),
+        ),
+      ),
+    );
+    assert.equal(error._tag, expected);
+    assert.doesNotMatch(JSON.stringify(error), /private diagnostic/);
+    if (error._tag === "ServiceUnavailable") {
+      assert.equal(error.service, "genie_agent_mode");
+      assert.match(error.message, /workspace/);
+    } else if (error._tag === "UpstreamError") {
+      assert.equal(error.upstreamStatus, 404);
+    }
+  }
+});
