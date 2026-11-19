@@ -13,7 +13,11 @@ export const Turn = Schema.Union([
   Schema.Struct({ ...TurnBase, state: Schema.Literal("submitting") }),
   Schema.Struct({
     ...TurnBase,
-    state: Schema.Literals(["submission-rejected", "submission-unknown"]),
+    state: Schema.Literals([
+      "submission-rejected",
+      "submission-unknown",
+      "agent-mode-unavailable",
+    ]),
     error: Notice,
   }),
   Schema.Struct({

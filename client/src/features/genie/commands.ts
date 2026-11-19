@@ -62,19 +62,27 @@ export const SubmitQuestion = Command.define("SubmitQuestion", {
           }),
         onFailure: (error) => {
           const problem = failure(error);
-          const rejected =
+          const agentUnavailable =
+            turn.mode === "agent" &&
             Schema.is(ApiError)(error) &&
-            (error.error.code === "invalid_request" ||
-              error.error.code === "permission_denied" ||
-              error.error.code === "genie_agent_mode_unavailable" ||
-              ("upstreamStatus" in error.error &&
-                [400, 401, 403, 404, 409, 422, 429].includes(
-                  error.error.upstreamStatus ?? 0,
-                )));
+            error.error.code === "genie_agent_mode_unavailable";
+          const rejected =
+            agentUnavailable ||
+            (Schema.is(ApiError)(error) &&
+              (error.error.code === "invalid_request" ||
+                error.error.code === "permission_denied" ||
+                ("upstreamStatus" in error.error &&
+                  [400, 401, 403, 404, 409, 422, 429].includes(
+                    error.error.upstreamStatus ?? 0,
+                  ))));
           return M.ChangedTurn({
             turn: {
               ...turnBase(turn),
-              state: rejected ? "submission-rejected" : "submission-unknown",
+              state: agentUnavailable
+                ? "agent-mode-unavailable"
+                : rejected
+                  ? "submission-rejected"
+                  : "submission-unknown",
               error:
                 typeof problem !== "string"
                   ? problem

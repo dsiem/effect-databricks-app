@@ -139,9 +139,20 @@ function response(
     case "failed":
     case "submission-unknown":
       return [alert(h, turn.error)];
+    case "agent-mode-unavailable":
     case "submission-rejected":
       return [
         alert(h, turn.error),
+        ...(turn.state === "agent-mode-unavailable"
+          ? [
+              button(h, {
+                label: "Retry in Chat",
+                onClick: M.RetryInChat({ id: turn.id }),
+                disabled: working,
+                className: " mt-3 mr-2",
+              }),
+            ]
+          : []),
         button(h, {
           label: "Edit question",
           onClick: M.EditQuestion({ question: turn.question }),

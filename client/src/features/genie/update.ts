@@ -89,25 +89,15 @@ export function updateGenie(
         ...(message.mode ? { mode: message.mode } : {}),
         state: "submitting" as const,
       };
-      const previous = model.turns
-        .toReversed()
-        .find(
-          (prior) =>
-            ("operation" in prior || prior.state === "complete") &&
-            (prior.mode ?? "chat") === (turn.mode ?? "chat"),
-        );
-      const conversationId =
-        previous && "operation" in previous
-          ? previous.operation.conversationId
-          : previous?.state === "complete"
-            ? previous.reply.conversationId
-            : null;
       const turns = [...model.turns, turn];
       return {
         model: { ...model, turns, genieDraft: "" },
         commands: [
           GenieCommands.PersistTurns({ turns }),
-          GenieCommands.SubmitQuestion({ turn, conversationId }),
+          GenieCommands.SubmitQuestion({
+            turn,
+            conversationId: conversationFor(model.turns, turn.mode ?? "chat"),
+          }),
         ],
       };
     }
@@ -142,6 +132,30 @@ export function updateGenie(
           })
         : { model };
     }
+    case "RetryInChat": {
+      if (busy(model)) return { model };
+      const original = model.turns.find(({ id }) => id === message.id);
+      if (original?.state !== "agent-mode-unavailable") return { model };
+      const turn = {
+        ...turnBase(original),
+        mode: "chat" as const,
+        state: "submitting" as const,
+      };
+      const turns = [
+        ...model.turns.filter(({ id }) => id !== original.id),
+        turn,
+      ];
+      return {
+        model: { ...model, turns, genieMode: "chat" },
+        commands: [
+          GenieCommands.PersistTurns({ turns }),
+          GenieCommands.SubmitQuestion({
+            turn,
+            conversationId: conversationFor(model.turns, "chat"),
+          }),
+        ],
+      };
+    }
     case "EditQuestion":
       return {
         model: { ...model, genieDraft: message.question },
@@ -161,6 +175,19 @@ export function updateGenie(
     case "CopiedSql":
       return { model: { ...model, clipboard: message.text } };
   }
+}
+
+function conversationFor(turns: ReadonlyArray<Turn>, mode: D.GenieMode) {
+  const previous = turns.findLast(
+    (prior) =>
+      ("operation" in prior || prior.state === "complete") &&
+      (prior.mode ?? "chat") === mode,
+  );
+  return previous && "operation" in previous
+    ? previous.operation.conversationId
+    : previous?.state === "complete"
+      ? previous.reply.conversationId
+      : null;
 }
 
 function changeTurn(

@@ -256,14 +256,25 @@ for (const { name, status, error } of [
       page.getByRole("alert").locator('svg[aria-hidden="true"]'),
     ).toHaveCount(name === "permission" ? 1 : 0);
     expect(submissions).toHaveLength(1);
+    if (name === "Agent mode unavailable") {
+      expect(submissions[0]).toMatchObject({ mode: "agent" });
+      await page.getByRole("button", { name: "Retry in Chat" }).click();
+      await expect(
+        page.getByRole("cell", { name: "21932", exact: true }),
+      ).toBeVisible();
+      await expect(page.getByLabel("Genie mode")).toHaveValue("chat");
+      expect(submissions).toHaveLength(2);
+      const { mode: _mode, ...original } = submissions[0] as { mode: string };
+      expect(submissions[1]).toEqual({ ...original, mode: "chat" });
+      return;
+    }
+    await expect(
+      page.getByRole("button", { name: "Retry in Chat" }),
+    ).toHaveCount(0);
     await page.getByRole("button", { name: "Edit question" }).click();
     const composer = page.getByLabel("Ask a question about taxi data");
     await expect(composer).toBeFocused();
     await expect(composer).toHaveValue("Count trips");
-    if (name === "Agent mode unavailable") {
-      expect(submissions[0]).toMatchObject({ mode: "agent" });
-      await page.getByLabel("Genie mode").selectOption("chat");
-    }
     await composer.fill("Count trips by hour");
     await page
       .getByRole("button", { name: "Send question", exact: true })

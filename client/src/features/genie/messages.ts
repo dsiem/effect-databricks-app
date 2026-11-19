@@ -48,6 +48,7 @@ export const messages = {
     outcome: PollOutcome,
   },
   ResumeTurn: { id: Schema.String },
+  RetryInChat: { id: Schema.String },
   EditQuestion: { question: Schema.String },
   NewConversation: {},
   Persisted: { error: Schema.String },
