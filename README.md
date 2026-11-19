@@ -11,7 +11,7 @@ This project is independently maintained and is not affiliated with or endorsed 
 [Integration patterns](docs/integration.md) ·
 [Reuse the SQL adapter](packages/sql-warehouse/README.md)
 
-![January 2016 NYC taxi trip metrics and daily activity with the Genie helper open](.github/assets/nyc-taxi.png)
+![January and February 2016 NYC taxi trip metrics and daily activity with the Genie helper open](.github/assets/nyc-taxi.png)
 
 ## What the example does
 
