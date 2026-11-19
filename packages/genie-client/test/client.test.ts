@@ -95,3 +95,97 @@ test("Genie results keep attachment order, contents, and all returned inline row
     ],
   });
 });
+
+const readQueryResult = (statement: unknown) => {
+  const operation = { conversationId: "conversation", messageId: "message" };
+  const client = makeGenieClient({
+    spaceId: "space",
+    request: ({ kind }) =>
+      Effect.succeed(
+        kind === "query-result"
+          ? { statement_response: statement }
+          : {
+              conversation_id: operation.conversationId,
+              message_id: operation.messageId,
+              status: "COMPLETED",
+              attachments: [
+                { attachment_id: "query", query: { query: "SELECT 1" } },
+              ],
+            },
+      ),
+  });
+  return client.result(operation);
+};
+
+for (const [status, state] of [
+  ["PENDING", "pending"],
+  ["RUNNING", "pending"],
+  ["CANCELED", "unavailable"],
+  ["CLOSED", "unavailable"],
+] as const) {
+  test(`Chat reports a ${status} attachment as ${state}`, async () => {
+    const result = await Effect.runPromise(
+      Effect.result(readQueryResult({ status: { state: status } })),
+    );
+    assert.equal(result._tag, "Failure", JSON.stringify(result));
+    assert.equal(result.failure._tag, "GenieQueryUnavailable");
+    assert.equal(result.failure.attachmentId, "query");
+    assert.equal(result.failure.state, state);
+    assert.equal(result.failure.status, status);
+  });
+}
+
+test("Chat preserves SQL diagnostics for a failed attachment", async () => {
+  const result = await Effect.runPromise(
+    Effect.result(
+      readQueryResult({
+        status: {
+          state: "FAILED",
+          sql_state: "42601",
+          error: { error_code: "BAD_REQUEST" },
+        },
+      }),
+    ),
+  );
+  assert.equal(result._tag, "Failure");
+  assert.equal(result.failure._tag, "GenieQueryFailed");
+  assert.equal(result.failure.attachmentId, "query");
+  assert.equal(result.failure.sqlState, "42601");
+  assert.equal(result.failure.errorCode, "BAD_REQUEST");
+});
+
+const columns = [{ name: "one" }];
+const manifest = { schema: { columns } };
+
+test("Chat rejects malformed statement status and missing SQL result data", async () => {
+  for (const statement of [
+    { status: { state: "UNKNOWN" }, manifest, result: { data_array: [["1"]] } },
+    { status: {} },
+    { status: { state: "SUCCEEDED" } },
+    { status: { state: "SUCCEEDED" }, manifest },
+    { manifest, result: {} },
+    {},
+  ]) {
+    const result = await Effect.runPromise(
+      Effect.result(readQueryResult(statement)),
+    );
+    assert.equal(result._tag, "Failure", JSON.stringify(result));
+    assert.equal(result.failure._tag, "GenieResponseError");
+  }
+});
+
+test("Chat returns column metadata for a valid zero-row SQL result", async () => {
+  for (const statement of [
+    { status: { state: "SUCCEEDED" }, manifest, result: { data_array: [] } },
+    {
+      status: { state: "SUCCEEDED" },
+      manifest: { ...manifest, total_row_count: 0 },
+    },
+  ]) {
+    const result = await Effect.runPromise(readQueryResult(statement));
+    const attachment = result.attachments[0];
+    assert.equal(attachment?.kind, "query");
+    assert.deepEqual(attachment.columns, columns);
+    assert.deepEqual(attachment.rows, []);
+  }
+});

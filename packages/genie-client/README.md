@@ -31,7 +31,8 @@ const operation = await Effect.runPromise(
 - Call `poll(operation)` to check status once. Set the polling interval and
   deadline in your application.
 - Call `result(operation)` when the turn completes to get the message
-  attachments. Inline query results can be partial.
+  attachments. Inline query results can be partial. A pending or unavailable
+  SQL result fails with `GenieQueryUnavailable`.
 
 A lost submission response can leave an accepted turn. Check Genie before
 resubmitting.

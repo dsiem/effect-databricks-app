@@ -4,6 +4,7 @@ import {
   GeniePermissionDenied,
   GenieMessageUnavailable,
   GenieQueryFailed,
+  GenieQueryUnavailable,
   type GenieAttachment,
   GenieResponseError,
   makeGenieClient,
@@ -269,6 +270,7 @@ export class Genie extends Context.Service<
           | GeniePermissionDenied
           | GenieMessageUnavailable
           | GenieQueryFailed
+          | GenieQueryUnavailable
         > =
           operation.mode === "agent"
             ? agent.result(agentReference(operation))
@@ -290,6 +292,16 @@ export class Genie extends Context.Service<
                 new GenieFailed({
                   status: "FAILED",
                   message: "Genie could not execute the query for this answer.",
+                }),
+              ),
+            GenieQueryUnavailable: ({ state, status }) =>
+              Effect.fail(
+                new GenieFailed({
+                  status,
+                  message:
+                    state === "pending"
+                      ? "The query is still running. Retry retrieving this answer."
+                      : `The query result is no longer available (${status}).`,
                 }),
               ),
           }),
