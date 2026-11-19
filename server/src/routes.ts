@@ -126,6 +126,7 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
       .handle("pollGenie", ({ params, query }) =>
         respond(genie.poll({ ...params, ...query })),
       )
+      .handle("cancelGenieAgent", ({ params }) => respond(genie.cancel(params)))
       .handle("genieResult", ({ params, query }) =>
         respond(genie.result({ ...params, ...query })),
       )

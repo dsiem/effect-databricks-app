@@ -9,6 +9,7 @@ import {
   makeGenieAgentClient,
   readGenieAgentAcceptance,
   type GenieRequest,
+  type GenieAgentOperation,
 } from "@dsiem/genie-client";
 import { genieResultTimeoutMs } from "../../shared/api.js";
 import {
@@ -39,6 +40,7 @@ const permissionCopy = {
     "This conversation is under lock. You need permission to read Genie’s answer.",
   "query-result":
     "This Genie result is under lock. You need permission to read it.",
+  cancel: "You need permission to stop this Genie response.",
 };
 
 const mapProtocolError = (
@@ -70,6 +72,9 @@ export class Genie extends Context.Service<
     ) => Effect.Effect<GenieOperation, WorkspaceRequestError>;
     readonly poll: (
       operation: GenieOperation,
+    ) => Effect.Effect<GenieProgress, WorkspaceRequestError>;
+    readonly cancel: (
+      operation: GenieAgentOperation,
     ) => Effect.Effect<GenieProgress, WorkspaceRequestError>;
     readonly result: (
       operation: GenieOperation,
@@ -124,7 +129,11 @@ export class Genie extends Context.Service<
                     )
                   : mapWorkspacePermission(
                       permissionCopy[
-                        kind === "agent-submit" ? "submit" : "message"
+                        kind === "agent-submit"
+                          ? "submit"
+                          : kind === "agent-cancel"
+                            ? "cancel"
+                            : "message"
                       ],
                     )(error),
               ),
@@ -164,7 +173,7 @@ export class Genie extends Context.Service<
       const poll = (operation: GenieOperation) =>
         (operation.mode === "agent"
           ? agent.poll(agentReference(operation)).pipe(
-              Effect.map(({ state, status, phase }) => ({
+              Effect.map(({ state, status, phase }): GenieProgress => ({
                 ...operation,
                 state,
                 status,
@@ -173,6 +182,20 @@ export class Genie extends Context.Service<
             )
           : client.poll(operation)
         ).pipe(Effect.mapError(mapProtocolError));
+
+      const cancel = (operation: GenieAgentOperation) =>
+        agent.cancel(operation).pipe(
+          Effect.map(
+            ({ conversationId, responseId, state, status }): GenieProgress => ({
+              conversationId,
+              messageId: responseId,
+              mode: "agent",
+              state,
+              status,
+            }),
+          ),
+          Effect.mapError(mapProtocolError),
+        );
 
       const result = (operation: GenieOperation) => {
         const response: Effect.Effect<
@@ -250,7 +273,7 @@ export class Genie extends Context.Service<
           }),
         );
       };
-      return { submit, poll, result };
+      return { submit, poll, cancel, result };
     }),
   );
 }

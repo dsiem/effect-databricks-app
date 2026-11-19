@@ -4,7 +4,7 @@ import { filterSummary } from "../../domain/filter-summary";
 import { icon } from "../../ui/icons";
 import { alert, button, type Child, table } from "../../ui/primitives";
 import { markdown } from "./markdown-view";
-import type { Turn } from "./model";
+import { stoppableOperation, type Turn } from "./model";
 import { type H, Message as M } from "./view-messages";
 import type { ViewModel as Model } from "./view-model";
 
@@ -186,6 +186,14 @@ function response(
         ),
       ];
     }
+    case "cancelled":
+      return [
+        h.p([h.Class("muted text-sm py-2")], ["Agent response stopped."]),
+      ];
+    case "stopping":
+      return [
+        h.p([h.Class("muted text-sm py-2")], ["Stopping Agent response…"]),
+      ];
     case "retrieving":
       if (turn.operation.mode === "agent")
         return [
@@ -231,6 +239,16 @@ function conversationTurn(
         [icon(h, "sparkles"), "Genie"],
       ),
       ...response(h, turn, clipboard, working),
+      ...(stoppableOperation(turn)
+        ? [
+            button(h, {
+              label: "Stop",
+              onClick: M.StopTurn({ id: turn.id }),
+              variant: "ghost",
+              className: " mt-2",
+            }),
+          ]
+        : []),
     ],
   );
 }

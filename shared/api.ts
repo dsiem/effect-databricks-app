@@ -17,6 +17,7 @@ import {
 import {
   CurrentUser,
   Filters,
+  GenieAgentPath,
   GenieInput,
   GenieModeQuery,
   GenieOperation,
@@ -204,6 +205,15 @@ export const AppApi = HttpApi.make("taxi").add(
         {
           params: GeniePath,
           query: GenieModeQuery,
+          success: GenieProgress,
+          error: [InvalidRequestBody, ...workspaceErrors],
+        },
+      ),
+      HttpApiEndpoint.post(
+        "cancelGenieAgent",
+        "/api/genie/:conversationId/responses/:responseId/cancel",
+        {
+          params: GenieAgentPath,
           success: GenieProgress,
           error: [InvalidRequestBody, ...workspaceErrors],
         },

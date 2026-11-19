@@ -40,6 +40,12 @@ export type GenieAgentRequest =
       readonly body: SubmitBody;
     }
   | {
+      readonly kind: "agent-cancel";
+      readonly method: "POST";
+      readonly path: string;
+      readonly body?: never;
+    }
+  | {
       readonly kind: "agent-items";
       readonly method: "GET";
       readonly path: string;
@@ -71,6 +77,8 @@ export const readGenieAgentAcceptance = <E, R>(
           ),
     ),
   );
+
+const Cancellation = Schema.Struct({ status: Schema.String });
 
 const Item = Schema.Struct({
   id: Schema.String,
@@ -113,14 +121,16 @@ const decodeTable = Schema.decodeUnknownOption(Table);
 const userInput = (item: Item) =>
   item.type === "message" && item.role === "user";
 
-const stateOf = (status: string): GenieProgress["state"] => {
-  switch (status) {
+const stateOf = (status: string): GenieProgress["state"] | "cancelled" => {
+  switch (status.toLowerCase()) {
     case "completed":
       return "completed";
     case "failed":
+    case "query_result_expired":
+      return "failed";
     case "cancelled":
     case "canceled":
-      return "failed";
+      return "cancelled";
     default:
       return "pending";
   }
@@ -241,12 +251,27 @@ export const makeGenieAgentClient = <E, R>(options: {
       Effect.withSpan("genie.agent.poll"),
     );
 
+  const cancel = (operation: GenieAgentOperation) =>
+    Effect.gen(function* () {
+      const { conversationId, responseId } = operation;
+      const data = yield* request({
+        kind: "agent-cancel",
+        method: "POST",
+        path: `${agent}/conversations/${encodeURIComponent(conversationId)}/responses/${encodeURIComponent(responseId)}/cancel`,
+      });
+      const { status } = yield* decode(Cancellation, data);
+      return { ...operation, status, state: stateOf(status) };
+    }).pipe(Effect.withSpan("genie.agent.cancel"));
+
   const result = (operation: GenieAgentOperation) =>
     Effect.gen(function* () {
       const { items, status } = yield* readTurn(operation);
       const state = stateOf(status);
       if (state !== "completed")
-        return yield* new GenieMessageUnavailable({ state, status });
+        return yield* new GenieMessageUnavailable({
+          state: state === "cancelled" ? "failed" : state,
+          status,
+        });
       const attachments: GenieAttachment[] = [];
       for (const item of items) {
         if (item.type !== "message" || item.role !== "assistant") continue;
@@ -281,5 +306,5 @@ export const makeGenieAgentClient = <E, R>(options: {
       return { ...operation, attachments };
     }).pipe(Effect.withSpan("genie.agent.result"));
 
-  return { submit, poll, result };
+  return { submit, poll, cancel, result };
 };

@@ -4,7 +4,7 @@ import { ApiError, genieResultTimeoutMs } from "../../../../shared/api";
 import { request } from "../../lib/api-client";
 import { failure } from "../../lib/command-result";
 import { Message as M, QuestionSnapshot } from "./messages";
-import { History, Turn, turnBase } from "./model";
+import { History, StoppingTurn, Turn, turnBase } from "./model";
 const genieStorageKey = "databricks-effect-app.genie.v1";
 
 export const RestoreConversation = Command.define("RestoreConversation", {
@@ -24,7 +24,13 @@ export const RestoreConversation = Command.define("RestoreConversation", {
                   error:
                     "The submission response was lost. The question may have been accepted. Check Genie before submitting it again.",
                 }
-              : turn,
+              : turn.state === "stopping"
+                ? {
+                    ...turnBase(turn),
+                    operation: turn.operation,
+                    state: "waiting" as const,
+                  }
+                : turn,
         );
     } catch {
       persistenceError =
@@ -95,6 +101,62 @@ export const SubmitQuestion = Command.define("SubmitQuestion", {
       }),
     ),
 });
+export const StopQuestion = Command.define("StopQuestion", {
+  args: { turn: StoppingTurn },
+  messages: [M.ChangedTurn],
+  execute: ({ turn }) => {
+    const { operation } = turn;
+    const accepted = { ...turnBase(turn), operation };
+    return request((client) =>
+      client.cancelGenieAgent({
+        params: {
+          conversationId: operation.conversationId,
+          responseId: operation.messageId,
+        },
+      }),
+    ).pipe(
+      Effect.scoped,
+      Effect.mapError(failure),
+      Effect.match({
+        onSuccess: ({ state, status }) => {
+          switch (state) {
+            case "cancelled":
+              return M.ChangedTurn({
+                turn: { ...accepted, state: "cancelled" },
+              });
+            case "completed":
+              return M.ChangedTurn({
+                turn: { ...accepted, state: "retrieving" },
+              });
+            case "failed":
+              return M.ChangedTurn({
+                turn: {
+                  ...accepted,
+                  state: "failed",
+                  error: `Genie could not complete this question (${status}).`,
+                },
+              });
+            case "pending":
+              return M.ChangedTurn({ turn: { ...accepted, state: "waiting" } });
+          }
+        },
+        onFailure: (error) =>
+          M.ChangedTurn({
+            turn: {
+              ...accepted,
+              state: "paused",
+              stage: "waiting",
+              error:
+                typeof error === "string"
+                  ? "Stop could not be confirmed. Resume waiting to check the response."
+                  : error,
+            },
+          }),
+      }),
+    );
+  },
+});
+
 export const RetrieveQuestion = Command.define("RetrieveQuestion", {
   args: { turn: Turn },
   messages: [M.ChangedTurn],

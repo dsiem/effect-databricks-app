@@ -107,6 +107,18 @@ const fixture = () => {
                 state: "completed" as const,
                 status: "COMPLETED",
               }),
+            cancel: ({ conversationId, responseId }) =>
+              record(
+                "cancelGenieAgent",
+                { conversationId, responseId },
+                {
+                  conversationId,
+                  messageId: responseId,
+                  mode: "agent" as const,
+                  state: "cancelled" as const,
+                  status: "CANCELLED",
+                },
+              ),
             result: (input) =>
               record("result", input, {
                 ...operation,
@@ -241,6 +253,19 @@ test("generated client round-trips every endpoint through the real HTTP contract
           status: "COMPLETED",
         },
       );
+      const cancelTarget = {
+        conversationId: operation.conversationId,
+        responseId: operation.messageId,
+      };
+      assert.deepEqual(
+        yield* client.cancelGenieAgent({ params: cancelTarget }),
+        {
+          ...operation,
+          mode: "agent",
+          state: "cancelled",
+          status: "CANCELLED",
+        },
+      );
       assert.deepEqual(
         yield* client.genieResult({ params: operation, query: {} }),
         {
@@ -290,6 +315,13 @@ test("generated client round-trips every endpoint through the real HTTP contract
     ["tripCommentCounts", { tripIds: ["trip-1", "trip-2"] }],
     ["submit", { content: "Count trips", conversationId: "previous-1" }],
     ["poll", operation],
+    [
+      "cancelGenieAgent",
+      {
+        conversationId: operation.conversationId,
+        responseId: operation.messageId,
+      },
+    ],
     ["result", operation],
     ["save", savedView],
     ["pin", { id: savedView.id, version: 1, pinned: true }],

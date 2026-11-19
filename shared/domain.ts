@@ -263,6 +263,10 @@ export const GenieInput = Schema.Struct({
   ...GenieModeQuery.fields,
 });
 export const GeniePath = ChatOperation;
+export const GenieAgentPath = Schema.Struct({
+  conversationId: GenieId,
+  responseId: GenieId,
+});
 export const GenieOperation = Schema.Struct({
   ...ChatOperation.fields,
   ...GenieModeQuery.fields,
@@ -272,6 +276,7 @@ export { GenieAgentPhase };
 export const GenieProgress = Schema.Struct({
   ...ChatProgress.fields,
   phase: Schema.optionalKey(GenieAgentPhase),
+  state: Schema.Literals([...ChatProgress.fields.state.literals, "cancelled"]),
   ...GenieModeQuery.fields,
 });
 export type GenieProgress = typeof GenieProgress.Type;

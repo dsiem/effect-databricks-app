@@ -9,7 +9,18 @@ export const TurnBase = {
   context: Schema.optionalKey(D.GenieContext),
   ...D.GenieModeQuery.fields,
 };
+export const StoppingTurn = Schema.Struct({
+  ...TurnBase,
+  state: Schema.Literal("stopping"),
+  operation: D.GenieOperation,
+});
 export const Turn = Schema.Union([
+  StoppingTurn,
+  Schema.Struct({
+    ...TurnBase,
+    state: Schema.Literal("cancelled"),
+    operation: D.GenieOperation,
+  }),
   Schema.Struct({ ...TurnBase, state: Schema.Literal("submitting") }),
   Schema.Struct({
     ...TurnBase,
@@ -71,8 +82,15 @@ export type Model = typeof Model.Type;
 
 export const busy = (model: Model) =>
   model.turns.some((turn) =>
-    ["submitting", "waiting", "retrieving"].includes(turn.state),
+    ["submitting", "waiting", "stopping", "retrieving"].includes(turn.state),
   );
+
+export const stoppableOperation = (turn: Turn) =>
+  (turn.state === "waiting" ||
+    (turn.state === "paused" && turn.stage === "waiting")) &&
+  turn.operation.mode === "agent"
+    ? turn.operation
+    : undefined;
 
 export const init = (): Model => ({
   helperDialog: Dialog.init({

@@ -67,8 +67,8 @@ failures, and attachment execution errors through distinct tagged errors.
 Use `makeGenieAgentClient({ agentId, request })` with the same Genie space ID.
 When the request kind is `agent-submit`, send the provided body as JSON and pass
 the SSE response body to `readGenieAgentAcceptance`. The helper accepts an
-Effect stream of bytes and stops at `response.created`. For `agent-items`,
-return the decoded JSON body.
+Effect stream of bytes and stops at `response.created`. Return the decoded
+JSON body for `agent-items` and `agent-cancel`.
 
 Save the returned conversation and response IDs. Use them with `poll` and
 `result` to resume the turn through the conversation items API. The result
@@ -76,3 +76,8 @@ contains the final report, including its citation links and structured SQL
 previews. Use mode-specific conversation IDs for follow-ups. The app uses
 `GENIE_SPACE_ID` for both modes and exposes the mode selector in the Genie
 composer. Databricks workspace access to Agent mode is required.
+
+Call `cancel(operation)` to stop an in-flight Agent response in Databricks.
+Treat its returned state as authoritative and retrieve the answer if the
+Agent completed before cancellation. If the cancellation result is unknown,
+use `poll(operation)` to check the same response.

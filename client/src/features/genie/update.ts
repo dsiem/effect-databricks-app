@@ -6,7 +6,13 @@ import { syncDialog } from "../../lib/dialog";
 import type { FeatureUpdate } from "../../lib/feature-update";
 import * as GenieCommands from "./commands";
 import { Message as M, type Message } from "./messages";
-import { busy, type Model, type Turn, turnBase } from "./model";
+import {
+  busy,
+  stoppableOperation,
+  type Model,
+  type Turn,
+  turnBase,
+} from "./model";
 export function updateGenie(
   model: Model,
   message: Message,
@@ -133,6 +139,24 @@ export function updateGenie(
         operation: turn.operation,
         ...message.outcome,
       });
+    }
+    case "StopTurn": {
+      const turn = model.turns.find(({ id }) => id === message.id);
+      const operation = turn && stoppableOperation(turn);
+      if (!turn || !operation) return { model };
+      const stopping = {
+        ...turnBase(turn),
+        operation,
+        state: "stopping" as const,
+      };
+      const changed = changeTurn(model, turn, stopping);
+      return {
+        ...changed,
+        commands: [
+          ...(changed.commands ?? []),
+          GenieCommands.StopQuestion({ turn: stopping }),
+        ],
+      };
     }
     case "ResumeTurn": {
       if (busy(model)) return { model };

@@ -52,6 +52,7 @@ const appFor = (
             submit: () => effect,
             poll: () => effect,
             result: () => effect,
+            cancel: () => effect,
             ...overrides.genie,
           }),
           Layer.succeed(TripComments, {

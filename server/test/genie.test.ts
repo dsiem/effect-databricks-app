@@ -688,3 +688,40 @@ test("Agent mode reports workspace feature gating separately from a missing agen
     }
   }
 });
+
+test("Agent cancellation uses the accepted response IDs and returns Databricks' outcome", async () => {
+  for (const [status, state] of [
+    ["CANCELLED", "cancelled"],
+    ["COMPLETED", "completed"],
+  ]) {
+    const calls: Array<{ path: string; method: string }> = [];
+    const progress = await Effect.runPromise(
+      Effect.flatMap(Genie, (genie) =>
+        genie.cancel({
+          conversationId: "agent-conversation",
+          responseId: "agent-response",
+        }),
+      ).pipe(
+        Effect.provide(
+          provideGenie((path, method = "GET") => {
+            calls.push({ path, method });
+            return Effect.succeed({ status });
+          }),
+        ),
+      ),
+    );
+    assert.deepEqual(calls, [
+      {
+        method: "POST",
+        path: "/api/2.0/genie/agents/space/conversations/agent-conversation/responses/agent-response/cancel",
+      },
+    ]);
+    assert.deepEqual(progress, {
+      conversationId: "agent-conversation",
+      messageId: "agent-response",
+      mode: "agent",
+      status,
+      state,
+    });
+  }
+});

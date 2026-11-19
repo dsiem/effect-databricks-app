@@ -53,6 +53,8 @@ function poll(target: typeof PollTarget.Type, generation: number) {
         ] as const;
       }
       const data = polled.success;
+      if (data.state === "cancelled")
+        return [complete({ state: "cancelled" }), done] as const;
       if (data.state === "failed") {
         return [
           complete({
