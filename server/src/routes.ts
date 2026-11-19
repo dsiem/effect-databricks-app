@@ -30,6 +30,7 @@ const body = <const Code extends string>(code: Code, message: string) => ({
 
 const errorResponses = {
   InvalidRequest: ({ message }) => body("invalid_request", message),
+  PermissionDenied: ({ message }) => body("permission_denied", message),
   SavedViewConflict: ({ message }) => body("saved_view_conflict", message),
   SavedViewNotFound: ({ message }) => body("saved_view_not_found", message),
   AnalysisRunNotFound: ({ message }) => body("analysis_run_not_found", message),

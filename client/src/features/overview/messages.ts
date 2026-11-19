@@ -1,3 +1,4 @@
+import { Notice } from "../../lib/request-state";
 import { Tabs } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
@@ -8,7 +9,7 @@ export const messages = {
   LoadedOverview: {
     generation: Schema.Int,
     data: Schema.NullOr(D.Overview),
-    error: Schema.String,
+    error: Notice,
   },
 };
 

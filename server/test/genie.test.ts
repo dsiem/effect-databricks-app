@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Cause, ConfigProvider, Effect, Exit, Layer, Redacted } from "effect";
-import { unavailable } from "../src/errors.js";
+import { unavailable, UpstreamError } from "../src/errors.js";
 import { Genie } from "../src/genie.js";
 import { Settings } from "../src/settings.js";
 import { Workspace } from "../src/workspace.js";
@@ -131,6 +131,92 @@ const provideGenie = (request: typeof Workspace.Service.request) =>
       ),
     ),
   );
+
+test("Genie reports missing permissions during submission, polling and result retrieval", async () => {
+  const forbidden = new UpstreamError({
+    service: "workspace",
+    upstreamStatus: 403,
+    message: "private diagnostic",
+  });
+  const failures = await Effect.runPromise(
+    Effect.gen(function* () {
+      const genie = yield* Genie;
+      return [
+        yield* Effect.flip(genie.submit({ content: "Count trips" })),
+        yield* Effect.flip(
+          genie.submit({
+            content: "Again",
+            conversationId: operation.conversationId,
+          }),
+        ),
+        yield* Effect.flip(genie.poll(operation)),
+        yield* Effect.flip(genie.result(operation)),
+      ];
+    }).pipe(Effect.provide(provideGenie(() => Effect.fail(forbidden)))),
+  );
+  for (const failure of failures) {
+    assert.equal(failure._tag, "PermissionDenied");
+    assert.match(failure.message, /Genie/);
+    assert.doesNotMatch(failure.message, /private diagnostic/);
+  }
+});
+
+test("a Genie warehouse access failure stops both polling and direct retrieval", async () => {
+  const failed = {
+    ...message,
+    status: "FAILED",
+    error: {
+      type: "WAREHOUSE_ACCESS_MISSING_EXCEPTION",
+      error: "private diagnostic",
+    },
+  };
+  const failures = await Effect.runPromise(
+    Effect.gen(function* () {
+      const genie = yield* Genie;
+      return [
+        yield* Effect.flip(genie.poll(operation)),
+        yield* Effect.flip(genie.result(operation)),
+      ];
+    }).pipe(Effect.provide(provideGenie(() => Effect.succeed(failed)))),
+  );
+  for (const failure of failures) {
+    assert.equal(failure._tag, "PermissionDenied");
+    assert.equal(
+      failure.message,
+      "Even Genie needs permission to answer this question.",
+    );
+    assert.doesNotMatch(failure.message, /private diagnostic/);
+  }
+});
+
+test("Genie reports denied attachment queries instead of displaying an empty result", async () => {
+  for (const status of [
+    {
+      state: "FAILED",
+      error: { error_code: "PERMISSION_DENIED", message: "private diagnostic" },
+    },
+    { state: "FAILED", sql_state: "42501" },
+  ]) {
+    const failure = await Effect.runPromise(
+      Effect.flatMap(Genie, (genie) =>
+        Effect.flip(genie.result(operation)),
+      ).pipe(
+        Effect.provide(
+          provideGenie((path) =>
+            Effect.succeed(
+              path.endsWith("query-result")
+                ? { statement_response: { status } }
+                : message,
+            ),
+          ),
+        ),
+      ),
+    );
+    assert.equal(failure._tag, "PermissionDenied");
+    assert.match(failure.message, /Genie result/);
+    assert.doesNotMatch(failure.message, /private diagnostic/);
+  }
+});
 
 test("a failed result download can be retried with the same IDs without another submission", async () => {
   let submissions = 0;

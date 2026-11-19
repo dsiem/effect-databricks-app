@@ -11,7 +11,7 @@ import {
   type TripComments as TripCommentsPage,
 } from "../../shared/domain.js";
 import { InvalidRequest } from "./errors.js";
-import { Lakebase, type LakebaseSql, lakebaseUnavailable } from "./lakebase.js";
+import { Lakebase, type LakebaseSql, lakebaseFailure } from "./lakebase.js";
 
 const makeTripComments = (sql: LakebaseSql) => {
   const counts = ({ tripIds }: TripCommentCountSearch) =>
@@ -25,7 +25,9 @@ const makeTripComments = (sql: LakebaseSql) => {
         FROM app.trip_comments
         WHERE ${sql.in("trip_key", tripIds)} GROUP BY trip_key`,
     })(undefined).pipe(
-      Effect.mapError(lakebaseUnavailable),
+      Effect.mapError(
+        lakebaseFailure("The trip is in view. The comments are under lock."),
+      ),
       Effect.map((rows) => ({
         ...Object.fromEntries(tripIds.map((id) => [id, 0])),
         ...Object.fromEntries(rows.map((row) => [row.trip_key, row.count])),
@@ -53,7 +55,9 @@ const makeTripComments = (sql: LakebaseSql) => {
         }
         ORDER BY comments.created_at DESC, comments.id DESC LIMIT 26`,
     })(undefined).pipe(
-      Effect.mapError(lakebaseUnavailable),
+      Effect.mapError(
+        lakebaseFailure("The trip is in view. The comments are under lock."),
+      ),
       Effect.map((results): TripCommentsPage => {
         const rows = results.slice(0, 25);
         const last = rows.at(-1);
@@ -81,7 +85,9 @@ const makeTripComments = (sql: LakebaseSql) => {
           AND existing.author=EXCLUDED.author
         RETURNING ${columns}`,
     })(undefined).pipe(
-      Effect.mapError(lakebaseUnavailable),
+      Effect.mapError(
+        lakebaseFailure("You need permission to post this comment."),
+      ),
       Effect.flatMap((rows) =>
         rows[0]
           ? Effect.succeed(rows[0])

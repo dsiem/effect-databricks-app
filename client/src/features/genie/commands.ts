@@ -2,7 +2,7 @@ import { Effect, Schema } from "effect";
 import { Command } from "foldkit";
 import { ApiError, genieResultTimeoutMs } from "../../../../shared/api";
 import { request } from "../../lib/api-client";
-import { failure, result } from "../../lib/command-result";
+import { failure } from "../../lib/command-result";
 import { Message as M, QuestionSnapshot } from "./messages";
 import { History, Turn, turnBase } from "./model";
 const genieStorageKey = "databricks-effect-app.genie.v1";
@@ -60,9 +60,11 @@ export const SubmitQuestion = Command.define("SubmitQuestion", {
             turn: { ...turnBase(turn), state: "waiting", operation },
           }),
         onFailure: (error) => {
+          const problem = failure(error);
           const rejected =
             Schema.is(ApiError)(error) &&
             (error.error.code === "invalid_request" ||
+              error.error.code === "permission_denied" ||
               ("upstreamStatus" in error.error &&
                 [400, 401, 403, 404, 409, 422, 429].includes(
                   error.error.upstreamStatus ?? 0,
@@ -71,9 +73,12 @@ export const SubmitQuestion = Command.define("SubmitQuestion", {
             turn: {
               ...turnBase(turn),
               state: rejected ? "submission-rejected" : "submission-unknown",
-              error: rejected
-                ? `The question was rejected. ${failure(error)}`
-                : `${failure(error)} The question may have been accepted. Check Genie before submitting it again.`,
+              error:
+                typeof problem !== "string"
+                  ? problem
+                  : rejected
+                    ? `The question was rejected. ${problem}`
+                    : `${problem} The question may have been accepted. Check Genie before submitting it again.`,
             },
           });
         },
@@ -86,25 +91,36 @@ export const RetrieveQuestion = Command.define("RetrieveQuestion", {
   execute: ({ turn }) => {
     if (!("operation" in turn)) return Effect.succeed(M.ChangedTurn({ turn }));
     const operation = turn.operation;
-    return result(
-      request(
-        (client) => client.genieResult({ params: operation }),
-        genieResultTimeoutMs + 15_000,
-      ),
+    return request(
+      (client) => client.genieResult({ params: operation }),
+      genieResultTimeoutMs + 15_000,
     ).pipe(
-      Effect.map(({ data, error }) =>
-        M.ChangedTurn({
-          turn: data
-            ? { ...turnBase(turn), state: "complete", reply: data }
-            : {
-                ...turnBase(turn),
-                operation,
-                state: "paused",
-                stage: "retrieving",
-                error,
-              },
-        }),
-      ),
+      Effect.scoped,
+      Effect.mapError(failure),
+      Effect.match({
+        onSuccess: (reply) =>
+          M.ChangedTurn({
+            turn: { ...turnBase(turn), state: "complete", reply },
+          }),
+        onFailure: (error) =>
+          M.ChangedTurn({
+            turn:
+              typeof error !== "string"
+                ? {
+                    ...turnBase(turn),
+                    operation,
+                    error,
+                    state: "failed",
+                  }
+                : {
+                    ...turnBase(turn),
+                    operation,
+                    error,
+                    state: "paused",
+                    stage: "retrieving",
+                  },
+          }),
+      }),
     );
   },
 });

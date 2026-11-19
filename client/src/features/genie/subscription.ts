@@ -1,7 +1,7 @@
-import { Clock, Effect, Schema, Stream } from "effect";
+import { Clock, Effect, Result, Schema, Stream } from "effect";
 import { Subscription } from "foldkit";
 import { type ApiClient, request } from "../../lib/api-client";
-import { result } from "../../lib/command-result";
+import { failure } from "../../lib/command-result";
 import { Message as M, type Message, PollTarget } from "./messages";
 import type { Model } from "./model";
 
@@ -15,15 +15,21 @@ function poll(target: typeof PollTarget.Type, generation: number) {
     M.PolledQuestion({ ...target, generation, outcome });
   const pause = (error: string) =>
     complete({ state: "paused", stage: "waiting", error });
-  const read = result(
-    request((client) => client.pollGenie({ params: target.operation })),
-  );
+  const read = request((client) =>
+    client.pollGenie({ params: target.operation }),
+  ).pipe(Effect.scoped, Effect.mapError(failure), Effect.result);
   return Stream.fromEffect(
     Effect.gen(function* () {
       const deadline = (yield* Clock.currentTimeMillis) + 180_000;
       while (true) {
-        const { data, error } = yield* read;
-        if (!data) return pause(error);
+        const polled = yield* read;
+        if (Result.isFailure(polled)) {
+          const error = polled.failure;
+          return typeof error !== "string"
+            ? complete({ state: "failed", error })
+            : pause(error);
+        }
+        const data = polled.success;
         if (data.state === "failed") {
           return complete({
             state: "failed",

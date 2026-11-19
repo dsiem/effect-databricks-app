@@ -659,7 +659,9 @@ test("trip paging clears the previous selection and retries from the same cursor
     next.model,
     await respond(next, "LoadTrips", originalTimeout()),
   );
-  assert.match(failed.model.tripsState.trips.error, /timed out/);
+  const error = failed.model.tripsState.trips.error;
+  assert.ok(typeof error === "string");
+  assert.match(error, /timed out/);
   const retry = update(failed.model, AppMessage.LoadPage());
   const retried = await runRequest(retry, "LoadTrips", async (input) => {
     const url = new URL(input instanceof Request ? input.url : input);

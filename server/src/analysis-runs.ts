@@ -12,6 +12,7 @@ import { Analytics } from "./analytics.js";
 import {
   AnalysisReportPending,
   AnalysisRunNotFound,
+  mapWorkspacePermission,
   UpstreamError,
   unavailable,
 } from "./errors.js";
@@ -93,6 +94,8 @@ const runState = (run: Run): AnalysisRunState => {
 const failureReason = (run: Run) => {
   const code = terminationCode(run);
   switch (code) {
+    case "UNAUTHORIZED_ERROR":
+      return "This run stopped early. It needs permission to complete the analysis.";
     case "TIMED_OUT":
     case "TIMEDOUT":
       return "The Databricks run timed out.";
@@ -192,6 +195,11 @@ export const makeAnalysisRuns = Effect.gen(function* () {
           idempotency_token: token,
         }),
       ),
+      Effect.mapError(
+        mapWorkspacePermission(
+          "This run needs a green light. Starting an analysis requires permission.",
+        ),
+      ),
       Effect.flatMap(decode(Started)),
       Effect.map(({ run_id: id }) => ({ id })),
     );
@@ -201,6 +209,11 @@ export const makeAnalysisRuns = Effect.gen(function* () {
     Effect.andThen(
       workspace.request(
         `${jobs}/runs/list?job_id=${analysisJobId}&limit=${historyLimit}`,
+      ),
+    ),
+    Effect.mapError(
+      mapWorkspacePermission(
+        "The run history is under lock. You need permission to browse it.",
       ),
     ),
     Effect.flatMap(decode(Runs)),
@@ -222,7 +235,9 @@ export const makeAnalysisRuns = Effect.gen(function* () {
       Effect.mapError((error) =>
         error instanceof UpstreamError && error.upstreamStatus === 404
           ? notFound()
-          : error,
+          : mapWorkspacePermission(
+              "This run is under lock. You need permission to open it.",
+            )(error),
       ),
       Effect.flatMap(decode(Run)),
       Effect.filterOrFail(
@@ -238,6 +253,10 @@ export const makeAnalysisRuns = Effect.gen(function* () {
         return {
           ...details,
           input: submittedInput(run),
+          ...(details.state === "failed" &&
+          terminationCode(run) === "UNAUTHORIZED_ERROR"
+            ? { reasonCode: "permission_denied" }
+            : {}),
           reason: details.state === "failed" ? failureReason(run) : null,
         };
       }),

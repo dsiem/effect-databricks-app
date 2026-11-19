@@ -193,11 +193,10 @@ for (const { name, status, error } of [
   },
   {
     name: "permission",
-    status: 502,
+    status: 403,
     error: {
-      code: "workspace_request_failed",
-      message: "Access denied.",
-      upstreamStatus: 403,
+      code: "permission_denied",
+      message: "Even Genie needs permission to send this question.",
     },
   },
   {
@@ -232,13 +231,19 @@ for (const { name, status, error } of [
     );
     await page.goto("/genie");
     await send(page);
-    await expect(page.getByRole("alert")).toContainText(error.message);
-    await expect(page.getByRole("alert")).toContainText("was rejected");
+    const expectedMessage =
+      name === "permission"
+        ? error.message
+        : `The question was rejected. ${error.message}`;
+    await expect(page.getByRole("alert")).toHaveText(expectedMessage);
     await expect(page.getByRole("alert")).not.toContainText(
       "may have been accepted",
     );
     await page.reload();
-    await expect(page.getByRole("alert")).toContainText("was rejected");
+    await expect(page.getByRole("alert")).toHaveText(expectedMessage);
+    await expect(
+      page.getByRole("alert").locator('svg[aria-hidden="true"]'),
+    ).toHaveCount(name === "permission" ? 1 : 0);
     expect(submissions).toHaveLength(1);
     await page.getByRole("button", { name: "Edit question" }).click();
     const composer = page.getByLabel("Ask a question about taxi data");
@@ -253,6 +258,45 @@ for (const { name, status, error } of [
     ).toBeVisible();
     expect(submissions).toHaveLength(2);
     expect(submissions[1]).toMatchObject({ content: "Count trips by hour" });
+  });
+}
+
+for (const step of ["poll", "result"] as const) {
+  test(`permission denied during Genie ${step} ends the turn and survives reload`, async ({
+    page,
+  }) => {
+    const message =
+      "This conversation is under lock. You need permission to read Genie’s answer.";
+    const denied = {
+      status: 403,
+      json: { error: { code: "permission_denied", message } },
+    };
+    let polls = 0;
+    await page.route("**/api/genie", (route) =>
+      route.fulfill({ json: operation }),
+    );
+    await page.route(`**${messagePath}`, (route) => {
+      polls++;
+      return route.fulfill(
+        step === "poll"
+          ? denied
+          : {
+              json: { ...operation, state: "completed", status: "COMPLETED" },
+            },
+      );
+    });
+    await page.route(`**${messagePath}/result`, (route) =>
+      route.fulfill(denied),
+    );
+    await page.goto("/genie");
+    await send(page);
+    await expect(page.getByRole("alert")).toHaveText(message);
+    await page.reload();
+    await expect(page.getByRole("alert")).toHaveText(message);
+    await expect(
+      page.getByRole("button", { name: /Resume answer|Retry result download/ }),
+    ).toHaveCount(0);
+    expect(polls).toBe(1);
   });
 }
 

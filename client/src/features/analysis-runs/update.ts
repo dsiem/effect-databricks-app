@@ -1,5 +1,5 @@
 import { DatePicker, Dialog } from "@foldkit/ui";
-import { Option, Schema } from "effect";
+import { Option, Result, Schema } from "effect";
 import { AsyncData, Command, type Update } from "foldkit";
 import { AnalysisInput } from "../../../../shared/analysis-runs";
 import type { ApiClient } from "../../lib/api-client";
@@ -292,16 +292,22 @@ export function updateAnalysisRuns(
         selected.generation !== message.generation
       )
         return { model };
+      const result = message.result;
+      const detail = Result.match(result, {
+        onFailure: (error) => ({
+          data: typeof error === "string" ? selected.detail.data : null,
+          error,
+          loading: false,
+        }),
+        onSuccess: (data) => ({ data, error: "", loading: false }),
+      });
       const next = {
         ...selected,
-        detail: {
-          data: message.data ?? selected.detail.data,
-          error: message.error,
-          loading: false,
-        },
+        detail,
         observedAt: message.observedAt,
       };
-      if (message.data?.state === "succeeded") return loadReport(model, next);
+      if (Result.isSuccess(result) && result.success.state === "succeeded")
+        return loadReport(model, next);
       return { model: { ...model, selected: next } };
     }
     case "RetryAnalysisReport":

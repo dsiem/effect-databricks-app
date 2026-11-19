@@ -1,3 +1,4 @@
+import { Notice } from "../../lib/request-state";
 import { DatePicker, Dialog } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
@@ -25,25 +26,24 @@ const messages = {
     requestId: Id,
     generation: Schema.Int,
     data: Schema.NullOr(AnalysisRunReference),
-    error: Schema.String,
+    error: Notice,
   },
   RefreshAnalysisHistory: {},
   LoadedAnalysisHistory: {
     generation: Schema.Int,
-    result: Schema.Result(Schema.Array(AnalysisRunSummary), Schema.String),
+    result: Schema.Result(Schema.Array(AnalysisRunSummary), Notice),
   },
   RetryAnalysisStatus: {},
   LoadedAnalysisStatus: {
     ...Selection.fields,
-    data: Schema.NullOr(AnalysisRun),
-    error: Schema.String,
+    result: Schema.Result(AnalysisRun, Notice),
     observedAt: Schema.Int,
   },
   RetryAnalysisReport: {},
   LoadedAnalysisReport: {
     ...Selection.fields,
     data: Schema.NullOr(RouteReliabilityReport),
-    error: Schema.String,
+    error: Notice,
   },
   ReuseAnalysisInputs: { input: AnalysisInput },
 };

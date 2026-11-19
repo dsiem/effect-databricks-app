@@ -4,6 +4,7 @@ import { defineView } from "foldkit/submodel";
 import { money, number } from "../../lib/format";
 import { icon } from "../../ui/icons";
 import {
+  alert,
   badge,
   button,
   type Child,
@@ -96,6 +97,14 @@ function trips(h: H, model: Model, sort: typeof Sort.Type): Child[] {
             ),
           ],
         ),
+        ...(model.commentCounts.error
+          ? [
+              h.div(
+                [h.Class("px-4 py-2")],
+                [alert(h, model.commentCounts.error)],
+              ),
+            ]
+          : []),
         table(h, {
           caption: "Matching trips",
           headers: [

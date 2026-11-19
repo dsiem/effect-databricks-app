@@ -1,11 +1,16 @@
 import { Effect, Schema, type Scope } from "effect";
 import { ApiError } from "../../../shared/api";
+import { AccessDenied, type Notice } from "./request-state";
 import { Idle } from "./idle";
 
-export const failure = (error: unknown) =>
-  Schema.is(ApiError)(error)
-    ? error.error.message
-    : "Unable to complete the request. Check your connection and retry.";
+export const failure = (cause: unknown): Notice => {
+  if (!Schema.is(ApiError)(cause))
+    return "Unable to complete the request. Check your connection and retry.";
+  const { code, message } = cause.error;
+  return code === "permission_denied"
+    ? AccessDenied.make({ message })
+    : message;
+};
 // The shared HTTP contract is the only network error boundary.
 export const result = <A, E, R>(effect: Effect.Effect<A, E, R | Scope.Scope>) =>
   effect.pipe(

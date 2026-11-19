@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { tableFromArrays } from "apache-arrow";
-import { ConfigProvider, Layer } from "effect";
+import { ConfigProvider, Layer, Schema } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
+import { AnalysisRun } from "../../shared/analysis-runs.js";
+import { PermissionDeniedBody } from "../../shared/api.js";
 import { Analytics } from "../src/analytics.js";
 import { Genie } from "../src/genie.js";
 import { Lakebase } from "../src/lakebase.js";
@@ -28,7 +30,10 @@ test("analysis runs record the requester across retries, scope history and resul
   const report = { input, rows: [] };
   const submissions: unknown[] = [];
   let state = "QUEUED";
+  let termination = "SUCCESS";
+  let denyJob = false;
   let reads = 0;
+  let denyReport = false;
   const sql = warehouseFetch(async (statement, _signal, parameters) => {
     reads++;
     assert.match(
@@ -49,7 +54,22 @@ test("analysis runs record the requester across retries, scope history and resul
   globalThis.fetch = async (input, init) => {
     const request = new Request(input, init);
     const url = new URL(request.url);
-    if (!url.pathname.startsWith("/api/2.2/jobs/")) return sql(request);
+    if (!url.pathname.startsWith("/api/2.2/jobs/")) {
+      if (denyReport)
+        return Response.json({
+          statement_id: "denied",
+          status: {
+            state: "FAILED",
+            error: {
+              error_code: "PERMISSION_DENIED",
+              message: "internal diagnostic",
+            },
+          },
+        });
+      return sql(request);
+    }
+    if (denyJob)
+      return Response.json({ message: "private diagnostic" }, { status: 403 });
     const legacy = { job_id: 456, run_id: 125, status: { state } };
     const run = {
       ...legacy,
@@ -78,7 +98,7 @@ test("analysis runs record the requester across retries, scope history and resul
             : {}),
           status:
             state === "TERMINATED"
-              ? { state, termination_details: { code: "SUCCESS" } }
+              ? { state, termination_details: { code: termination } }
               : { state },
         });
       default:
@@ -192,4 +212,40 @@ test("analysis runs record the requester across retries, scope history and resul
   assert.equal(result.status, 200);
   assert.deepEqual(await result.json(), report);
   assert.equal(reads, 1);
+  denyReport = true;
+  const denied = await api("/123/result");
+  assert.equal(denied.status, 403);
+  assert.deepEqual(await denied.json(), {
+    error: {
+      code: "permission_denied",
+      message: "This report is under lock. You need permission to read it.",
+    },
+  });
+  assert.equal((await api("/123")).status, 200);
+
+  termination = "UNAUTHORIZED_ERROR";
+  const execution = await api("/123");
+  assert.equal(execution.status, 200);
+  const failedRun = Schema.decodeUnknownSync(AnalysisRun)(
+    await execution.json(),
+  );
+  assert.equal(failedRun.state, "failed");
+  assert.equal(failedRun.reasonCode, "permission_denied");
+  assert.ok(failedRun.reason);
+  assert.match(failedRun.reason, /permission to complete the analysis/);
+
+  denyJob = true;
+  for (const [response, action] of [
+    [await submit(), /Starting an analysis requires permission/],
+    [await api(), /permission to browse/],
+    [await api("/123"), /permission to open/],
+    [await api("/123/result"), /permission to open/],
+  ] as const) {
+    assert.equal(response.status, 403);
+    const { error } = Schema.decodeUnknownSync(PermissionDeniedBody)(
+      await response.json(),
+    );
+    assert.match(error.message, action);
+    assert.doesNotMatch(error.message, /private diagnostic/);
+  }
 });

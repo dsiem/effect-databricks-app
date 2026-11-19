@@ -23,6 +23,7 @@ import {
 import {
   type ServiceUnavailable,
   type OperationTimeout,
+  type PermissionDenied,
   unavailable,
 } from "./errors.js";
 import { Settings } from "./settings.js";
@@ -35,7 +36,7 @@ import {
 import { tripDetailsProjection } from "./trip-sql.js";
 import { makeWarehouse } from "./warehouse.js";
 
-type WarehouseError = ServiceUnavailable | OperationTimeout;
+type WarehouseError = ServiceUnavailable | OperationTimeout | PermissionDenied;
 
 export class Analytics extends Context.Service<
   Analytics,
@@ -72,6 +73,7 @@ export class Analytics extends Context.Service<
           }),
           sql`SELECT report_json FROM ${sql(catalog)}.${sql(schema)}.${sql(table)}
               WHERE run_id = CAST(${String(id)} AS BIGINT) LIMIT 1`,
+          "This report is under lock. You need permission to read it.",
         ).pipe(
           Effect.mapError((cause) =>
             cause._tag === "ServiceUnavailable"

@@ -5,6 +5,10 @@ export class InvalidRequest extends Data.TaggedError("InvalidRequest")<{
   readonly cause?: unknown;
 }> {}
 
+export class PermissionDenied extends Data.TaggedError("PermissionDenied")<{
+  readonly message: string;
+}> {}
+
 export class SavedViewNotFound extends Data.TaggedError("SavedViewNotFound")<{
   readonly id: string;
   readonly message: string;
@@ -51,12 +55,14 @@ export class GenieFailed extends Data.TaggedError("GenieFailed")<{
 }> {}
 
 export type WorkspaceRequestError =
+  | PermissionDenied
   | ServiceUnavailable
   | UpstreamError
   | OperationTimeout;
 
 export type ServiceError =
   | InvalidRequest
+  | PermissionDenied
   | SavedViewNotFound
   | AnalysisRunNotFound
   | AnalysisReportPending
@@ -71,3 +77,13 @@ export const unavailable = (
   message: string,
   cause?: unknown,
 ) => new ServiceUnavailable({ service, message, cause });
+
+export const isWorkspacePermissionDenied = (cause: unknown) =>
+  cause instanceof UpstreamError && cause.upstreamStatus === 403;
+
+export const permissionDenied = (message: string) =>
+  new PermissionDenied({ message });
+
+export const mapWorkspacePermission =
+  (message: string) => (error: WorkspaceRequestError) =>
+    isWorkspacePermissionDenied(error) ? permissionDenied(message) : error;

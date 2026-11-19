@@ -2,6 +2,22 @@
   .error-text {
     color: var(--danger);
   }
+  .permission-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    padding: 0.625rem 0.75rem;
+    width: fit-content;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--subtle);
+    color: var(--secondary);
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+  }
+  .permission-notice .icon {
+    margin-top: 0.125rem;
+  }
   .icon {
     display: inline-block;
     width: 1rem;

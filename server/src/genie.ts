@@ -9,7 +9,9 @@ import {
 import { makeAdmission } from "./admission.js";
 import {
   GenieFailed,
+  mapWorkspacePermission,
   OperationTimeout,
+  permissionDenied,
   type WorkspaceRequestError,
   UpstreamError,
   unavailable,
@@ -27,9 +29,11 @@ const SubmittedMessage = Schema.Struct({
 const MessageStatus = Schema.Struct({
   ...SubmittedMessage.fields,
   status: Schema.String,
+  error: Schema.optionalKey(
+    Schema.NullOr(Schema.Struct({ type: Schema.optionalKey(Schema.String) })),
+  ),
 });
-const Message = Schema.Struct({
-  ...MessageStatus.fields,
+const MessageAttachments = Schema.Struct({
   attachments: Schema.optionalKey(
     Schema.Array(
       Schema.Union([
@@ -53,6 +57,15 @@ const Started = Schema.Struct({
 });
 const Result = Schema.Struct({
   statement_response: Schema.Struct({
+    status: Schema.optionalKey(
+      Schema.Struct({
+        state: Schema.String,
+        sql_state: Schema.optionalKey(Schema.String),
+        error: Schema.optionalKey(
+          Schema.Struct({ error_code: Schema.optionalKey(Schema.String) }),
+        ),
+      }),
+    ),
     manifest: Schema.optionalKey(
       Schema.Struct({
         truncated: Schema.optionalKey(Schema.Boolean),
@@ -132,13 +145,29 @@ export class Genie extends Context.Service<
               ? "failed"
               : "pending",
       });
-      const readMessage = <A>(
-        operation: GenieOperation,
-        schema: Schema.Decoder<A>,
-      ) =>
-        workspace
-          .request(path(operation))
-          .pipe(Effect.flatMap((data) => decode(schema, data)));
+      const readMessage = (operation: GenieOperation) =>
+        Effect.gen(function* () {
+          const data = yield* workspace
+            .request(path(operation))
+            .pipe(
+              Effect.mapError(
+                mapWorkspacePermission(
+                  "This conversation is under lock. You need permission to read Genie’s answer.",
+                ),
+              ),
+            );
+          const status = yield* decode(MessageStatus, data);
+          if (
+            status.status === "FAILED" &&
+            status.error?.type === "WAREHOUSE_ACCESS_MISSING_EXCEPTION"
+          )
+            return yield* Effect.fail(
+              permissionDenied(
+                "Even Genie needs permission to answer this question.",
+              ),
+            );
+          return { data, status };
+        });
       const submit = (input: typeof GenieInput.Type) =>
         Effect.gen(function* () {
           if (input.conversationId) {
@@ -171,25 +200,34 @@ export class Genie extends Context.Service<
             conversationId: started.conversation_id,
             messageId: started.message.message_id,
           };
-        }).pipe(admitSubmission, Effect.withSpan("genie.submit"));
+        }).pipe(
+          Effect.mapError(
+            mapWorkspacePermission(
+              "Even Genie needs permission to send this question.",
+            ),
+          ),
+          admitSubmission,
+          Effect.withSpan("genie.submit"),
+        );
       const poll = (operation: GenieOperation) =>
-        readMessage(operation, MessageStatus).pipe(
-          Effect.map(progress),
+        readMessage(operation).pipe(
+          Effect.map(({ status }) => progress(status)),
           Effect.withSpan("genie.poll"),
         );
       const result = (operation: GenieOperation) =>
         Effect.gen(function* () {
-          const message = yield* readMessage(operation, Message);
-          if (message.status !== "COMPLETED")
+          const { data, status } = yield* readMessage(operation);
+          if (status.status !== "COMPLETED")
             return yield* Effect.fail(
               new GenieFailed({
-                status: message.status,
+                status: status.status,
                 message:
-                  progress(message).state === "failed"
-                    ? `Genie could not complete this question (${message.status}).`
+                  progress(status).state === "failed"
+                    ? `Genie could not complete this question (${status.status}).`
                     : "This answer is still processing. Resume waiting for it.",
               }),
             );
+          const message = yield* decode(MessageAttachments, data);
           const queries = yield* Effect.forEach(
             (message.attachments ?? []).filter(
               (attachment) => "query" in attachment,
@@ -200,8 +238,34 @@ export class Genie extends Context.Service<
                   .request(
                     `${path(operation)}/attachments/${encodeURIComponent(attachment.attachment_id)}/query-result`,
                   )
-                  .pipe(Effect.flatMap((data) => decode(Result, data)));
+                  .pipe(
+                    Effect.mapError(
+                      mapWorkspacePermission(
+                        "This Genie result is under lock. You need permission to read it.",
+                      ),
+                    ),
+                    Effect.flatMap((data) => decode(Result, data)),
+                  );
                 const statement = result.statement_response;
+                if (statement.status?.state === "FAILED") {
+                  if (
+                    statement.status.error?.error_code ===
+                      "PERMISSION_DENIED" ||
+                    statement.status.sql_state?.startsWith("425")
+                  )
+                    return yield* Effect.fail(
+                      permissionDenied(
+                        "This Genie result is under lock. You need permission to read it.",
+                      ),
+                    );
+                  return yield* Effect.fail(
+                    new GenieFailed({
+                      status: "FAILED",
+                      message:
+                        "Genie could not execute the query for this answer.",
+                    }),
+                  );
+                }
                 const rows = statement.result?.data_array ?? [];
                 return {
                   sql: attachment.query.query,

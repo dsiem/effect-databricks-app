@@ -51,6 +51,7 @@ export const AnalysisRun = Schema.Struct({
   ...AnalysisRunSummary.fields,
   input: Schema.NullOr(AnalysisInput),
   reason: Schema.NullOr(Schema.String),
+  reasonCode: Schema.optionalKey(Schema.Literal("permission_denied")),
 });
 
 export const RouteReliabilityRow = Schema.Struct({

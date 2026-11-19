@@ -1,3 +1,4 @@
+import type { Notice } from "../../lib/request-state";
 import { Input, Popover } from "@foldkit/ui";
 import { Option } from "effect";
 import type { SavedView } from "../../../../shared/domain";
@@ -22,7 +23,7 @@ type PickerModel = Model & {
   readonly customFilters: boolean;
   readonly canSave: boolean;
   readonly mutationBusy: boolean;
-  readonly mutationError: string;
+  readonly mutationError: Notice;
 };
 
 function viewRow(

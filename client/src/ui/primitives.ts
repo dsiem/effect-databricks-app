@@ -1,3 +1,5 @@
+import type { Notice } from "../lib/request-state";
+import { icon } from "./icons";
 import { Button } from "@foldkit/ui";
 import type { Attribute, Html, HtmlBuilder } from "foldkit/html";
 export type H<Message> = HtmlBuilder<Message>;
@@ -122,12 +124,16 @@ export const title = <Message>(
   );
 export const loading = <Message>(h: H<Message>, text = "Loading…") =>
   card(h, [h.p([h.Role("status")], [text])], "loading");
-export const error = <Message>(h: H<Message>, text: string, retry?: Message) =>
+export const error = <Message>(h: H<Message>, text: Notice, retry?: Message) =>
   card(
     h,
     [
-      h.h2([], ["Request failed"]),
-      h.p([h.Role("alert"), h.Class("muted mt-2")], [text]),
+      ...(typeof text === "string"
+        ? [
+            h.h2([], ["Request failed"]),
+            h.p([h.Role("alert"), h.Class("muted mt-2")], [text]),
+          ]
+        : [alert(h, text)]),
       ...(retry
         ? [
             button(h, {
@@ -140,8 +146,13 @@ export const error = <Message>(h: H<Message>, text: string, retry?: Message) =>
     ],
     "p-8",
   );
-export const alert = <Message>(h: H<Message>, text: string) =>
-  h.p([h.Role("alert"), h.Class("text-sm error-text")], [text]);
+export const alert = <Message>(h: H<Message>, notice: Notice, detail = "") =>
+  typeof notice === "string"
+    ? h.p([h.Role("alert"), h.Class("text-sm error-text")], [notice + detail])
+    : h.p(
+        [h.Role("alert"), h.Class("permission-notice")],
+        [icon(h, "lock"), h.span([], [notice.message + detail])],
+      );
 export const table = <Message>(
   h: H<Message>,
   options: {

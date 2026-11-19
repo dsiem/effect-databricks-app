@@ -3,6 +3,19 @@
 import type { H } from "./primitives";
 
 const shapes = {
+  lock: <Message>(h: H<Message>) => [
+    h.rect(
+      [
+        h.Attribute("x", "4"),
+        h.Attribute("y", "10"),
+        h.Attribute("width", "16"),
+        h.Attribute("height", "11"),
+        h.Attribute("rx", "2"),
+      ],
+      [],
+    ),
+    h.path([h.Attribute("d", "M8 10V7a4 4 0 0 1 8 0v3")], []),
+  ],
   search: <Message>(h: H<Message>) => [
     h.path([h.Attribute("d", "m21 21-4.3-4.3")], []),
     h.circle(

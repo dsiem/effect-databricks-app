@@ -2,7 +2,7 @@ import { Tabs } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as D from "../../../../shared/domain";
 import { MapCellSummary, MapSummary } from "../../../../shared/map-dataset";
-import { empty, request } from "../../lib/request-state";
+import { empty, Notice, request } from "../../lib/request-state";
 export const Model = Schema.Struct({
   endpoint: D.GpsEndpoint,
   endpointTabs: Tabs.Model,
@@ -11,7 +11,7 @@ export const Model = Schema.Struct({
   selected: Schema.NullOr(Schema.String),
   selectedCell: Schema.NullOr(MapCellSummary),
   renderedKey: Schema.String,
-  mapError: Schema.String,
+  mapError: Notice,
 });
 export type Model = typeof Model.Type;
 export const endpointName = (endpoint: D.GpsEndpoint) =>

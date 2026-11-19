@@ -1,3 +1,4 @@
+import { Notice } from "../../lib/request-state";
 import { Dialog, Popover } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
@@ -21,7 +22,7 @@ const messages = {
   SaveSavedView: {},
   SavedViewSaved: {
     savedView: Schema.NullOr(D.SavedView),
-    error: Schema.String,
+    error: Notice,
   },
   LoadSavedViews: { more: Schema.Boolean },
   SavedViewSearchChanged: { value: Schema.String },
@@ -32,7 +33,7 @@ const messages = {
     version: Schema.Number,
     data: Schema.NullOr(Shortcuts),
     recentIds: RecentIds,
-    error: Schema.String,
+    error: Notice,
   },
   CompletedCancelLoadSavedViews: {
     version: Schema.Number,
@@ -41,7 +42,7 @@ const messages = {
   },
   LoadedSavedViews: {
     data: Schema.NullOr(D.SavedViewsPage),
-    error: Schema.String,
+    error: Notice,
     more: Schema.Boolean,
     pages: Schema.Number,
     version: Schema.Number,
@@ -49,7 +50,7 @@ const messages = {
   PinSavedView: { savedView: D.SavedView },
   DeleteSavedView: { savedView: D.SavedView },
   ConfirmDelete: {},
-  MutatedSavedView: { removed: Schema.Boolean, error: Schema.String },
+  MutatedSavedView: { removed: Schema.Boolean, error: Notice },
   RestoreView: { savedView: D.SavedView },
 };
 

@@ -41,11 +41,15 @@ export const LoadHistory = Command.define("LoadAnalysisHistory", {
 
 export const loadStatus = (selection: typeof Selection.Type) =>
   Effect.gen(function* () {
-    const loaded = yield* result(
-      request((client) => client.analysisRun({ params: { id: selection.id } })),
-    );
+    const status = yield* request((client) =>
+      client.analysisRun({ params: { id: selection.id } }),
+    ).pipe(Effect.scoped, Effect.mapError(failure), Effect.result);
     const observedAt = yield* Clock.currentTimeMillis;
-    return M.LoadedAnalysisStatus({ ...selection, ...loaded, observedAt });
+    return M.LoadedAnalysisStatus({
+      ...selection,
+      observedAt,
+      result: status,
+    });
   });
 
 export const LoadReport = Command.define("LoadAnalysisReport", {

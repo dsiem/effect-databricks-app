@@ -1,3 +1,4 @@
+import { Notice } from "../../lib/request-state";
 import { Dialog } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
@@ -11,7 +12,7 @@ export const messages = {
   LoadedTrips: {
     generation: Schema.Int,
     data: Schema.NullOr(D.Trips),
-    error: Schema.String,
+    error: Notice,
   },
   NextPage: {},
   PreviousPage: {},
@@ -21,19 +22,19 @@ export const messages = {
   LoadedCommentCounts: {
     version: Schema.Number,
     data: Schema.NullOr(D.TripCommentCounts),
-    error: Schema.String,
+    error: Notice,
   },
   LoadComments: { more: Schema.Boolean },
   LoadedComments: {
     tripId: Schema.String,
     generation: Schema.Int,
     data: Schema.NullOr(D.TripComments),
-    error: Schema.String,
+    error: Notice,
     more: Schema.Boolean,
   },
   CommentChanged: { body: Schema.String },
   PostComment: {},
-  PostedComment: { input: D.TripCommentInput, error: Schema.String },
+  PostedComment: { input: D.TripCommentInput, error: Notice },
 };
 
 export const Message = defineMessageUnion({ Idle: {}, ...messages });

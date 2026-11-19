@@ -14,7 +14,11 @@ import {
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as SqlClient from "effect/sql/SqlClient";
 import type { Connection } from "effect/sql/SqlConnection";
-import { SqlError, UnknownError } from "effect/sql/SqlError";
+import {
+  AuthorizationError,
+  SqlError,
+  UnknownError,
+} from "effect/sql/SqlError";
 import type { SavedView, SavedViewSearch } from "../../shared/domain.js";
 import {
   type ServiceError,
@@ -165,6 +169,34 @@ const withRows = <A, E>(
       );
     }).pipe(Effect.provide(Reactivity.layer), Effect.scoped),
   );
+
+test("saved view writes report denied table access", async () => {
+  const denied = new SqlError({
+    reason: new AuthorizationError({ cause: undefined, operation: "query" }),
+  });
+  const result = await withRows(Effect.fail(denied), (views) =>
+    views.pin(input.id, { version: 1, pinned: true }),
+  );
+  assert.ok(Exit.isFailure(result));
+  const error = Cause.findErrorOption(result.cause);
+  assert.ok(error._tag === "Some" && error.value._tag === "PermissionDenied");
+  assert.match(error.value.message, /permission to save it/);
+});
+
+test("a denied Lakebase credential request stays a permission error", async () => {
+  const denied = new UpstreamError({
+    service: "workspace",
+    upstreamStatus: 403,
+    message: "internal diagnostic",
+  });
+  const exit = await runSavedViews(Effect.fail(denied), (views) =>
+    views.list({}),
+  );
+  assert.ok(Exit.isFailure(exit));
+  const error = Cause.findErrorOption(exit.cause);
+  assert.ok(error._tag === "Some" && error.value._tag === "PermissionDenied");
+  assert.match(error.value.message, /access saved views and comments/);
+});
 
 test("saved views maps SQL failures without losing the original cause", async () => {
   const sqlError = new SqlError({

@@ -277,7 +277,10 @@ function inspector(h: H, model: Model) {
             ? [
                 alert(
                   h,
-                  `${model.postError} Your draft is kept here. Retry when ready.`,
+                  model.postError,
+                  typeof model.postError === "string"
+                    ? " Your draft is kept here. Retry when ready."
+                    : " Your draft is kept here.",
                 ),
               ]
             : []),

@@ -50,6 +50,10 @@ export const InvalidRequestBody = errorBody(
   400,
 );
 const NotFoundBody = errorBody(Schema.Literal("saved_view_not_found"), 404);
+export const PermissionDeniedBody = errorBody(
+  Schema.Literal("permission_denied"),
+  403,
+);
 const AnalysisRunNotFoundBody = errorBody(
   Schema.Literal("analysis_run_not_found"),
   404,
@@ -85,6 +89,7 @@ const TimeoutBody = errorBody(
 );
 const errors = [
   InvalidRequestBody,
+  PermissionDeniedBody,
   NotFoundBody,
   AnalysisRunNotFoundBody,
   AnalysisReportPendingBody,
@@ -111,13 +116,26 @@ export class ApiBoundary extends HttpApiMiddleware.Service<ApiBoundary>()(
 
 export const genieResultTimeoutMs = 180_000;
 
-const warehouseErrors = [UnavailableBody, TimeoutBody] as const;
-const workspaceErrors = [UnavailableBody, UpstreamBody, TimeoutBody] as const;
-const savedViewWriteErrors = [
+const warehouseErrors = [
+  PermissionDeniedBody,
+  UnavailableBody,
+  TimeoutBody,
+] as const;
+const workspaceErrors = [
+  PermissionDeniedBody,
+  UnavailableBody,
+  UpstreamBody,
+  TimeoutBody,
+] as const;
+const lakebaseErrors = [
   InvalidRequestBody,
+  PermissionDeniedBody,
+  UnavailableBody,
+] as const;
+const savedViewWriteErrors = [
+  ...lakebaseErrors,
   NotFoundBody,
   SavedViewConflictBody,
-  UnavailableBody,
 ] as const;
 
 export const AppApi = HttpApi.make("taxi").add(
@@ -199,22 +217,22 @@ export const AppApi = HttpApi.make("taxi").add(
       HttpApiEndpoint.get("savedViews", "/api/saved-views", {
         query: SavedViewSearch,
         success: SavedViewsPage,
-        error: [InvalidRequestBody, UnavailableBody],
+        error: lakebaseErrors,
       }),
       HttpApiEndpoint.get("tripComments", "/api/trip-comments", {
         query: TripCommentSearch,
         success: TripComments,
-        error: [InvalidRequestBody, UnavailableBody],
+        error: lakebaseErrors,
       }).annotate(HttpApi.QueryParseOptions, { onExcessProperty: "error" }),
       HttpApiEndpoint.get("tripCommentCounts", "/api/trip-comment-counts", {
         query: TripCommentCountSearch,
         success: TripCommentCounts,
-        error: [InvalidRequestBody, UnavailableBody],
+        error: lakebaseErrors,
       }),
       HttpApiEndpoint.post("addTripComment", "/api/trip-comments", {
         payload: TripCommentInput,
         success: TripComment,
-        error: [InvalidRequestBody, UnavailableBody],
+        error: lakebaseErrors,
       }),
       HttpApiEndpoint.put("saveSavedView", "/api/saved-views", {
         payload: SavedViewInput,

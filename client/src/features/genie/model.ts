@@ -1,3 +1,4 @@
+import { Notice } from "../../lib/request-state";
 import { Dialog } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as D from "../../../../shared/domain";
@@ -12,7 +13,7 @@ export const Turn = Schema.Union([
   Schema.Struct({
     ...TurnBase,
     state: Schema.Literals(["submission-rejected", "submission-unknown"]),
-    error: Schema.String,
+    error: Notice,
   }),
   Schema.Struct({
     ...TurnBase,
@@ -24,13 +25,13 @@ export const Turn = Schema.Union([
     state: Schema.Literal("paused"),
     operation: D.GenieOperation,
     stage: Schema.Literals(["waiting", "retrieving"]),
-    error: Schema.String,
+    error: Notice,
   }),
   Schema.Struct({
     ...TurnBase,
     state: Schema.Literal("failed"),
     operation: D.GenieOperation,
-    error: Schema.String,
+    error: Notice,
   }),
   Schema.Struct({
     ...TurnBase,

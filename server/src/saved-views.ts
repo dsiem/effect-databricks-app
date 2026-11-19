@@ -10,7 +10,7 @@ import {
   type SavedViewsPage,
 } from "../../shared/domain.js";
 import { SavedViewConflict, SavedViewNotFound } from "./errors.js";
-import { Lakebase, type LakebaseSql, lakebaseUnavailable } from "./lakebase.js";
+import { Lakebase, type LakebaseSql, lakebaseFailure } from "./lakebase.js";
 
 const makeSavedViews = (sql: LakebaseSql) => {
   const columns = sql`id::text AS id, title, body, filters, pinned, version,
@@ -42,7 +42,11 @@ const makeSavedViews = (sql: LakebaseSql) => {
       ])}
       ORDER BY saved_views.pinned DESC, saved_views.updated_at DESC, saved_views.id DESC LIMIT ${pageSize + 1}`,
     })(undefined).pipe(
-      Effect.mapError(lakebaseUnavailable),
+      Effect.mapError(
+        lakebaseFailure(
+          "Saved views are under lock. You need permission to open them.",
+        ),
+      ),
       Effect.map((results): SavedViewsPage => {
         const rows = results.slice(0, pageSize);
         const last = rows.at(-1);
@@ -74,7 +78,11 @@ const makeSavedViews = (sql: LakebaseSql) => {
     });
   const missingWrite = (id: string) =>
     sql`SELECT id FROM app.saved_views WHERE id = ${id}::uuid`.pipe(
-      Effect.mapError(lakebaseUnavailable),
+      Effect.mapError(
+        lakebaseFailure(
+          "Saved views are under lock. You need permission to open them.",
+        ),
+      ),
       Effect.flatMap((rows) =>
         Effect.fail(rows.length ? conflict(id) : notFound(id)),
       ),
@@ -85,7 +93,11 @@ const makeSavedViews = (sql: LakebaseSql) => {
       Result: SavedView,
       execute,
     })(undefined).pipe(
-      Effect.mapError(lakebaseUnavailable),
+      Effect.mapError(
+        lakebaseFailure(
+          "This view is locked for changes. You need permission to save it.",
+        ),
+      ),
       Effect.flatMap((rows) =>
         rows[0] ? Effect.succeed(rows[0]) : missingWrite(id),
       ),
@@ -110,7 +122,11 @@ const makeSavedViews = (sql: LakebaseSql) => {
     ).pipe(Effect.withSpan("savedViews.pin"));
   const remove = (id: string, version: number) =>
     sql`DELETE FROM app.saved_views WHERE id = ${id}::uuid AND version=${version} RETURNING id`.pipe(
-      Effect.mapError(lakebaseUnavailable),
+      Effect.mapError(
+        lakebaseFailure(
+          "This view is staying put. You need permission to delete it.",
+        ),
+      ),
       Effect.flatMap((rows) => (rows.length ? Effect.void : missingWrite(id))),
     );
   return { list, save, pin, remove };

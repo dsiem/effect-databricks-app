@@ -1,7 +1,7 @@
 import { Dialog } from "@foldkit/ui";
 import { Schema } from "effect";
 import * as D from "../../../../shared/domain";
-import { empty, request } from "../../lib/request-state";
+import { empty, Notice, request } from "../../lib/request-state";
 export const Sort = D.TripSort;
 const CommentDraft = Schema.Union([
   Schema.Struct({
@@ -26,7 +26,7 @@ export const Model = Schema.Struct({
   commentCountsVersion: Schema.Number,
   commentDrafts: Schema.Record(Schema.String, CommentDraft),
   postingTripId: Schema.NullOr(D.TripSnapshot.fields.trip_id),
-  postError: Schema.String,
+  postError: Notice,
   posted: Schema.String,
 });
 

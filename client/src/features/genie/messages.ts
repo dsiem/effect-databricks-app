@@ -1,3 +1,4 @@
+import { Notice } from "../../lib/request-state";
 import { Dialog } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
@@ -20,9 +21,9 @@ const PollOutcome = Schema.Union([
   Schema.Struct({
     state: Schema.Literal("paused"),
     stage: Schema.Literal("waiting"),
-    error: Schema.String,
+    error: Notice,
   }),
-  Schema.Struct({ state: Schema.Literal("failed"), error: Schema.String }),
+  Schema.Struct({ state: Schema.Literal("failed"), error: Notice }),
 ]);
 
 export const messages = {

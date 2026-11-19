@@ -11,7 +11,7 @@ import {
 } from "../../../../shared/analysis-runs";
 import { Id } from "../../../../shared/domain";
 import { href } from "../../domain/filters";
-import { request } from "../../lib/request-state";
+import { Notice, request } from "../../lib/request-state";
 
 export const Draft = Schema.Struct({
   baselineWeek: Schema.String,
@@ -28,7 +28,7 @@ export const Selection = Schema.Struct({
 
 const Ready = Schema.TaggedStruct("Ready", {
   retryId: Schema.NullOr(Id),
-  error: Schema.String,
+  error: Notice,
 });
 const Submission = Schema.Union([
   Ready,
@@ -42,8 +42,10 @@ export const AnalysisRunLink = Schema.Union([
 ]);
 export type AnalysisRunLink = typeof AnalysisRunLink.Type;
 
-export const readyToSubmit = (retryId: string | null = null, error = "") =>
-  Ready.make({ retryId, error });
+export const readyToSubmit = (
+  retryId: string | null = null,
+  error: Notice = "",
+) => Ready.make({ retryId, error });
 
 export const Model = Schema.Struct({
   dialog: Dialog.Model,
@@ -58,8 +60,7 @@ export const Model = Schema.Struct({
   generation: Schema.Int,
   invalidLink: Schema.Boolean,
   historyGeneration: Schema.Int,
-  recent: AsyncData.Schema(Schema.Array(AnalysisRunSummary), Schema.String)
-    .schema,
+  recent: AsyncData.Schema(Schema.Array(AnalysisRunSummary), Notice).schema,
   selected: Schema.NullOr(
     Schema.Struct({
       ...Selection.fields,

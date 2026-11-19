@@ -1,5 +1,85 @@
 import { expect, test } from "@playwright/test";
 
+test("a denied report leaves the completed run and its inputs visible", async ({
+  page,
+}, testInfo) => {
+  const message = "This report is under lock. You need permission to read it.";
+  await page.route("**/api/analysis-runs/123", (route) =>
+    route.fulfill({
+      json: {
+        id: 123,
+        state: "succeeded",
+        requestedBy: "Avery Morgan",
+        input: {
+          baselineWeek: "2016-01-04",
+          comparisonWeek: "2016-01-11",
+          minimumTrips: 50,
+        },
+        startedAt: Date.UTC(2026, 10, 19, 8),
+        endedAt: Date.UTC(2026, 10, 19, 8, 1),
+        reason: null,
+      },
+    }),
+  );
+  await page.route("**/api/analysis-runs/123/result", (route) =>
+    route.fulfill({
+      status: 403,
+      json: { error: { code: "permission_denied", message } },
+    }),
+  );
+  await page.goto("/analysis?run=123");
+  await expect(page.getByRole("alert")).toHaveText(message);
+  await expect(page.getByRole("heading", { name: "Run #123" })).toBeVisible();
+  await expect(page.getByText("Minimum trips per week")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Use these inputs" }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("alert").locator('svg[aria-hidden="true"]'),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("report-permission.png"),
+    animations: "disabled",
+  });
+});
+
+test("a status permission denial clears the stale running state", async ({
+  page,
+}) => {
+  const message = "This run is under lock. You need permission to open it.";
+  let allowed = true;
+  await page.route("**/api/analysis-runs/123", (route) =>
+    route.fulfill(
+      allowed
+        ? {
+            json: {
+              id: 123,
+              state: "running",
+              requestedBy: "Avery Morgan",
+              startedAt: null,
+              endedAt: null,
+              input: null,
+              reason: null,
+            },
+          }
+        : {
+            status: 403,
+            json: { error: { code: "permission_denied", message } },
+          },
+    ),
+  );
+  await page.goto("/analysis?run=123");
+  const running = page.getByRole("status").filter({ hasText: "Running" });
+  await expect(running).toBeVisible();
+  allowed = false;
+  await expect(page.getByRole("alert")).toHaveText(message, { timeout: 10000 });
+  await expect(running).toBeHidden();
+  await expect(page.getByText("Started by Avery Morgan")).toBeHidden();
+  allowed = true;
+  await page.getByRole("button", { name: "Check status" }).click();
+  await expect(running).toBeVisible();
+});
+
 test("analysis retries safely and a run link resumes monitoring and reuses inputs", async ({
   page,
 }) => {

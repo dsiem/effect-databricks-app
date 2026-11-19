@@ -1,3 +1,4 @@
+import { Notice } from "../../lib/request-state";
 import { Tabs } from "@foldkit/ui";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
@@ -7,11 +8,11 @@ export const messages = {
   LoadedGps: {
     key: Schema.String,
     data: Schema.NullOr(MapSummary),
-    error: Schema.String,
+    error: Notice,
   },
   GpsReady: {
     key: Schema.String,
-    error: Schema.String,
+    error: Notice,
     selectedCell: Schema.optionalKey(Schema.NullOr(MapCellSummary)),
   },
   GpsSelect: { id: Schema.NullOr(Schema.String) },

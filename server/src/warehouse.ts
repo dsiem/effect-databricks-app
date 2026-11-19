@@ -1,9 +1,9 @@
 import { Effect, Schema } from "effect";
-import { AuthenticationError, SqlError } from "effect/sql/SqlError";
+import { AuthenticationError, isSqlError, SqlError } from "effect/sql/SqlError";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import { DatabricksClient } from "effect-sql-databricks";
 import { makeAdmission } from "./admission.js";
-import { OperationTimeout, unavailable } from "./errors.js";
+import { OperationTimeout, permissionDenied, unavailable } from "./errors.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
 
@@ -62,6 +62,7 @@ export const makeWarehouse = Effect.gen(function* () {
   const read = <A>(
     schema: Schema.Decoder<A>,
     statement: Effect.Effect<ReadonlyArray<unknown>, unknown>,
+    deniedMessage = "These trips are under lock. You need permission to read trip data.",
   ) =>
     (configured
       ? SqlSchema.findAll({
@@ -74,11 +75,16 @@ export const makeWarehouse = Effect.gen(function* () {
       Effect.tapError((cause) =>
         Effect.logError("Warehouse operation failed", cause),
       ),
-      Effect.mapError((cause) =>
-        cause instanceof OperationTimeout
-          ? cause
-          : unavailable(error.service, error.message, cause),
-      ),
+      Effect.mapError((cause) => {
+        if (cause instanceof OperationTimeout) return cause;
+        if (
+          isSqlError(cause) &&
+          cause.reason._tag === "AuthorizationError" &&
+          cause.reason.operation !== "download"
+        )
+          return permissionDenied(deniedMessage);
+        return unavailable(error.service, error.message, cause);
+      }),
     );
   return { sql, snapshot, read, error };
 });

@@ -1,3 +1,4 @@
+import { Notice } from "../lib/request-state";
 import { Dialog, Menu, Tooltip } from "@foldkit/ui";
 import { Schema } from "effect";
 import { Calendar } from "foldkit";
@@ -30,7 +31,7 @@ export const Message = defineMessageUnion({
   Tooltip: { id: Schema.String, message: Tooltip.Message },
   LoadedMetadata: {
     data: Schema.NullOr(D.Metadata),
-    error: Schema.String,
+    error: Notice,
     today: Calendar.CalendarDate,
   },
   LoadedUser: { user: Schema.NullOr(D.CurrentUser) },

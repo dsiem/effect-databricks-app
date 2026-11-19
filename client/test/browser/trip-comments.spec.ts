@@ -272,6 +272,55 @@ test("unavailable counts remain unknown while details and comments still open", 
   ).toContainText("Start the conversation");
 });
 
+test("denied comment access leaves trip records, details and navigation usable", async ({
+  page,
+}) => {
+  const message = "The trip is in view. The comments are under lock.";
+  const denied = {
+    status: 403,
+    json: { error: { code: "permission_denied", message } },
+  };
+  await page.route("**/api/trip-comment-counts**", (route) =>
+    route.fulfill(denied),
+  );
+  await page.route("**/api/trip-comments**", (route) => route.fulfill(denied));
+  await page.route("**/api/analysis-runs", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.goto("/trips");
+  const table = page.getByRole("table", { name: "Matching trips" });
+  await expect(
+    table.getByRole("cell", { name: "10001 → 10019" }).first(),
+  ).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveText(
+    "The trip is in view. The comments are under lock.",
+  );
+  await expect(
+    page.getByRole("alert").locator('svg[aria-hidden="true"]'),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/partial-access.png",
+    animations: "disabled",
+  });
+  await table
+    .getByRole("button", { name: /^Details and comments for trip/ })
+    .first()
+    .click();
+  const details = page.getByRole("dialog", { name: "Trip details" });
+  await expect(
+    details.getByRole("region", { name: "Selected trip" }),
+  ).toContainText(trip.pickup_at);
+  await expect(details.getByRole("alert")).toHaveText(
+    "The trip is in view. The comments are under lock.",
+  );
+  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: "Analysis runs", exact: true }).click();
+  await expect(
+    page.getByText("No runs yet. Start a new run to compare two weeks."),
+  ).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
 for (const width of [1440, 360]) {
   test(`trip comments stay attached after reload and distinguish similar records at ${width}px`, async ({
     page,

@@ -99,6 +99,42 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
+test("a denied Genie question keeps the chart and its filters available", async ({
+  page,
+}, testInfo) => {
+  const message = "Even Genie needs permission to send this question.";
+  await page.route("**/api/genie", (route) =>
+    route.fulfill({
+      status: 403,
+      json: { error: { code: "permission_denied", message } },
+    }),
+  );
+  await page.goto(`/?${query}`);
+  await page
+    .getByRole("button", { name: "Ask Genie about trips by pickup date" })
+    .click();
+  const helper = page.getByRole("dialog", { name: "Genie", exact: true });
+  await helper.getByRole("textbox").fill("Which day had the most pickups?");
+  await helper
+    .getByRole("button", { name: "Send question", exact: true })
+    .click();
+  await expect(helper.getByRole("alert")).toHaveText(message);
+  await expect(
+    helper.getByRole("alert").locator('svg[aria-hidden="true"]'),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("genie-permission.png"),
+    animations: "disabled",
+  });
+  await helper.getByRole("button", { name: "Close Genie" }).click();
+  await expect(
+    page.getByRole("img", { name: "Trips by pickup date" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Pickup ZIP code" }),
+  ).toHaveValue(filters.zip);
+});
+
 test("explains a selected chart in place with its actual data, filters, SQL, and saved scope", async ({
   page,
 }) => {

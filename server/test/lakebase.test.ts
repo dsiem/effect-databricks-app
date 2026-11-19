@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Cause, ConfigProvider, Effect, Exit, Layer, Redacted } from "effect";
-import { unavailable } from "../src/errors.js";
+import { unavailable, UpstreamError } from "../src/errors.js";
 import { Lakebase } from "../src/lakebase.js";
 import { pgPassword } from "../src/pg-credentials.js";
 import { SavedViews } from "../src/saved-views.js";
@@ -99,6 +99,32 @@ test("Lakebase retries discovery after an outage and shares the recovered client
       Effect.scoped,
     ),
   );
+});
+
+test("denied endpoint discovery reports a Lakebase permission error", async () => {
+  const result = await Effect.runPromise(
+    Effect.flatMap(Lakebase, (database) =>
+      database.use(() => Effect.void),
+    ).pipe(
+      Effect.result,
+      Effect.provide(
+        databaseLayer(() =>
+          Effect.fail(
+            new UpstreamError({
+              service: "workspace",
+              upstreamStatus: 403,
+              message: "internal diagnostic",
+            }),
+          ),
+        ),
+      ),
+      Effect.scoped,
+    ),
+  );
+  assert.ok(
+    result._tag === "Failure" && result.failure._tag === "PermissionDenied",
+  );
+  assert.match(result.failure.message, /access saved views and comments/);
 });
 
 test("interrupted discovery leaves Lakebase retryable", async () => {

@@ -1,3 +1,4 @@
+import { AccessDenied } from "../../lib/request-state";
 import { Option } from "effect";
 import { AsyncData } from "foldkit";
 import { defineView } from "foldkit/submodel";
@@ -348,7 +349,13 @@ function selectedRun(
             }),
           ]
         : []),
-      ...(run?.reason ? [h.p([h.Class("muted text-sm")], [run.reason])] : []),
+      ...(run?.reason
+        ? [
+            run.reasonCode === "permission_denied"
+              ? alert(h, AccessDenied.make({ message: run.reason }))
+              : h.p([h.Class("muted text-sm")], [run.reason]),
+          ]
+        : []),
       ...(run?.state === "running" || run?.state === "queued"
         ? [
             h.p(

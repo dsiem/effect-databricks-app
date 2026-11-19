@@ -8,10 +8,10 @@ import { Analytics } from "../src/analytics.js";
 import {
   GenieFailed,
   OperationTimeout,
+  PermissionDenied,
   SavedViewConflict,
   SavedViewNotFound,
   type ServiceUnavailable,
-  UpstreamError,
   unavailable,
 } from "../src/errors.js";
 import { Genie } from "../src/genie.js";
@@ -98,11 +98,9 @@ const outage = unavailable(
   "Lakebase unavailable",
   new Error("private diagnostic"),
 );
-const denied = new UpstreamError({
-  service: "workspace",
-  upstreamStatus: 403,
-  message: "Permission denied",
-  cause: new Error("private diagnostic"),
+const denied = new PermissionDenied({
+  message:
+    "This conversation is under lock. You need permission to read Genie’s answer.",
 });
 const genieTimeout = new OperationTimeout({
   service: "genie",
@@ -139,12 +137,8 @@ for (const { request, services, status, error } of [
   {
     request: getGenieResult,
     services: { genie: { result: () => Effect.fail(denied) } },
-    status: 502,
-    error: {
-      code: "workspace_request_failed",
-      message: denied.message,
-      upstreamStatus: 403,
-    },
+    status: 403,
+    error: { code: "permission_denied", message: denied.message },
   },
   {
     request: getGenieResult,
@@ -180,16 +174,17 @@ test("endpoints advertise their applicable failures", () => {
   assert.deepEqual(Object.keys(paths["/api/overview"]?.get?.responses ?? {}), [
     "200",
     "400",
+    "403",
     "503",
     "504",
   ]);
   assert.deepEqual(
     Object.keys(paths["/api/saved-views"]?.get?.responses ?? {}),
-    ["200", "400", "503"],
+    ["200", "400", "403", "503"],
   );
   assert.deepEqual(
     Object.keys(paths["/api/saved-views"]?.put?.responses ?? {}),
-    ["200", "400", "404", "409", "503"],
+    ["200", "400", "403", "404", "409", "503"],
   );
 });
 

@@ -92,3 +92,29 @@ for (const truncated of [false, true])
     assert.ok(firstCell);
     assert.equal(Reflect.has(firstCell, "total_cells"), false);
   });
+
+test("trip map distinguishes warehouse access denials from authentication failures", async (t) => {
+  const original = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = original;
+  });
+  let status = 403;
+  globalThis.fetch = async () => new Response("private diagnostic", { status });
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const analytics = yield* Analytics;
+      const map = analytics.tripMap({ endpoint: "pickup" });
+      const denied = yield* Effect.result(map);
+      assert.ok(
+        denied._tag === "Failure" && denied.failure._tag === "PermissionDenied",
+      );
+      assert.match(denied.failure.message, /trip data/);
+      status = 401;
+      const unauthenticated = yield* Effect.result(map);
+      assert.ok(
+        unauthenticated._tag === "Failure" &&
+          unauthenticated.failure._tag === "ServiceUnavailable",
+      );
+    }).pipe(Effect.provide(services), provide, Effect.scoped),
+  );
+});

@@ -558,11 +558,18 @@ for (const { status, error } of [
     },
   },
   {
+    status: 403,
+    error: {
+      code: "permission_denied",
+      message: "Even Genie needs permission to send this question.",
+    },
+  },
+  {
     status: 502,
     error: {
       code: "workspace_request_failed",
-      message: "Permission denied",
-      upstreamStatus: 403,
+      message: "Databricks rejected the request",
+      upstreamStatus: 429,
     },
   },
   {
