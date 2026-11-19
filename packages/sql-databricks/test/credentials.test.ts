@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Clock, Effect, Redacted } from "effect";
-import { Credentials } from "../src/index.js";
+import { Credentials, DatabricksClient } from "../src/index.js";
 import { listen } from "./http.js";
 
 test("OAuth M2M shares concurrent token refreshes and refreshes before expiry", async (t) => {
@@ -108,4 +108,62 @@ test("a shared workspace identity can request the configured OAuth scope", async
   );
   assert.equal(scope, "all-apis");
   assert.equal(Redacted.value(token), "token");
+});
+
+test("OAuth network failures allow retry before SQL submission", async () => {
+  let attempts = 0;
+  const provider = Credentials.clientCredentials({
+    host: "https://workspace.example",
+    clientId: "app",
+    clientSecret: Redacted.make("secret"),
+    fetch: async () => {
+      attempts++;
+      if (attempts === 1) throw new TypeError("network unavailable");
+      return Response.json({
+        access_token: "token",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+    },
+  });
+  let submissions = 0;
+  const layer = DatabricksClient.layer({
+    host: "https://workspace.example",
+    warehouseId: "warehouse",
+    accessToken: provider,
+    fetch: async () => {
+      submissions++;
+      return Response.json({
+        statement_id: "s",
+        status: { state: "SUCCEEDED" },
+        manifest: { format: "ARROW_STREAM", total_chunk_count: 0 },
+      });
+    },
+  });
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* DatabricksClient.DatabricksClient;
+      yield* sql`SELECT 1`.pipe(
+        Effect.retry({ while: (error) => error.isRetryable, times: 1 }),
+      );
+    }).pipe(Effect.provide(layer)),
+  );
+  assert.equal(submissions, 1);
+  assert.equal(attempts, 2);
+});
+
+test("invalid OAuth response JSON is a protocol failure", async () => {
+  const error = await Effect.runPromise(
+    Effect.flip(
+      Credentials.clientCredentials({
+        host: "https://workspace.example",
+        clientId: "app",
+        clientSecret: Redacted.make("secret"),
+        fetch: async () => new Response("secret upstream response"),
+      }),
+    ),
+  );
+  assert.equal(error.reason._tag, "UnknownError");
+  assert.equal(error.isRetryable, false);
+  assert.doesNotMatch(JSON.stringify(error), /secret/);
 });

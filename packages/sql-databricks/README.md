@@ -1,79 +1,49 @@
-# Query Databricks SQL with Effect
+# Databricks SQL for Effect
 
-Use `effect-sql-databricks` for Effect SQL queries and Arrow results over the
-[Statement Execution API](https://docs.databricks.com/api/statement-execution/v1/statement-execution).
-The package requires Effect `~4.1.4` and is distributed from this repository.
+Query a Databricks SQL warehouse from Node.js 22.19+ with Effect `~4.1.4`. The adapter provides Effect's `SqlClient` for rows and `DatabricksClient` for Apache Arrow results.
 
-## Install the package
+## Install from this workspace
 
-From the repository root, pack the adapter:
+Run `npm ci` and `npm pack --workspace effect-sql-databricks --pack-destination /tmp` at the repository root. In your application, run `npm install /tmp/effect-sql-databricks-0.1.0.tgz effect@4.1.4`.
 
-```sh
-npm ci
-npm pack --workspace effect-sql-databricks --pack-destination /tmp
-```
+## A small query helper
 
-In the consuming project, install the tarball and Effect:
-
-```sh
-npm install /tmp/effect-sql-databricks-0.1.0.tgz effect@4.1.4
-```
-
-## Run a query
-
-Set `DATABRICKS_HOST`, `DATABRICKS_WAREHOUSE_ID`, and `DATABRICKS_TOKEN` in the server
-environment. Run this program in that environment:
+`countRows` quotes the table identifier and decodes the warehouse count as a `bigint`. The helper only needs Effect's `SqlClient`. Supply the Databricks layer once at application startup.
 
 ```ts
-import { Config, Effect } from "effect";
+import { Config, Effect, Layer, Schema } from "effect";
+import { SqlClient } from "effect/sql/SqlClient";
+import * as SqlSchema from "effect/sql/SqlSchema";
 import { DatabricksClient } from "effect-sql-databricks";
 
-const program = Effect.gen(function* () {
-  const host = yield* Config.String("DATABRICKS_HOST");
-  const warehouseId = yield* Config.String("DATABRICKS_WAREHOUSE_ID");
-  const token = yield* Config.Redacted("DATABRICKS_TOKEN");
-  return yield* Effect.gen(function* () {
-    const sql = yield* DatabricksClient.DatabricksClient;
-    return yield* sql.arrow(sql`SELECT ${42} AS answer`);
-  }).pipe(
-    Effect.provide(
-      DatabricksClient.layer({
-        host,
-        warehouseId,
-        accessToken: Effect.succeed(token),
-      }),
-    ),
-  );
+const countRows = SqlSchema.findOne({
+  Request: Schema.String,
+  Result: Schema.Struct({ total: Schema.BigInt }),
+  execute: (table) =>
+    SqlClient.use((sql) => sql`SELECT COUNT(*) AS total FROM ${sql(table)}`),
 });
 
-const table = await Effect.runPromise(program);
-console.log(table.getChild("answer")?.get(0));
+const Warehouse = Layer.unwrap(
+  Effect.gen(function* () {
+    return DatabricksClient.layer({
+      host: yield* Config.String("DATABRICKS_HOST"),
+      warehouseId: yield* Config.String("DATABRICKS_WAREHOUSE_ID"),
+      accessToken: Effect.succeed(yield* Config.Redacted("DATABRICKS_TOKEN")),
+    });
+  }),
+);
+
+const { total } = await Effect.runPromise(
+  countRows("samples.nyctaxi.trips").pipe(Effect.provide(Warehouse)),
+);
+console.log(total);
 ```
 
-Expect `42n`, an Arrow BIGINT value. To query a table, use
-`sql("catalog.schema.table")` for its identifier.
-Keep values in template substitutions so the adapter binds parameters. For dates,
-use `sql.param("DATE", "2016-01-01")`. Use `SqlSchema` to validate application rows.
+Use a table your identity can read. For OAuth, create one `Credentials.clientCredentials(...)` provider per identity and pass it as `accessToken`. To reuse your Effect HTTP middleware for warehouse requests, pass its client as `workspaceHttpClient`. Configure it to send each submission once. Signed storage downloads use a separate fetch client.
 
-For renewable OAuth credentials, pass one `Credentials.clientCredentials`
-provider as `accessToken`. Import `Credentials` from `effect-sql-databricks`.
-Keep the provider and warehouse access on the server.
+## Arrow and Spark SQL
 
-## Consume larger results
-
-Use `sql.arrowChunks(statement)` for Arrow tables by result chunk, or
-`sql.arrowStream(statement)` for record batches. Each chunk is buffered before
-decoding. To include downstream work in the query deadline, wrap the consuming
-Effect with `sql.withQueryTimeout`.
-
-Use `sql.ipcStream(statement)` for independent Arrow IPC chunks. Relay chunks
-separately. Do not concatenate them into one IPC stream.
-Use `sql.ipcStream(statement, { maxBytes })` to cap cumulative uncompressed IPC
-downloads. The adapter also submits this limit as the warehouse byte limit,
-rejects upstream truncation, and aborts a response body as soon as its streamed
-bytes exceed the remaining budget. Existing authentication, signed-link refresh,
-request deadlines, and query cancellation apply to bounded downloads too.
-
-Write independent Spark SQL statements. The adapter does not provide sessions or
-transactions. After a timeout, check the outcome before retrying a write.
-Use the exported TypeScript declarations to inspect all methods and options.
+- Use `sql.arrow(statement)` for a table or `sql.arrowStream(statement)` for record batches. The adapter buffers one result chunk at a time when streaming. Each element of `sql.ipcStream(statement, { maxBytes })` is an independent IPC stream. Wrap downstream processing in `sql.withQueryTimeout` to include it in the deadline.
+- Bind values with template substitutions. For an explicit type, use `sql.param("DATE", "2026-11-19")`, including inside `sql.in([...])`.
+- Execute independent statements. Sessions, reserved connections, and transactions are unsupported. For bulk updates, `sql.updateValues` is unsupported. Write Spark SQL such as `UPDATE orders SET status = ${status} WHERE id = ${id}` inside the SQL template. Use `onDialectOrElse` to select Spark's fallback branch.
+- A lost submission response can leave a write committed. Check the warehouse outcome before resubmitting.

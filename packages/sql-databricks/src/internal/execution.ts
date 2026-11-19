@@ -4,11 +4,13 @@ import type { Connection } from "effect/sql/SqlConnection";
 import type { SqlError } from "effect/sql/SqlError";
 import type { DatabricksClientConfig } from "../DatabricksClient.js";
 import {
+  afterSubmission,
   failure,
   httpFailure,
   parameter,
   ResultChunk,
   StatementResponse,
+  UnsupportedSqlFragment,
   statementFailure,
   timeout,
 } from "./protocol.js";
@@ -39,14 +41,16 @@ export const makeExecution = (options: DatabricksClientConfig) =>
             );
           const parameters = yield* Effect.try({
             try: () => params.map(parameter),
-            catch: () =>
-              failure(
-                "Unsupported SQL parameter; use sql.param for an explicit type",
-                "bind",
-              ),
+            catch: (cause) =>
+              cause instanceof UnsupportedSqlFragment
+                ? failure(cause.message, "compile")
+                : failure(
+                    "Unsupported SQL parameter; use sql.param for an explicit type",
+                    "bind",
+                  ),
           });
           const query = yield* Effect.acquireRelease(
-            requestJson("/api/2.0/sql/statements", "POST", {
+            requestJson("/api/2.0/sql/statements", "submit", {
               warehouse_id: options.warehouseId,
               statement: sql,
               parameters,
@@ -77,7 +81,7 @@ export const makeExecution = (options: DatabricksClientConfig) =>
                 query.current.status.state === "RUNNING"
                   ? requestJson(
                       `/api/2.0/sql/statements/${encodeURIComponent(query.current.statement_id)}/cancel`,
-                      "POST",
+                      "cancel",
                     ).pipe(Effect.timeoutOption("5 seconds"), Effect.ignore)
                   : Effect.void,
               ),
@@ -91,7 +95,7 @@ export const makeExecution = (options: DatabricksClientConfig) =>
             query.current.status.state === "RUNNING"
           ) {
             yield* Effect.sleep(config.poll);
-            const next = yield* requestJson(path, "GET").pipe(
+            const next = yield* requestJson(path, "poll").pipe(
               Effect.flatMap((value) => decode(StatementResponse, value)),
             );
             if (next.statement_id !== query.current.statement_id) {
@@ -102,7 +106,9 @@ export const makeExecution = (options: DatabricksClientConfig) =>
             query.current = next;
           }
           if (query.current.status.state !== "SUCCEEDED") {
-            return yield* Effect.fail(statementFailure(query.current.status));
+            return yield* Effect.fail(
+              afterSubmission(statementFailure(query.current.status)),
+            );
           }
           const manifest = query.current.manifest;
           if (manifest?.format !== "ARROW_STREAM" || manifest.truncated) {
@@ -120,7 +126,7 @@ export const makeExecution = (options: DatabricksClientConfig) =>
                 cached ??
                 (yield* requestJson(
                   `${path}/result/chunks/${index}`,
-                  "GET",
+                  "metadata",
                 ).pipe(Effect.flatMap((value) => decode(ResultChunk, value))));
               const link = metadata.external_links?.find(
                 (link) => link.chunk_index === index,
@@ -130,7 +136,7 @@ export const makeExecution = (options: DatabricksClientConfig) =>
                   failure("Missing Arrow result chunk", "metadata"),
                 );
               }
-              return link.external_link;
+              return link;
             });
           if (manifest.total_chunk_count === 0) return Stream.empty;
           let receivedBytes = 0;
@@ -142,17 +148,17 @@ export const makeExecution = (options: DatabricksClientConfig) =>
                   first?.external_links?.some((link) => link.chunk_index === 0)
                     ? first
                     : undefined;
-                const url = yield* chunkLink(index, cached);
+                const link = yield* chunkLink(index, cached);
                 const remaining =
                   maxBytes === undefined ? undefined : maxBytes - receivedBytes;
-                let result = yield* download(url, remaining);
+                let result = yield* download(link, remaining);
                 // Signed URLs can expire while the downstream consumer is paused.
                 if (result.status === 401 || result.status === 403) {
                   result = yield* download(yield* chunkLink(index), remaining);
                 }
                 if (result.status < 200 || result.status >= 300) {
                   return yield* Effect.fail(
-                    httpFailure(result.status, "download"),
+                    afterSubmission(httpFailure(result.status, "download")),
                   );
                 }
                 receivedBytes += result.bytes.byteLength;
@@ -164,7 +170,7 @@ export const makeExecution = (options: DatabricksClientConfig) =>
       ).pipe(
         Stream.interruptWhen(
           Effect.sleep(config.query).pipe(
-            Effect.andThen(Effect.fail(timeout("query"))),
+            Effect.andThen(Effect.fail(afterSubmission(timeout("query")))),
           ),
         ),
         Stream.withSpan("databricks.query"),

@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import * as Statement from "effect/sql/Statement";
 import {
   AuthenticationError,
   AuthorizationError,
@@ -16,15 +17,14 @@ const Index = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 export const StatementId = Schema.NonEmptyString.pipe(
   Schema.brand("DatabricksStatementId"),
 );
+const ExternalLink = Schema.Struct({
+  chunk_index: Index,
+  external_link: Schema.NonEmptyString,
+  http_headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+});
+export type ExternalLink = typeof ExternalLink.Type;
 export const ResultChunk = Schema.Struct({
-  external_links: Schema.optional(
-    Schema.Array(
-      Schema.Struct({
-        chunk_index: Index,
-        external_link: Schema.NonEmptyString,
-      }),
-    ),
-  ),
+  external_links: Schema.optional(Schema.Array(ExternalLink)),
 });
 export const StatementResponse = Schema.Struct({
   statement_id: StatementId,
@@ -61,6 +61,29 @@ export const failure = (message: string, operation: string) =>
   new SqlError({
     reason: new UnknownError({ cause: undefined, message, operation }),
   });
+
+// A statement or result deadline can expire after a write has committed.
+class SubmittedStatementTimeout extends StatementTimeoutError {
+  override get isRetryable(): boolean {
+    return false;
+  }
+}
+
+export const afterSubmission = (error: SqlError): SqlError => {
+  if (!error.isRetryable) return error;
+  const { operation } = error.reason;
+  const props = {
+    cause: undefined,
+    operation,
+    message: `${error.message}. Check the statement outcome before resubmitting.`,
+  };
+  return new SqlError({
+    reason:
+      error.reason._tag === "StatementTimeoutError"
+        ? new SubmittedStatementTimeout(props)
+        : new UnknownError(props),
+  });
+};
 
 export const timeout = (operation: string) =>
   new SqlError({
@@ -137,6 +160,8 @@ export const parseUrl = (
   return url;
 };
 
+export class UnsupportedSqlFragment extends Error {}
+
 export class TypedParameter {
   constructor(
     readonly type: string,
@@ -144,7 +169,14 @@ export class TypedParameter {
   ) {}
 }
 
-export const parameter = (value: unknown, index: number) => {
+export const parameter = (input: unknown, index: number) => {
+  // IN lists retain the fragment, while templates and record helpers pass its value.
+  const segment =
+    Statement.isFragment(input) && input.segments.length === 1
+      ? input.segments[0]
+      : undefined;
+  const value = segment?._tag === "Parameter" ? segment.value : input;
+  if (value instanceof UnsupportedSqlFragment) throw value;
   const name = `p${index + 1}`;
   if (value instanceof TypedParameter) {
     return { name, type: value.type, value: value.value };

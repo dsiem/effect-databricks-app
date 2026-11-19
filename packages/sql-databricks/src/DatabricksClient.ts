@@ -7,12 +7,17 @@ import {
   type Redacted,
   Stream,
 } from "effect";
+import type { HttpClient } from "effect/http";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Client from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 import * as Statement from "effect/sql/Statement";
 import { makeExecution } from "./internal/execution.js";
-import { failure, TypedParameter } from "./internal/protocol.js";
+import {
+  failure,
+  TypedParameter,
+  UnsupportedSqlFragment,
+} from "./internal/protocol.js";
 
 export interface DatabricksClient extends Client.Base {
   /** Materializes all result chunks as one columnar Arrow table. */
@@ -58,10 +63,20 @@ export interface DatabricksClientConfig {
   readonly requestTimeout?: Duration.Input;
   /** Optional server result limit. Truncation is always reported as an error. */
   readonly byteLimit?: number;
+  /** Handles Statement Execution requests only. Configure middleware to send each submission once. */
+  readonly workspaceHttpClient?: HttpClient.HttpClient;
   readonly fetch?: typeof globalThis.fetch;
   /** Opt in only inside Databricks Apps, whose managed network rewrites signed result links to this exact internal HTTP proxy. Workspace credentials are never forwarded. */
   readonly allowDatabricksStorageProxy?: boolean;
 }
+
+// Effect's compiler is synchronous. Carry unsupported syntax to the bind step
+// so executing a statement fails in its SqlError channel before submission.
+const unsupportedFragment = (message: string) =>
+  [
+    "/* unsupported SQL fragment */",
+    [new UnsupportedSqlFragment(message)],
+  ] as const;
 
 /** Spark SQL uses backticks and the REST API requires named parameter markers. */
 export const makeCompiler = (): Statement.Compiler =>
@@ -72,12 +87,14 @@ export const makeCompiler = (): Statement.Compiler =>
     placeholder: (index) => `:p${index}`,
     onIdentifier: Statement.defaultEscape("`"),
     onRecordUpdate() {
-      throw new Error(
+      return unsupportedFragment(
         "Databricks does not support Effect's updateValues helper",
       );
     },
     onCustom() {
-      throw new Error("Unsupported custom SQL fragment for Databricks");
+      return unsupportedFragment(
+        "Unsupported custom SQL fragment for Databricks",
+      );
     },
   });
 
@@ -146,6 +163,12 @@ export const make = (
     const arrowChunks = streamStatement(chunks);
     return Object.assign(client, {
       ...sparkDialect,
+      reserve: Effect.fail(
+        failure(
+          "Databricks REST does not support reserving a session",
+          "reserve",
+        ),
+      ),
       // There are no name or row transforms to remove. Keep the driver's APIs
       // and Spark dialect dispatch when generic consumers request this view.
       withoutTransforms: () => client,

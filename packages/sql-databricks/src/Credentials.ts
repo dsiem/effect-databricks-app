@@ -1,6 +1,6 @@
 import { Clock, Effect, Redacted, Schema, Semaphore } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/http";
-import { AuthenticationError, SqlError } from "effect/sql/SqlError";
+import { ConnectionError, SqlError } from "effect/sql/SqlError";
 import { withTransport } from "./internal/http.js";
 import {
   failure,
@@ -74,15 +74,16 @@ export const clientCredentials = (
         }),
         options.fetch,
       ).pipe(
-        Effect.mapError(
-          () =>
-            new SqlError({
-              reason: new AuthenticationError({
-                cause: undefined,
-                message: "Databricks OAuth request failed",
-                operation: "authenticate",
+        Effect.mapError((error) =>
+          error.reason._tag === "DecodeError"
+            ? failure("Invalid Databricks OAuth response", "authenticate")
+            : new SqlError({
+                reason: new ConnectionError({
+                  cause: undefined,
+                  message: "Databricks OAuth connection failed",
+                  operation: "authenticate",
+                }),
               }),
-            }),
         ),
         Effect.timeoutOrElse({
           duration: "30 seconds",

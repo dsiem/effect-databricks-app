@@ -2,6 +2,12 @@
   "name": "effect-sql-databricks",
   "version": "0.1.0",
   "description": "Databricks SQL warehouse adapter for Effect 4 with Apache Arrow results",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dsiem/effect-databricks-app.git",
+    "directory": "packages/sql-databricks"
+  },
   "type": "module",
   "files": [
     "dist",

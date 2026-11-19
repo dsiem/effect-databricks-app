@@ -213,6 +213,58 @@ test("SqlSchema validates decoded rows without losing BIGINT precision", async (
   assert.equal(server.submitted.length, 2);
 });
 
+test("typed parameters compose in IN lists, inserts, and updates", async () => {
+  const server = fixture();
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* DatabricksClient.DatabricksClient;
+      const date = sql.param("DATE", "2016-01-01");
+      const nil = sql.param("DATE", null);
+      yield* sql`SELECT * FROM trips WHERE day IN ${sql.in([date, nil])}`;
+      yield* sql`SELECT * FROM trips WHERE ${sql.in("day", [date, nil])}`;
+      yield* sql`INSERT INTO trips ${sql.insert([{ day: date }, { day: nil }])}`;
+      yield* sql`UPDATE trips SET ${sql.update({ day: date })} WHERE day = ${nil}`;
+    }).pipe(Effect.provide(clientLayer(server.fetch))),
+  );
+  assert.deepEqual(
+    server.submitted.map(({ statement }) => statement),
+    [
+      "SELECT * FROM trips WHERE day IN (:p1,:p2)",
+      "SELECT * FROM trips WHERE `day` IN (:p1,:p2)",
+      "INSERT INTO trips (`day`) VALUES (:p1),(:p2)",
+      "UPDATE trips SET `day` = :p1 WHERE day = :p2",
+    ],
+  );
+  for (const { parameters } of server.submitted) {
+    assert.deepEqual(parameters, [
+      { name: "p1", type: "DATE", value: "2016-01-01" },
+      { name: "p2", type: "DATE", value: null },
+    ]);
+  }
+});
+
+test("unsupported SQL helpers and session reservation return typed failures before submission", async () => {
+  const server = fixture();
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* DatabricksClient.DatabricksClient;
+      const custom = Statement.custom<Statement.Custom<"OtherDriver">>(
+        "OtherDriver",
+      )(undefined, undefined, undefined);
+      const rows = sql`SELECT * FROM ${sql.updateValues([{ id: 1 }], "updates")}`;
+      const arrow = sql.arrow(sql`SELECT ${custom}`);
+      for (const effect of [Effect.asVoid(rows), Effect.asVoid(arrow)]) {
+        const error = yield* Effect.flip(effect);
+        assert.ok(error instanceof SqlError);
+        assert.equal(error.reason.operation, "compile");
+      }
+      const error = yield* Effect.flip(sql.reserve);
+      assert.equal(error.reason.operation, "reserve");
+    }).pipe(Effect.scoped, Effect.provide(clientLayer(server.fetch))),
+  );
+  assert.equal(server.submitted.length, 0);
+});
+
 test("dialect dispatch never selects MySQL for Spark SQL", async () => {
   const server = fixture();
   await Effect.runPromise(

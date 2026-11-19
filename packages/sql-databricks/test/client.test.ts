@@ -29,6 +29,7 @@ type Request = {
   method: string;
   path: string;
   authorization: string | undefined;
+  resultKey: string | string[] | undefined;
   body: Record<string, unknown>;
 };
 interface Scenario {
@@ -58,6 +59,7 @@ const warehouse = async (scenario: Scenario = {}) => {
       method: req.method ?? "GET",
       path,
       authorization: req.headers.authorization,
+      resultKey: req.headers["x-result-key"],
       body: {},
     });
     assert.equal(req.headers.cookie, undefined);
@@ -86,6 +88,13 @@ const warehouse = async (scenario: Scenario = {}) => {
       {
         chunk_index: index,
         external_link: `${storage.origin}/${scenario.expired && !refreshed ? "expired/" : ""}${index}`,
+        ...(scenario.expired
+          ? {
+              http_headers: {
+                "X-Result-Key": refreshed ? `chunk-${index}` : "original",
+              },
+            }
+          : {}),
       },
     ],
   });
@@ -114,6 +123,7 @@ const warehouse = async (scenario: Scenario = {}) => {
       method,
       path,
       authorization: req.headers.authorization,
+      resultKey: req.headers["x-result-key"],
       body,
     });
     res.setHeader("Content-Type", "application/json");
@@ -426,7 +436,7 @@ test("preserves the Arrow schema for an empty result and supports statements wit
   );
 });
 
-test("refreshes an expired signed URL without forwarding the workspace token", async (t) => {
+test("uses each signed link's headers, including after refresh, only on its storage request", async (t) => {
   const server = await warehouse({ expired: true });
   t.after(server.close);
   const table = await server.run(
@@ -437,6 +447,13 @@ test("refreshes an expired signed URL without forwarding the workspace token", a
   );
   assert.equal(table.numRows, 3);
   assert.equal(server.downloads.length, 3);
+  assert.deepEqual(
+    server.downloads.map((request) => request.resultKey),
+    ["original", "chunk-0", "chunk-1"],
+  );
+  assert.ok(
+    server.requests.every((request) => request.resultKey === undefined),
+  );
   assert.ok(
     server.downloads.every((request) => request.authorization === undefined),
   );

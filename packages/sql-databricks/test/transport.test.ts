@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Cause, Effect, Exit, Fiber, Latch, Redacted } from "effect";
+import { Cause, Effect, Exit, Fiber, Latch, Redacted, Stream } from "effect";
+import { HttpClient, HttpClientResponse } from "effect/http";
 import { SqlError } from "effect/sql/SqlError";
 import * as TestClock from "effect/testing/TestClock";
 import { Credentials, DatabricksClient } from "../src/index.js";
@@ -148,3 +149,136 @@ for (const stop of ["interruption", "deadline"] as const) {
     },
   );
 }
+
+for (const stage of ["submission", "poll", "download"] as const) {
+  test(`retrying a statement on isRetryable never replays SQL after a ${stage} failure`, async () => {
+    let submissions = 0;
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+      const url = input instanceof Request ? input.url : input.toString();
+      if (init?.method === "POST" && !url.endsWith("/cancel")) {
+        submissions++;
+        if (stage === "submission") throw new TypeError("Connection lost");
+        return Response.json(
+          stage === "poll"
+            ? {
+                statement_id: "s",
+                status: { state: "RUNNING" },
+              }
+            : {
+                statement_id: "s",
+                status: { state: "SUCCEEDED" },
+                manifest: { format: "ARROW_STREAM", total_chunk_count: 1 },
+                result: {
+                  external_links: [
+                    {
+                      chunk_index: 0,
+                      external_link: "https://storage.example/chunk",
+                    },
+                  ],
+                },
+              },
+        );
+      }
+      return new Response(null, { status: 503 });
+    };
+    const error = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* DatabricksClient.DatabricksClient;
+        return yield* Effect.flip(
+          sql`SELECT 1`.pipe(
+            Effect.retry({ while: (error) => error.isRetryable, times: 1 }),
+          ),
+        );
+      }).pipe(
+        Effect.provide(
+          DatabricksClient.layer({
+            host: "https://workspace.example",
+            warehouseId: "warehouse",
+            accessToken: Effect.succeed(Redacted.make("token")),
+            pollInterval: 1,
+            fetch,
+          }),
+        ),
+      ),
+    );
+    assert.equal(submissions, 1);
+    assert.equal(error.isRetryable, false);
+  });
+}
+
+test("workspace HTTP middleware applies only to Statement Execution requests", async () => {
+  const workspaceRequests: string[] = [];
+  const downloads: string[] = [];
+  const workspaceHttpClient = HttpClient.make((request, url) => {
+    workspaceRequests.push(url.hostname);
+    assert.equal(request.headers.authorization, "Bearer workspace-token");
+    return Effect.succeed(
+      HttpClientResponse.fromWeb(
+        request,
+        Response.json({
+          statement_id: "statement",
+          status: { state: "SUCCEEDED" },
+          manifest: { format: "ARROW_STREAM", total_chunk_count: 1 },
+          result: {
+            external_links: [
+              {
+                chunk_index: 0,
+                external_link: "https://storage.example/chunk",
+              },
+            ],
+          },
+        }),
+      ),
+    );
+  });
+  const config: DatabricksClient.DatabricksClientConfig = {
+    host: "https://workspace.example",
+    warehouseId: "example",
+    accessToken: Effect.succeed(Redacted.make("workspace-token")),
+    workspaceHttpClient,
+    fetch: async (input, init) => {
+      const { hostname } = new URL(
+        input instanceof Request ? input.url : input,
+      );
+      downloads.push(hostname);
+      assert.equal(hostname, "storage.example");
+      assert.equal(new Headers(init?.headers).has("authorization"), false);
+      return new Response(new Uint8Array([1, 2, 3]));
+    },
+  };
+  const chunks = await Effect.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* DatabricksClient.DatabricksClient;
+      return yield* Stream.runCollect(sql.ipcStream(sql`SELECT 1`));
+    }).pipe(Effect.provide(DatabricksClient.layer(config))),
+  );
+  assert.deepEqual(chunks, [new Uint8Array([1, 2, 3])]);
+  assert.deepEqual(workspaceRequests, ["workspace.example"]);
+  assert.deepEqual(downloads, ["storage.example"]);
+});
+
+test("a rejected submission can retry while a gateway timeout preserves its uncertain outcome", async () => {
+  for (const [status, retryable] of [
+    [429, true],
+    [504, false],
+  ] as const) {
+    const error = await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* DatabricksClient.DatabricksClient;
+        return yield* Effect.flip(sql`SELECT 1`);
+      }).pipe(
+        Effect.provide(
+          DatabricksClient.layer({
+            host: "https://workspace.example",
+            warehouseId: "warehouse",
+            accessToken: Effect.succeed(Redacted.make("token")),
+            fetch: async () => new Response(null, { status }),
+          }),
+        ),
+      ),
+    );
+    assert.equal(error.isRetryable, retryable);
+    if (status === 504)
+      assert.equal(error.reason._tag, "StatementTimeoutError");
+  }
+});

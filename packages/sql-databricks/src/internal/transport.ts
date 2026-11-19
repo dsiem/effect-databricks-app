@@ -1,9 +1,16 @@
 import { Duration, Effect, Schedule, Stream } from "effect";
-import { HttpClient, HttpClientRequest } from "effect/http";
+import { HttpClient, HttpClientError, HttpClientRequest } from "effect/http";
 import { ConnectionError, SqlError } from "effect/sql/SqlError";
 import type { DatabricksClientConfig } from "../DatabricksClient.js";
 import { withTransport } from "./http.js";
-import { failure, httpFailure, parseUrl, timeout } from "./protocol.js";
+import type { ExternalLink } from "./protocol.js";
+import {
+  afterSubmission,
+  failure,
+  httpFailure,
+  parseUrl,
+  timeout,
+} from "./protocol.js";
 
 export const makeTransport = (options: DatabricksClientConfig) =>
   Effect.gen(function* () {
@@ -48,23 +55,24 @@ export const makeTransport = (options: DatabricksClientConfig) =>
       consumer.pipe(
         Effect.timeoutOrElse({
           duration: config.query,
-          orElse: () => Effect.fail(timeout("query")),
+          orElse: () => Effect.fail(afterSubmission(timeout("query"))),
         }),
       );
 
     const requestJson = (
       path: string,
-      method: "GET" | "POST",
+      operation: "submit" | "poll" | "metadata" | "cancel",
       body?: unknown,
     ) => {
-      const operation =
-        method === "GET" ? "poll/fetch metadata" : "submit/cancel";
+      const read = operation === "poll" || operation === "metadata";
       const request = Effect.gen(function* () {
         const token = yield* options.accessToken;
-        const response = yield* withTransport(
+        return yield* withTransport(
           Effect.gen(function* () {
-            const client = HttpClient.withScope(yield* HttpClient.HttpClient);
-            const request = HttpClientRequest.make(method)(
+            const client = HttpClient.filterStatusOk(
+              HttpClient.withScope(yield* HttpClient.HttpClient),
+            );
+            const request = HttpClientRequest.make(read ? "GET" : "POST")(
               `${config.host}${path}`,
             ).pipe(HttpClientRequest.bearerToken(token));
             const response = yield* client.execute(
@@ -72,61 +80,70 @@ export const makeTransport = (options: DatabricksClientConfig) =>
                 ? request
                 : yield* HttpClientRequest.bodyJson(request, body),
             );
-            // Never retain upstream bodies, request headers, or signed URLs in errors.
-            return {
-              status: response.status,
-              data:
-                response.status >= 200 && response.status < 300
-                  ? yield* response.json
-                  : undefined,
-            };
+            return yield* response.json;
           }),
           options.fetch,
+          options.workspaceHttpClient,
         ).pipe(
-          Effect.mapError(
-            () =>
-              new SqlError({
-                reason: new ConnectionError({
-                  cause: undefined,
-                  message: "Databricks workspace request failed",
-                  operation,
-                }),
-              }),
-          ),
+          Effect.mapError((cause) => {
+            // Map the reason only. Raw HTTP errors contain credentials and bodies.
+            const reason = HttpClientError.isHttpClientError(cause)
+              ? cause.reason
+              : undefined;
+            if (reason?._tag === "DecodeError")
+              return failure("Invalid Databricks API response", operation);
+            const status =
+              reason?._tag === "StatusCodeError"
+                ? reason.response.status
+                : undefined;
+            const error =
+              status === undefined
+                ? new SqlError({
+                    reason: new ConnectionError({
+                      cause: undefined,
+                      message: "Databricks workspace request failed",
+                      operation,
+                    }),
+                  })
+                : httpFailure(status, operation);
+            return operation === "submit" && status !== 429
+              ? afterSubmission(error)
+              : error;
+          }),
         );
-        if (response.status < 200 || response.status >= 300) {
-          return yield* Effect.fail(httpFailure(response.status, operation));
-        }
-        return response.data;
       }).pipe(
         Effect.timeoutOrElse({
           duration: config.request,
-          orElse: () => Effect.fail(timeout(operation)),
+          orElse: () => Effect.fail(afterSubmission(timeout(operation))),
         }),
       );
       // A lost submission response is ambiguous: never automatically replay SQL.
-      return method === "GET"
+      return read
         ? request.pipe(
             Effect.retry({
               while: (error) => error.reason._tag === "ConnectionError",
               times: 2,
               schedule: Schedule.exponential("100 millis"),
             }),
+            Effect.mapError(afterSubmission),
           )
         : request;
     };
 
-    const download = (url: string, maxBytes?: number) =>
+    const download = (link: ExternalLink, maxBytes?: number) =>
       Effect.gen(function* () {
         const safeUrl = yield* Effect.try({
-          try: () => parseUrl(url, options.allowDatabricksStorageProxy),
+          try: () =>
+            parseUrl(link.external_link, options.allowDatabricksStorageProxy),
           catch: () => failure("Invalid Arrow download URL", "download"),
         });
         return yield* withTransport(
           Effect.gen(function* () {
             // Fresh request: signed storage URLs never inherit workspace headers.
             const client = HttpClient.withScope(yield* HttpClient.HttpClient);
-            const response = yield* client.get(safeUrl);
+            const response = yield* client.get(safeUrl, {
+              headers: link.http_headers,
+            });
             if (response.status < 200 || response.status >= 300)
               return { status: response.status, bytes: new Uint8Array() };
             if (maxBytes === undefined)
@@ -157,7 +174,8 @@ export const makeTransport = (options: DatabricksClientConfig) =>
               bytes,
             };
           }).pipe(
-            Effect.provideService(HttpClient.TracerPropagationEnabled, false),
+            // Signed URLs and link-specific headers can both contain credentials.
+            Effect.provideService(HttpClient.TracerDisabledWhen, () => true),
           ),
           options.fetch,
         ).pipe(
@@ -170,7 +188,7 @@ export const makeTransport = (options: DatabricksClientConfig) =>
       }).pipe(
         Effect.timeoutOrElse({
           duration: config.request,
-          orElse: () => Effect.fail(timeout("download")),
+          orElse: () => Effect.fail(afterSubmission(timeout("download"))),
         }),
       );
 
