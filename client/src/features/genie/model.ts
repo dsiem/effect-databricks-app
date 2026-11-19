@@ -23,6 +23,7 @@ export const Turn = Schema.Union([
   Schema.Struct({
     ...TurnBase,
     state: Schema.Literals(["waiting", "retrieving"]),
+    phase: Schema.optionalKey(D.GenieAgentPhase),
     operation: D.GenieOperation,
   }),
   Schema.Struct({

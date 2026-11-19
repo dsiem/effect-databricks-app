@@ -18,6 +18,7 @@ export const PollTarget = Schema.Struct({
 });
 
 const PollOutcome = Schema.Union([
+  Schema.Struct({ state: Schema.Literal("waiting"), phase: D.GenieAgentPhase }),
   Schema.Struct({ state: Schema.Literal("retrieving") }),
   Schema.Struct({
     state: Schema.Literal("paused"),

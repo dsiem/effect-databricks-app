@@ -8,6 +8,13 @@ import {
   GenieResponseError,
 } from "./protocol.js";
 
+export const GenieAgentPhase = Schema.Literals([
+  "analyzing",
+  "running-sql",
+  "preparing-report",
+]);
+export type GenieAgentPhase = typeof GenieAgentPhase.Type;
+
 export interface GenieAgentOperation {
   readonly conversationId: string;
   readonly responseId: string;
@@ -119,6 +126,18 @@ const stateOf = (status: string): GenieProgress["state"] => {
   }
 };
 
+const phaseOf = (items: ReadonlyArray<Item>): GenieAgentPhase => {
+  const latest = items.at(-1);
+  if (latest?.type === "message" && latest.role === "assistant")
+    return "preparing-report";
+  if (
+    latest?.type === "function_call" ||
+    (latest?.type === "function_call_output" && latest.status === "in_progress")
+  )
+    return "running-sql";
+  return "analyzing";
+};
+
 export const makeGenieAgentClient = <E, R>(options: {
   readonly agentId: string;
   readonly request: (
@@ -210,11 +229,15 @@ export const makeGenieAgentClient = <E, R>(options: {
 
   const poll = (operation: GenieAgentOperation) =>
     readTurn(operation).pipe(
-      Effect.map(({ status }) => ({
-        ...operation,
-        status,
-        state: stateOf(status),
-      })),
+      Effect.map(({ status, items }) => {
+        const state = stateOf(status);
+        return {
+          ...operation,
+          status,
+          state,
+          ...(state === "pending" ? { phase: phaseOf(items) } : {}),
+        };
+      }),
       Effect.withSpan("genie.agent.poll"),
     );
 

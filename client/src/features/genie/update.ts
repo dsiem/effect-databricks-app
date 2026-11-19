@@ -115,6 +115,19 @@ export function updateGenie(
       ) {
         return { model };
       }
+      const { outcome } = message;
+      if (outcome.state === "waiting") {
+        return {
+          model: {
+            ...model,
+            turns: model.turns.map((current) =>
+              current.id === turn.id
+                ? { ...turn, phase: outcome.phase }
+                : current,
+            ),
+          },
+        };
+      }
       return changeTurn(model, turn, {
         ...turnBase(turn),
         operation: turn.operation,

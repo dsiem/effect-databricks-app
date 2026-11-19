@@ -13,6 +13,7 @@ export {
   GenieResponseError,
 } from "./protocol.js";
 export {
+  GenieAgentPhase,
   makeGenieAgentClient,
   readGenieAgentAcceptance,
   type GenieAgentOperation,

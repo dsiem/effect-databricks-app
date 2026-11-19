@@ -164,10 +164,11 @@ export class Genie extends Context.Service<
       const poll = (operation: GenieOperation) =>
         (operation.mode === "agent"
           ? agent.poll(agentReference(operation)).pipe(
-              Effect.map(({ state, status }) => ({
+              Effect.map(({ state, status, phase }) => ({
                 ...operation,
                 state,
                 status,
+                ...(phase === undefined ? {} : { phase }),
               })),
             )
           : client.poll(operation)

@@ -502,7 +502,8 @@ test(
           messageId: "response",
         });
         assert.equal(released, true);
-        assert.equal((yield* genie.poll(accepted)).state, "pending");
+        assert.equal((yield* genie.poll(accepted)).phase, "running-sql");
+        assert.equal((yield* genie.poll(accepted)).phase, "preparing-report");
         assert.equal((yield* genie.poll(accepted)).state, "completed");
         return yield* genie.result(accepted);
       }).pipe(
@@ -605,9 +606,29 @@ test(
           itemsReads++;
           return Response.json({
             status: "in_progress",
-            has_more: itemsReads > 1,
+            has_more: itemsReads > 2,
             last_id: "response_input",
-            data: [{ id: "response_input", type: "message", role: "user" }],
+            data: [
+              { id: "response_input", type: "message", role: "user" },
+              ...(itemsReads === 1
+                ? [
+                    {
+                      id: "query",
+                      type: "function_call_output",
+                      status: "in_progress",
+                    },
+                  ]
+                : itemsReads === 2
+                  ? [
+                      {
+                        id: "draft-report",
+                        type: "message",
+                        role: "assistant",
+                        status: "in_progress",
+                      },
+                    ]
+                  : []),
+            ],
           });
         }),
       ),

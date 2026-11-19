@@ -452,3 +452,50 @@ test("Chat and Agent mode use separate follow-up conversations", async ({
   });
   expect(submissions[3]).not.toHaveProperty("mode");
 });
+
+test("Agent mode shows live progress and resumes with the accepted response after reload", async ({
+  page,
+}) => {
+  const agent = { ...operation, mode: "agent" };
+  let submissions = 0;
+  let polls = 0;
+  await page.route("**/api/genie", (route) => {
+    submissions++;
+    return route.fulfill({ json: agent });
+  });
+  await page.route(`**${messagePath}?mode=agent`, (route) => {
+    polls++;
+    return route.fulfill({
+      json: {
+        ...agent,
+        ...(polls < 3
+          ? {
+              state: "pending",
+              status: "in_progress",
+              phase: polls === 1 ? "running-sql" : "preparing-report",
+            }
+          : { state: "completed", status: "completed" }),
+      },
+    });
+  });
+  await page.route(`**${messagePath}/result?mode=agent`, (route) =>
+    route.fulfill({
+      json: { ...agent, text: "Completed Agent report", queries: [] },
+    }),
+  );
+
+  await page.goto("/genie");
+  await page.getByLabel("Genie mode").selectOption("agent");
+  await send(page);
+  await expect(
+    page.getByRole("status").filter({ hasText: "Running SQL" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Preparing the report" }),
+  ).toBeVisible({ timeout: 8_000 });
+  await page.reload();
+  await expect(
+    page.getByText("Completed Agent report", { exact: true }),
+  ).toBeVisible();
+  expect(submissions).toBe(1);
+});

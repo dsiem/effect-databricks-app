@@ -1,4 +1,5 @@
 import {
+  GenieAgentPhase,
   GenieId,
   GenieOperation as ChatOperation,
   GenieProgress as ChatProgress,
@@ -267,8 +268,10 @@ export const GenieOperation = Schema.Struct({
   ...GenieModeQuery.fields,
 });
 export type GenieOperation = typeof GenieOperation.Type;
+export { GenieAgentPhase };
 export const GenieProgress = Schema.Struct({
   ...ChatProgress.fields,
+  phase: Schema.optionalKey(GenieAgentPhase),
   ...GenieModeQuery.fields,
 });
 export type GenieProgress = typeof GenieProgress.Type;

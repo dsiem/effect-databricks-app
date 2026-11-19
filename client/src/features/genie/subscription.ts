@@ -1,5 +1,6 @@
 import { Clock, Effect, Result, Schema, Stream } from "effect";
 import { Subscription } from "foldkit";
+import type { GenieAgentPhase } from "../../../../shared/domain";
 import { type ApiClient, request } from "../../lib/api-client";
 import { failure } from "../../lib/command-result";
 import { Message as M, type Message, PollTarget } from "./messages";
@@ -21,37 +22,66 @@ function poll(target: typeof PollTarget.Type, generation: number) {
       query: target.operation.mode ? { mode: target.operation.mode } : {},
     }),
   ).pipe(Effect.scoped, Effect.mapError(failure), Effect.result);
-  return Stream.fromEffect(
-    Effect.gen(function* () {
-      const agent = target.operation.mode === "agent";
+  const agent = target.operation.mode === "agent";
+  type PollState =
+    | { readonly step: "first" }
+    | {
+        readonly step: "next";
+        readonly deadline: number;
+        readonly phase: GenieAgentPhase | undefined;
+      }
+    | { readonly step: "done" };
+  return Stream.unfold<PollState, Message | undefined, never, ApiClient>(
+    { step: "first" },
+    Effect.fnUntraced(function* (state) {
+      if (state.step === "done") return undefined;
       const deadline =
-        (yield* Clock.currentTimeMillis) + (agent ? 30 * 60_000 : 180_000);
-      while (true) {
-        const polled = yield* read;
-        if (Result.isFailure(polled)) {
-          const error = polled.failure;
-          return typeof error !== "string"
+        state.step === "first"
+          ? (yield* Clock.currentTimeMillis) + (agent ? 30 * 60_000 : 180_000)
+          : state.deadline;
+      if (state.step === "next")
+        yield* Effect.sleep(agent ? "5 seconds" : "1 second");
+      const polled = yield* read;
+      const done = { step: "done" } as const;
+      if (Result.isFailure(polled)) {
+        const error = polled.failure;
+        return [
+          typeof error !== "string"
             ? complete({ state: "failed", error })
-            : pause(error);
-        }
-        const data = polled.success;
-        if (data.state === "failed") {
-          return complete({
+            : pause(error),
+          done,
+        ] as const;
+      }
+      const data = polled.success;
+      if (data.state === "failed") {
+        return [
+          complete({
             state: "failed",
             error: `Genie could not complete this question (${data.status}).`,
-          });
-        }
-        if (data.state === "completed")
-          return complete({ state: "retrieving" });
-        if ((yield* Clock.currentTimeMillis) >= deadline) {
-          return pause(
-            "Genie is taking longer than expected. Resume waiting for this answer.",
-          );
-        }
-        yield* Effect.sleep(agent ? "5 seconds" : "1 second");
+          }),
+          done,
+        ] as const;
       }
+      if (data.state === "completed")
+        return [complete({ state: "retrieving" }), done] as const;
+      if ((yield* Clock.currentTimeMillis) >= deadline) {
+        return [
+          pause(
+            "Genie is taking longer than expected. Resume waiting for this answer.",
+          ),
+          done,
+        ] as const;
+      }
+      const previous = state.step === "next" ? state.phase : undefined;
+      const phase = agent ? data.phase : undefined;
+      return [
+        phase !== undefined && phase !== previous
+          ? complete({ state: "waiting", phase })
+          : undefined,
+        { step: "next", deadline, phase },
+      ] as const;
     }),
-  );
+  ).pipe(Stream.filter((message) => message !== undefined));
 }
 
 export const subscriptions = Subscription.make<Model, Message, ApiClient>()(

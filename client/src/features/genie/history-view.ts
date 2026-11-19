@@ -173,9 +173,26 @@ function response(
           className: " mt-3",
         }),
       ];
-    case "submitting":
-    case "waiting":
+    case "waiting": {
+      const progress = {
+        analyzing: "Analyzing your question…",
+        "running-sql": "Running SQL…",
+        "preparing-report": "Preparing the report…",
+      };
+      return [
+        h.p(
+          [h.Class("muted text-sm py-2"), h.Role("status")],
+          [turn.phase ? progress[turn.phase] : "Processing query…"],
+        ),
+      ];
+    }
     case "retrieving":
+      if (turn.operation.mode === "agent")
+        return [
+          h.p([h.Class("muted text-sm py-2")], ["Loading Agent report…"]),
+        ];
+      return [h.p([h.Class("muted text-sm py-2")], ["Processing query…"])];
+    case "submitting":
       return [h.p([h.Class("muted text-sm py-2")], ["Processing query…"])];
   }
 }
