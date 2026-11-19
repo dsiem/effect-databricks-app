@@ -11,7 +11,9 @@ This project is independently maintained and is not affiliated with or endorsed 
 [Integration patterns](docs/integration.md) ·
 [Reuse the SQL adapter](packages/sql-warehouse/README.md)
 
-![January and February 2016 NYC taxi trip metrics and daily activity with the Genie helper open](.github/assets/nyc-taxi.png)
+![Animated walkthrough that switches the overview chart to fare revenue, asks Genie about the chart, opens a trip with a comment, and reviews a route reliability report.](.github/assets/nyc-taxi-demo.gif)
+
+The walkthrough uses synthetic taxi data.
 
 ## What the example does
 
