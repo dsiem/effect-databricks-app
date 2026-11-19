@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Effect, Stream } from "effect";
+import { Effect, Exit, Latch, Stream } from "effect";
+import * as TestClock from "effect/testing/TestClock";
 import {
   makeGenieDownloadClient,
   type GenieDownloadRequest,
@@ -22,7 +23,7 @@ const accepted = {
 
 const prepared = (
   external_link: string,
-  options: { truncated?: boolean; count?: number } = {},
+  options: { truncated?: boolean; count?: number; expiration?: string } = {},
 ) => ({
   statement_response: {
     statement_id: "statement",
@@ -33,7 +34,17 @@ const prepared = (
       total_chunk_count: options.count ?? 2,
       schema: { columns: [{ name: "trip" }, { name: "count" }] },
     },
-    result: { external_links: [{ chunk_index: 0, external_link }] },
+    result: {
+      external_links: [
+        {
+          chunk_index: 0,
+          external_link,
+          ...(options.expiration === undefined
+            ? {}
+            : { expiration: options.expiration }),
+        },
+      ],
+    },
   },
 });
 
@@ -167,3 +178,101 @@ test("does not fetch an unrecognized URL or deliver a Databricks-truncated resul
     );
   }
 });
+
+test("cancels the CSV storage body when it stops delivering bytes", async () => {
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const received = Latch.makeUnsafe();
+      let cancelled = false;
+      const client = makeGenieDownloadClient({
+        spaceId: "space",
+        request: ({ kind }) =>
+          Effect.succeed(
+            kind === "start" ? accepted : prepared(signedFirst, { count: 1 }),
+          ),
+        fetch: async () =>
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode("trip,count\r\n"));
+              },
+              cancel() {
+                cancelled = true;
+              },
+            }),
+          ),
+      });
+      const csv = yield* client.download(reference);
+      const transfer = yield* Stream.runForEach(csv, () => received.open).pipe(
+        Effect.forkChild,
+      );
+
+      yield* received.await;
+      yield* TestClock.adjust("30 seconds");
+
+      const exit = transfer.pollUnsafe();
+      assert.ok(exit, "The idle timeout must end the transfer");
+      assert.ok(Exit.isFailure(exit), "An incomplete CSV must fail");
+      assert.equal(cancelled, true);
+    }).pipe(Effect.provide(TestClock.layer())),
+  );
+});
+
+for (const knownExpired of [true, false]) {
+  test(
+    knownExpired
+      ? "refreshes known expired CSV links without attempting storage"
+      : "refreshes a rejected signed CSV link once",
+    async () => {
+      const fetched: string[] = [];
+      const calls: GenieDownloadRequest["kind"][] = [];
+      const client = makeGenieDownloadClient({
+        spaceId: "space",
+        request: ({ kind }) =>
+          Effect.sync(() => {
+            calls.push(kind);
+            switch (kind) {
+              case "start":
+                return accepted;
+              case "poll":
+                return prepared(signedFirst, {
+                  count: 1,
+                  ...(knownExpired
+                    ? { expiration: "2000-01-01T00:00:00Z" }
+                    : {}),
+                });
+              case "chunk":
+                return {
+                  external_links: [
+                    { chunk_index: 0, external_link: signedSecond },
+                  ],
+                };
+            }
+          }),
+        fetch: async (url) => {
+          assert.ok(url instanceof URL);
+          fetched.push(url.href);
+          return url.href === signedFirst
+            ? new Response(null, { status: 403 })
+            : new Response("trip,count\r\nA,7\r\n");
+        },
+      });
+      const csv = await Effect.runPromise(
+        client
+          .download(reference)
+          .pipe(
+            Effect.flatMap((bytes) =>
+              bytes.pipe(Stream.decodeText, Stream.runCollect),
+            ),
+          ),
+      );
+
+      assert.deepEqual(calls, ["start", "poll", "chunk"]);
+      assert.deepEqual(
+        fetched,
+        knownExpired ? [signedSecond] : [signedFirst, signedSecond],
+      );
+      assert.equal(csv.join(""), "trip,count\r\nA,7\r\n");
+    },
+  );
+}

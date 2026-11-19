@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema, type Stream } from "effect";
+import { Context, Effect, Layer, Schema, Semaphore, Stream } from "effect";
 import { HttpClient } from "effect/http";
 import {
   GeniePermissionDenied,
@@ -141,6 +141,7 @@ export class Genie extends Context.Service<
         concurrency: settings.genieConcurrency,
         timeout: genieResultTimeoutMs,
       });
+      const transferSlots = Semaphore.makeUnsafe(settings.genieConcurrency);
       const downloadCsv = (reference: GenieQueryPath) =>
         downloads.download(reference).pipe(
           Effect.mapError((error) =>
@@ -152,6 +153,24 @@ export class Genie extends Context.Service<
               : error,
           ),
           admitDownload,
+          Effect.map((csv) =>
+            Stream.unwrap(
+              transferSlots.takeScoped(1).pipe(
+                Effect.timeoutOrElse({
+                  duration: genieResultTimeoutMs,
+                  orElse: () =>
+                    Effect.fail(
+                      new OperationTimeout({
+                        service: "genie_csv",
+                        message:
+                          "Genie CSV transfer timed out while waiting. Try again.",
+                      }),
+                    ),
+                }),
+                Effect.as(csv),
+              ),
+            ),
+          ),
         );
 
       const agent = makeGenieAgentClient({

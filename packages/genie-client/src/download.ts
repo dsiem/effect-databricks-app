@@ -1,4 +1,4 @@
-import { Data, Effect, Schema, Stream } from "effect";
+import { Clock, Data, Effect, Schema, Stream } from "effect";
 import type { GenieOperation } from "./index.js";
 import { GenieId } from "./protocol.js";
 
@@ -26,6 +26,7 @@ const Download = Schema.Struct({
 const Chunk = Schema.Struct({
   chunk_index: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   external_link: Schema.NonEmptyString,
+  expiration: Schema.optionalKey(Schema.String),
   http_headers: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 });
 
@@ -115,46 +116,39 @@ export const makeGenieDownloadClient = <E, R>(options: {
           : `Genie CSV storage returned HTTP ${status}.`,
     });
 
-  const readChunk = (chunk: typeof Chunk.Type) =>
-    Stream.unwrap(
-      Effect.gen(function* () {
-        const url = yield* storageUrl(chunk.external_link);
-        const headers = Object.fromEntries(
-          Object.entries(chunk.http_headers ?? {}).filter(([name]) =>
-            /^x-(?:amz|ms|goog)-/i.test(name),
-          ),
-        );
-        const response = yield* Effect.tryPromise({
-          try: (signal) =>
-            fetch(url, {
-              credentials: "omit",
-              redirect: "error",
-              signal,
-              headers,
-            }),
-          catch: () => storageError(),
-        }).pipe(
-          Effect.timeoutOrElse({
-            duration: "30 seconds",
-            orElse: () => Effect.fail(storageError()),
+  const openChunk = (chunk: typeof Chunk.Type) =>
+    Effect.gen(function* () {
+      const url = yield* storageUrl(chunk.external_link);
+      const headers = Object.fromEntries(
+        Object.entries(chunk.http_headers ?? {}).filter(([name]) =>
+          /^x-(?:amz|ms|goog)-/i.test(name),
+        ),
+      );
+      const controller = yield* Effect.acquireRelease(
+        Effect.sync(() => new AbortController()),
+        (controller) => Effect.sync(() => controller.abort()),
+      );
+      return yield* Effect.tryPromise({
+        try: (signal) =>
+          fetch(url, {
+            credentials: "omit",
+            redirect: "error",
+            signal: AbortSignal.any([signal, controller.signal]),
+            headers,
           }),
-        );
-        if (response.status !== 200) {
-          yield* Effect.promise(
-            () =>
-              response.body?.cancel().catch(() => undefined) ??
-              Promise.resolve(),
-          );
-          return yield* storageError(response.status);
-        }
-        const body = response.body;
-        if (!body) return yield* storageError();
-        return Stream.fromReadableStream({
-          evaluate: () => body,
-          onError: () => storageError(),
-        });
-      }),
-    );
+        catch: () => storageError(),
+      }).pipe(
+        Effect.timeoutOrElse({
+          duration: "30 seconds",
+          orElse: () => Effect.fail(storageError()),
+        }),
+      );
+    });
+
+  const discardBody = (response: Response) =>
+    Effect.promise(async () => {
+      await response.body?.cancel().catch(() => undefined);
+    });
 
   const download = (reference: GenieQueryReference) =>
     Effect.gen(function* () {
@@ -201,10 +195,8 @@ export const makeGenieDownloadClient = <E, R>(options: {
           chunk,
         ]),
       );
-      const readLink = (index: number) =>
+      const refreshLink = (index: number) =>
         Effect.gen(function* () {
-          const link = links.get(index);
-          if (link !== undefined) return link;
           const data = yield* request({
             kind: "chunk",
             method: "GET",
@@ -220,6 +212,44 @@ export const makeGenieDownloadClient = <E, R>(options: {
           return chunk;
         });
 
+      const readChunk = (index: number) =>
+        Stream.unwrap(
+          Effect.gen(function* () {
+            const cached = links.get(index);
+            const expired =
+              cached?.expiration !== undefined &&
+              Date.parse(cached.expiration) <= (yield* Clock.currentTimeMillis);
+            const link =
+              !cached || expired ? yield* refreshLink(index) : cached;
+            let response = yield* openChunk(link);
+            if (response.status === 401 || response.status === 403) {
+              yield* discardBody(response);
+              response = yield* openChunk(yield* refreshLink(index));
+            }
+            if (response.status !== 200) {
+              yield* discardBody(response);
+              return yield* storageError(response.status);
+            }
+            const body = response.body;
+            if (!body) return yield* storageError();
+            return Stream.fromReadableStream({
+              evaluate: () => body,
+              onError: () => storageError(),
+            }).pipe(
+              Stream.filter((bytes) => bytes.length > 0),
+              Stream.timeoutOrElse({
+                duration: "30 seconds",
+                orElse: () =>
+                  Stream.fail(
+                    new GenieDownloadError({
+                      message: "Genie CSV storage stopped sending data.",
+                    }),
+                  ),
+              }),
+            );
+          }),
+        );
+
       if (manifest.total_chunk_count === 0) {
         const header = manifest.schema.columns
           .map(({ name }) => `"${name.replaceAll('"', '""')}"`)
@@ -232,25 +262,18 @@ export const makeGenieDownloadClient = <E, R>(options: {
         // start at a row boundary, but a chunk may omit its final line break.
         let endsWithNewline = true;
         return Stream.range(0, manifest.total_chunk_count - 1).pipe(
-          Stream.flatMap((index) =>
-            Stream.unwrap(
-              readLink(index).pipe(
-                Effect.map((chunk) => {
-                  const prefix = endsWithNewline
-                    ? Stream.empty
-                    : Stream.make(new TextEncoder().encode("\r\n"));
-                  return Stream.concat(prefix, readChunk(chunk)).pipe(
-                    Stream.tap((bytes) =>
-                      Effect.sync(() => {
-                        if (bytes.length > 0)
-                          endsWithNewline = bytes.at(-1) === 10;
-                      }),
-                    ),
-                  );
+          Stream.flatMap((index) => {
+            const prefix = endsWithNewline
+              ? Stream.empty
+              : Stream.make(new TextEncoder().encode("\r\n"));
+            return Stream.concat(prefix, readChunk(index)).pipe(
+              Stream.tap((bytes) =>
+                Effect.sync(() => {
+                  endsWithNewline = bytes.at(-1) === 10;
                 }),
               ),
-            ),
-          ),
+            );
+          }),
         );
       });
     });

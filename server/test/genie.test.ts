@@ -5,9 +5,12 @@ import {
   ConfigProvider,
   Effect,
   Exit,
+  Fiber,
+  Latch,
   Layer,
   Redacted,
   Schema,
+  Stream,
 } from "effect";
 import { FetchHttpClient } from "effect/http";
 import { unavailable, UpstreamError } from "../src/errors.js";
@@ -121,7 +124,10 @@ const message = {
     },
   ],
 };
-const provideGenie = (request: typeof Workspace.Service.request) =>
+const provideGenie = (
+  request: typeof Workspace.Service.request,
+  env: Readonly<Record<string, string>> = {},
+) =>
   Genie.layer.pipe(
     Layer.provide(
       Layer.succeed(Workspace, {
@@ -136,6 +142,7 @@ const provideGenie = (request: typeof Workspace.Service.request) =>
         ConfigProvider.fromEnvRecord({
           DATABRICKS_HOST: "https://workspace.invalid",
           GENIE_SPACE_ID: "space",
+          ...env,
         }),
       ),
     ),
@@ -730,4 +737,62 @@ test("Agent cancellation uses the accepted response IDs and returns Databricks' 
       state,
     });
   }
+});
+
+test("Genie holds CSV transfer capacity until the body is interrupted", async () => {
+  const layer = provideGenie(
+    (_, method) =>
+      Effect.succeed(
+        method === "POST"
+          ? {
+              download_id: "download",
+              download_id_signature: "fixture",
+            }
+          : {
+              statement_response: {
+                statement_id: "statement",
+                status: { state: "SUCCEEDED" },
+                manifest: {
+                  format: "CSV",
+                  truncated: false,
+                  total_chunk_count: 0,
+                  schema: { columns: [{ name: "trip" }] },
+                },
+              },
+            },
+      ),
+    { GENIE_MAX_CONCURRENCY: "1" },
+  );
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const genie = yield* Genie;
+      const first = yield* genie.downloadCsv({
+        ...operation,
+        attachmentId: "query",
+      });
+      const second = yield* genie.downloadCsv({
+        ...operation,
+        attachmentId: "query",
+      });
+      const reading = Latch.makeUnsafe();
+      const firstTransfer = yield* Stream.runForEach(first, () =>
+        reading.open.pipe(Effect.andThen(Effect.never)),
+      ).pipe(Effect.forkChild);
+      yield* reading.await;
+
+      const secondTransfer = yield* Stream.runCollect(second).pipe(
+        Effect.forkChild({ startImmediately: true }),
+      );
+      yield* Effect.yieldNow;
+      assert.equal(
+        secondTransfer.pollUnsafe(),
+        undefined,
+        "The second transfer must wait for the first body to close",
+      );
+
+      yield* Fiber.interrupt(firstTransfer);
+      const bytes = yield* Fiber.join(secondTransfer);
+      assert.equal(new TextDecoder().decode(bytes[0]), '"trip"\r\n');
+    }).pipe(Effect.provide(layer)),
+  );
 });
