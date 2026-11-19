@@ -100,6 +100,7 @@ const fixture = () => {
               }),
           }),
           Layer.succeed(Genie, {
+            downloadCsv: () => Effect.die("Unexpected Genie CSV download"),
             submit: (input) => record("submit", input, operation),
             poll: (input) =>
               record("poll", input, {

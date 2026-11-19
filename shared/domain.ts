@@ -267,6 +267,11 @@ export const GenieAgentPath = Schema.Struct({
   conversationId: GenieId,
   responseId: GenieId,
 });
+export const GenieQueryPath = Schema.Struct({
+  ...GeniePath.fields,
+  attachmentId: GenieId,
+});
+export type GenieQueryPath = typeof GenieQueryPath.Type;
 export const GenieOperation = Schema.Struct({
   ...ChatOperation.fields,
   ...GenieModeQuery.fields,
@@ -285,6 +290,7 @@ export const GenieReply = Schema.Struct({
   text: Schema.String,
   queries: Schema.Array(
     Schema.Struct({
+      attachmentId: Schema.optionalKey(GenieId),
       sql: Schema.String,
       description: Schema.String,
       columns: Schema.Array(Schema.String),

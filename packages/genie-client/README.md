@@ -81,3 +81,13 @@ Call `cancel(operation)` to stop an in-flight Agent response in Databricks.
 Treat its returned state as authoritative and retrieve the answer if the
 Agent completed before cancellation. If the cancellation result is unknown,
 use `poll(operation)` to check the same response.
+
+## Export full Chat results
+
+Use `makeGenieDownloadClient({ spaceId, request })` with the same workspace
+transport. Call `download({ conversationId, messageId, attachmentId })` with a
+Chat query attachment ID to rerun its SQL and retrieve a CSV byte stream.
+Apply your deadline around preparation. The transport should exclude download
+status request URLs from traces because they contain a signature. The client
+streams ordered chunks from supported cloud storage without workspace
+credentials. Databricks applies its full-result download limits.

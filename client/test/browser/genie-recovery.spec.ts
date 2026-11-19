@@ -221,7 +221,7 @@ for (const { name, status, error } of [
   test(`${name} rejection survives reload and allows an explicit corrected submission`, async ({
     page,
   }) => {
-    const submissions: unknown[] = [];
+    const submissions: Record<string, unknown>[] = [];
     await page.route("**/api/genie", (route) => {
       submissions.push(route.request().postDataJSON());
       return route.fulfill(
@@ -264,8 +264,7 @@ for (const { name, status, error } of [
       ).toBeVisible();
       await expect(page.getByLabel("Genie mode")).toHaveValue("chat");
       expect(submissions).toHaveLength(2);
-      const { mode: _mode, ...original } = submissions[0] as { mode: string };
-      expect(submissions[1]).toEqual({ ...original, mode: "chat" });
+      expect(submissions[1]).toEqual({ ...submissions[0], mode: "chat" });
       return;
     }
     await expect(

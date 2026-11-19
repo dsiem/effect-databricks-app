@@ -3,10 +3,16 @@ import { OperationTimeout } from "./errors.js";
 
 // Construct once per service, outside request and cache lookups. The deadline
 // surrounds acquisition so expired or interrupted waiters cannot start work.
+const operation = {
+  warehouse: "Warehouse query",
+  genie: "Genie submission",
+  genie_csv: "Genie CSV preparation",
+};
+
 export const makeAdmission = (options: {
   readonly concurrency: number;
   readonly timeout: Duration.Input;
-  readonly service: "warehouse" | "genie";
+  readonly service: keyof typeof operation;
 }) => {
   const semaphore = Semaphore.makeUnsafe(options.concurrency);
   return <A, E, R>(effect: Effect.Effect<A, E, R>) =>
@@ -17,7 +23,7 @@ export const makeAdmission = (options: {
           Effect.fail(
             new OperationTimeout({
               service: options.service,
-              message: `${options.service === "warehouse" ? "Warehouse query" : "Genie submission"} timed out while waiting or running. Try again.`,
+              message: `${operation[options.service]} timed out while waiting or running. Try again.`,
             }),
           ),
       }),

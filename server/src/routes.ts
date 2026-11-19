@@ -16,7 +16,7 @@ import {
 import { makeAnalysisRuns } from "./analysis-runs.js";
 import { Analytics } from "./analytics.js";
 import { makeCurrentUser } from "./current-user.js";
-import type { ServiceError } from "./errors.js";
+import { InvalidRequest, type ServiceError } from "./errors.js";
 import { Genie } from "./genie.js";
 import { SavedViews } from "./saved-views.js";
 import { TripComments } from "./trip-comments.js";
@@ -129,6 +129,27 @@ const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
       .handle("cancelGenieAgent", ({ params }) => respond(genie.cancel(params)))
       .handle("genieResult", ({ params, query }) =>
         respond(genie.result({ ...params, ...query })),
+      )
+      .handle("downloadGenieCsv", ({ params }) =>
+        respond(
+          Effect.gen(function* () {
+            const { headers } = yield* HttpServerRequest.HttpServerRequest;
+            const site = headers["sec-fetch-site"];
+            if (site !== undefined && site !== "same-origin")
+              return yield* new InvalidRequest({
+                message: "Open the query in Genie to export its results.",
+              });
+            const csv = yield* genie.downloadCsv(params);
+            return HttpServerResponse.stream(csv, {
+              contentType: "text/csv; charset=utf-8",
+              headers: {
+                "Content-Disposition":
+                  'attachment; filename="genie-results.csv"',
+                "X-Content-Type-Options": "nosniff",
+              },
+            });
+          }),
+        ),
       )
       .handle("savedViews", ({ query }) => respond(savedViews.list(query)))
       .handle("tripComments", ({ query }) => respond(comments.list(query)))

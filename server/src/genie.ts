@@ -1,4 +1,5 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Schema, type Stream } from "effect";
+import { HttpClient } from "effect/http";
 import {
   GeniePermissionDenied,
   GenieMessageUnavailable,
@@ -6,6 +7,9 @@ import {
   type GenieAttachment,
   GenieResponseError,
   makeGenieClient,
+  makeGenieDownloadClient,
+  GenieDownloadError,
+  GenieId,
   makeGenieAgentClient,
   readGenieAgentAcceptance,
   type GenieRequest,
@@ -16,6 +20,7 @@ import {
   type GenieInput,
   type GenieOperation,
   type GenieProgress,
+  type GenieQueryPath,
   type GenieReply,
 } from "../../shared/domain.js";
 import { makeAdmission } from "./admission.js";
@@ -24,6 +29,7 @@ import {
   mapWorkspacePermission,
   OperationTimeout,
   permissionDenied,
+  ServiceUnavailable,
   type WorkspaceRequestError,
   UpstreamError,
   unavailable,
@@ -42,6 +48,8 @@ const permissionCopy = {
     "This Genie result is under lock. You need permission to read it.",
   cancel: "You need permission to stop this Genie response.",
 };
+
+const isGenieId = Schema.is(GenieId);
 
 const mapProtocolError = (
   error: WorkspaceRequestError | GenieResponseError | GeniePermissionDenied,
@@ -76,6 +84,12 @@ export class Genie extends Context.Service<
     readonly cancel: (
       operation: GenieAgentOperation,
     ) => Effect.Effect<GenieProgress, WorkspaceRequestError>;
+    readonly downloadCsv: (
+      reference: GenieQueryPath,
+    ) => Effect.Effect<
+      Stream.Stream<Uint8Array, WorkspaceRequestError | GenieDownloadError>,
+      WorkspaceRequestError
+    >;
     readonly result: (
       operation: GenieOperation,
     ) => Effect.Effect<GenieReply, WorkspaceRequestError | GenieFailed>;
@@ -108,6 +122,37 @@ export class Genie extends Context.Service<
               Effect.mapError(mapWorkspacePermission(permissionCopy[kind])),
             ),
       });
+
+      const downloads = makeGenieDownloadClient({
+        spaceId,
+        allowDatabricksStorageProxy: !!settings.appName,
+        request: ({ path, method }) =>
+          workspace.request(path, method).pipe(
+            Effect.provideService(HttpClient.TracerDisabledWhen, () => true),
+            Effect.mapError((error) =>
+              error instanceof ServiceUnavailable
+                ? unavailable(error.service, error.message)
+                : mapWorkspacePermission(permissionCopy["query-result"])(error),
+            ),
+          ),
+      });
+      const admitDownload = makeAdmission({
+        service: "genie_csv",
+        concurrency: settings.genieConcurrency,
+        timeout: genieResultTimeoutMs,
+      });
+      const downloadCsv = (reference: GenieQueryPath) =>
+        downloads.download(reference).pipe(
+          Effect.mapError((error) =>
+            error instanceof GenieDownloadError
+              ? new UpstreamError({
+                  service: "genie_csv",
+                  message: error.message,
+                })
+              : error,
+          ),
+          admitDownload,
+        );
 
       const agent = makeGenieAgentClient({
         agentId: spaceId,
@@ -242,6 +287,7 @@ export class Genie extends Context.Service<
               .filter((attachment) => attachment.kind === "query")
               .map(
                 ({
+                  attachmentId,
                   sql,
                   description,
                   columns,
@@ -249,6 +295,9 @@ export class Genie extends Context.Service<
                   truncated,
                   totalRowCount,
                 }) => ({
+                  ...(operation.mode !== "agent" && isGenieId(attachmentId)
+                    ? { attachmentId }
+                    : {}),
                   sql,
                   description: description ?? "Query result",
                   columns: columns.map((column) => column.name),
@@ -273,7 +322,7 @@ export class Genie extends Context.Service<
           }),
         );
       };
-      return { submit, poll, cancel, result };
+      return { submit, poll, cancel, result, downloadCsv };
     }),
   );
 }

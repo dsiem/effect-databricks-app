@@ -69,6 +69,32 @@ function answer(h: H, clipboard: string, reply: GenieReply): Child[] {
                 ),
               ]
             : []),
+          ...(reply.mode !== "agent" && result.attachmentId
+            ? [
+                h.form(
+                  [
+                    h.Class("border-t p-3"),
+                    h.Method("post"),
+                    h.Action(
+                      `/api/genie/${encodeURIComponent(reply.conversationId)}/messages/${encodeURIComponent(reply.messageId)}/attachments/${encodeURIComponent(result.attachmentId)}/csv`,
+                    ),
+                    h.Target("_blank"),
+                    h.Rel("noopener"),
+                  ],
+                  [
+                    button(h, {
+                      label: "Download full CSV",
+                      type: "submit",
+                      size: "small",
+                    }),
+                    h.p(
+                      [h.Class("muted mt-1 text-xs")],
+                      ["Reruns the query with the latest data."],
+                    ),
+                  ],
+                ),
+              ]
+            : []),
           h.details(
             [h.Class("border-t p-3")],
             [

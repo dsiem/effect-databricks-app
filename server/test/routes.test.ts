@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ConfigProvider, Effect, Layer, Redacted } from "effect";
+import { ConfigProvider, Effect, Layer, Redacted, Stream } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
 import { OpenApi } from "effect/http-api";
 import { AppApi } from "../../shared/api.js";
@@ -53,6 +53,7 @@ const appFor = (
             poll: () => effect,
             result: () => effect,
             cancel: () => effect,
+            downloadCsv: () => effect,
             ...overrides.genie,
           }),
           Layer.succeed(TripComments, {
@@ -325,5 +326,50 @@ test("current-user endpoint returns only each viewer's name/email and prevents c
     }
   } finally {
     await app.dispose();
+  }
+});
+
+test("Genie CSV exports use a same-origin POST and stream a downloadable attachment", async () => {
+  const path = "/api/genie/conv/messages/msg/attachments/query/csv";
+  let exports = 0;
+  const { handler, dispose } = appFor(undefined, {
+    genie: {
+      downloadCsv: (reference) =>
+        Effect.sync(() => {
+          exports++;
+          assert.deepEqual(reference, {
+            conversationId: "conv",
+            messageId: "msg",
+            attachmentId: "query",
+          });
+          return Stream.make(new TextEncoder().encode("count\r\n123\r\n"));
+        }),
+    },
+  });
+  try {
+    const forbidden = await handler(
+      new Request(`http://localhost${path}`, {
+        method: "POST",
+        headers: { "sec-fetch-site": "cross-site" },
+      }),
+    );
+    assert.equal(forbidden.status, 400);
+    assert.equal(exports, 0);
+    const file = await handler(
+      new Request(`http://localhost${path}`, {
+        method: "POST",
+        headers: { "sec-fetch-site": "same-origin" },
+      }),
+    );
+    assert.equal(file.status, 200);
+    assert.equal(
+      file.headers.get("content-disposition"),
+      'attachment; filename="genie-results.csv"',
+    );
+    assert.equal(file.headers.get("cache-control"), "no-store");
+    assert.equal(await file.text(), "count\r\n123\r\n");
+    assert.equal(exports, 1);
+  } finally {
+    await dispose();
   }
 });

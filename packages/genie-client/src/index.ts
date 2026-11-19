@@ -370,3 +370,10 @@ export const makeGenieClient = <E, R>(options: {
 
   return { submit, poll, result };
 };
+
+export {
+  GenieDownloadError,
+  type GenieDownloadRequest,
+  type GenieQueryReference,
+  makeGenieDownloadClient,
+} from "./download.js";

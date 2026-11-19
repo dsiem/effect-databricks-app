@@ -22,6 +22,7 @@ import {
   GenieModeQuery,
   GenieOperation,
   GeniePath,
+  GenieQueryPath,
   GenieProgress,
   GenieReply,
   GpsSearch,
@@ -226,6 +227,15 @@ export const AppApi = HttpApi.make("taxi").add(
           query: GenieModeQuery,
           success: GenieReply,
           error: [InvalidRequestBody, GenieFailedBody, ...workspaceErrors],
+        },
+      ),
+      HttpApiEndpoint.post(
+        "downloadGenieCsv",
+        "/api/genie/:conversationId/messages/:messageId/attachments/:attachmentId/csv",
+        {
+          params: GenieQueryPath,
+          success: HttpApiSchema.StreamUint8Array({ contentType: "text/csv" }),
+          error: [InvalidRequestBody, ...workspaceErrors],
         },
       ),
       HttpApiEndpoint.get("savedViews", "/api/saved-views", {
