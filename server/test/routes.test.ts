@@ -12,6 +12,7 @@ import { HttpRouter, HttpServer } from "effect/http";
 import { OpenApi } from "effect/http-api";
 import { AppApi } from "../../shared/api.js";
 import { GenieOperation } from "../../shared/domain.js";
+import { AnalysisRuns } from "../src/analysis-runs.js";
 import { Analytics } from "../src/analytics.js";
 import {
   GenieFailed,
@@ -43,6 +44,7 @@ const appFor = (
 ) =>
   HttpRouter.toWebHandler(
     Routes.pipe(
+      Layer.provide(AnalysisRuns.layer),
       Layer.provide(
         Layer.mergeAll(
           Layer.succeed(Workspace, {

@@ -15,6 +15,7 @@ import {
   type SavedViewInput,
   type TripCursor,
 } from "../../shared/domain.js";
+import { AnalysisRuns } from "../src/analysis-runs.js";
 import { Analytics } from "../src/analytics.js";
 import { Genie } from "../src/genie.js";
 import { Routes } from "../src/routes.js";
@@ -69,6 +70,7 @@ const fixture = () => {
     });
   const app = HttpRouter.toWebHandler(
     Routes.pipe(
+      Layer.provide(AnalysisRuns.layer),
       Layer.provide(
         Layer.mergeAll(
           Layer.succeed(Workspace, {

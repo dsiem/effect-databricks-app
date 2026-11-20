@@ -35,6 +35,7 @@ import {
   UpstreamError,
   unavailable,
 } from "./errors.js";
+import { askGenie } from "./databricks-capabilities.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
 
@@ -376,4 +377,6 @@ export class Genie extends Context.Service<
       return { submit, poll, cancel, result, downloadCsv };
     }),
   );
+
+  static readonly forApp = askGenie.client(Genie.layer);
 }

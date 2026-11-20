@@ -20,6 +20,7 @@ import {
   unavailable,
 } from "./errors.js";
 import { pgPassword, restoreCredentialFailure } from "./pg-credentials.js";
+import { connectLakebase } from "./databricks-capabilities.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
 
@@ -134,4 +135,6 @@ export class Lakebase extends Context.Service<
       };
     }).pipe(Effect.provide(Reactivity.layer)),
   );
+
+  static readonly forApp = connectLakebase.client(Lakebase.layer);
 }

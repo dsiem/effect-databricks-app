@@ -1,5 +1,12 @@
 import { Config, Context, Layer, Redacted, Schema } from "effect";
 
+import {
+  askGenie,
+  connectLakebase,
+  queryWarehouse,
+  runAnalysisJob,
+} from "./databricks-capabilities.js";
+
 const text = (name: string, fallback = "") =>
   Config.String(name).pipe(Config.withDefault(fallback));
 const concurrency = (name: string, fallback: number) =>
@@ -48,19 +55,10 @@ const config = Config.all({
       host && !host.includes("://") ? `https://${host}` : host,
     ),
   ),
-  warehouseId: text("DATABRICKS_WAREHOUSE_ID"),
+  warehouseId: queryWarehouse.config,
   tripSnapshotTable: tableName("TRIP_SNAPSHOT_TABLE"),
   analysisResultsTable: tableName("ANALYSIS_RESULTS_TABLE"),
-  analysisJobId: Config.schema(
-    Schema.Union([
-      Schema.Literal(""),
-      Schema.NumberFromString.check(
-        Schema.isInt(),
-        Schema.isBetween({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
-      ),
-    ]),
-    "ANALYSIS_JOB_ID",
-  ).pipe(Config.withDefault("")),
+  analysisJobId: runAnalysisJob.config,
   warehouseConcurrency: concurrency("WAREHOUSE_MAX_CONCURRENCY", 4),
   genieConcurrency: concurrency("GENIE_MAX_CONCURRENCY", 2),
   profile: text("DATABRICKS_CONFIG_PROFILE"),
@@ -71,7 +69,7 @@ const config = Config.all({
   clientSecret: Config.Redacted("DATABRICKS_CLIENT_SECRET").pipe(
     Config.withDefault(Redacted.make("")),
   ),
-  genieSpaceId: text("GENIE_SPACE_ID"),
+  genieSpaceId: askGenie.config,
   pgHost: text("PGHOST"),
   pgPort: Config.Port("PGPORT").pipe(Config.withDefault(5432)),
   pgDatabase: text("PGDATABASE", "databricks_postgres"),
@@ -79,7 +77,7 @@ const config = Config.all({
   pgPassword: Config.Redacted("PGPASSWORD").pipe(
     Config.withDefault(Redacted.make("")),
   ),
-  lakebaseEndpoint: text("LAKEBASE_ENDPOINT"),
+  lakebaseEndpoint: connectLakebase.config,
 });
 export class Settings extends Context.Service<
   Settings,

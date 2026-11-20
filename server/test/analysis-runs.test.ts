@@ -5,6 +5,7 @@ import { ConfigProvider, Layer, Schema } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
 import { AnalysisRun } from "../../shared/analysis-runs.js";
 import { PermissionDeniedBody } from "../../shared/api.js";
+import { AnalysisRuns } from "../src/analysis-runs.js";
 import { Analytics } from "../src/analytics.js";
 import { Genie } from "../src/genie.js";
 import { Lakebase } from "../src/lakebase.js";
@@ -131,6 +132,7 @@ test("analysis runs record the requester across retries, scope history and resul
   );
   const app = HttpRouter.toWebHandler(
     Routes.pipe(
+      Layer.provide(AnalysisRuns.layer),
       Layer.provide(services),
       Layer.provideMerge(HttpServer.layerServices),
     ),

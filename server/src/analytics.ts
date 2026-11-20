@@ -1,5 +1,4 @@
 import { Cache, Context, Effect, Exit, Layer, Schema } from "effect";
-import * as Reactivity from "effect/reactivity/Reactivity";
 import {
   type AnalysisRunId,
   RouteReliabilityReport,
@@ -34,7 +33,7 @@ import {
   WarehouseTrip,
 } from "./trip-pagination.js";
 import { tripDetailsProjection } from "./trip-sql.js";
-import { makeWarehouse } from "./warehouse.js";
+import { makeWarehouse, warehouseClientLayer } from "./warehouse.js";
 
 type WarehouseError = ServiceUnavailable | OperationTimeout | PermissionDenied;
 
@@ -56,7 +55,7 @@ export class Analytics extends Context.Service<
     ) => Effect.Effect<typeof RouteReliabilityReport.Type, WarehouseError>;
   }
 >()("app/Analytics") {
-  static readonly layer = Layer.effect(
+  static readonly fromWarehouse = Layer.effect(
     Analytics,
     Effect.gen(function* () {
       const { sql, snapshot, read, error } = yield* makeWarehouse;
@@ -290,6 +289,10 @@ export class Analytics extends Context.Service<
             endpoint: search.endpoint ?? "pickup",
           }),
       };
-    }).pipe(Effect.provide(Reactivity.layer)),
+    }),
+  );
+
+  static readonly layer = Analytics.fromWarehouse.pipe(
+    Layer.provide(warehouseClientLayer),
   );
 }

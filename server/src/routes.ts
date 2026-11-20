@@ -13,7 +13,7 @@ import {
   AppApi,
   invalidRequestBody,
 } from "../../shared/api.js";
-import { makeAnalysisRuns } from "./analysis-runs.js";
+import { AnalysisRuns } from "./analysis-runs.js";
 import { Analytics } from "./analytics.js";
 import { makeCurrentUser } from "./current-user.js";
 import { InvalidRequest, type ServiceError } from "./errors.js";
@@ -92,7 +92,7 @@ const BoundaryLive = Layer.succeed(ApiBoundary, (effect) =>
 const ApiLive = HttpApiBuilder.group(AppApi, "app", (handlers) =>
   Effect.gen(function* () {
     const analytics = yield* Analytics;
-    const analysisRuns = yield* makeAnalysisRuns;
+    const analysisRuns = yield* AnalysisRuns;
     const genie = yield* Genie;
     const savedViews = yield* SavedViews;
     const comments = yield* TripComments;

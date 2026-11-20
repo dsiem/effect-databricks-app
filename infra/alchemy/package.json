@@ -1,0 +1,21 @@
+{
+  "name": "databricks-alchemy-prototype",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "plan": "alchemy plan",
+    "deploy": "alchemy deploy",
+    "destroy": "alchemy destroy",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/lifecycle.mjs"
+  },
+  "dependencies": {
+    "alchemy": "2.0.0-beta.87",
+    "effect": "4.1.4",
+    "@effect/platform-node": "4.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "7.0.2"
+  }
+}

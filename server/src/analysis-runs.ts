@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { Effect, Option, Schema } from "effect";
+import { Context, Effect, Layer, Option, Schema } from "effect";
 import {
   AnalysisInput,
   AnalysisRun,
@@ -16,6 +16,7 @@ import {
   UpstreamError,
   unavailable,
 } from "./errors.js";
+import { runAnalysisJob } from "./databricks-capabilities.js";
 import { Settings } from "./settings.js";
 import { Workspace } from "./workspace.js";
 
@@ -135,7 +136,7 @@ const summary = (run: Run): AnalysisRunSummary => ({
 const notFound = () =>
   new AnalysisRunNotFound({ message: "This analysis run could not be found." });
 
-export const makeAnalysisRuns = Effect.gen(function* () {
+const makeAnalysisRuns = Effect.gen(function* () {
   const {
     analysisJobId,
     analysisResultsTable,
@@ -276,3 +277,12 @@ export const makeAnalysisRuns = Effect.gen(function* () {
 
   return { submit, list, get, result };
 });
+
+export class AnalysisRuns extends Context.Service<
+  AnalysisRuns,
+  Effect.Success<typeof makeAnalysisRuns>
+>()("app/AnalysisRuns") {
+  static readonly layer = Layer.effect(AnalysisRuns, makeAnalysisRuns);
+
+  static readonly forApp = runAnalysisJob.client(AnalysisRuns.layer);
+}

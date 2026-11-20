@@ -9,6 +9,9 @@ bundle resources, create a schema in the selected catalog, and grant access to
 the app. Lakebase setup needs a PostgreSQL role that can create tables
 and grant access. [Lakebase permissions](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/lakebase)
 
+For the Alchemy prototype, see [Databricks Apps with Alchemy](infra/alchemy/README.md).
+It deploys a separate app and demonstrates the four service attachments.
+
 ## Set up a target
 
 1. Install dependencies and sign in to your workspace.

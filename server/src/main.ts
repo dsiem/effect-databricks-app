@@ -3,15 +3,9 @@ import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import { Effect, Layer } from "effect";
 import { HttpRouter } from "effect/http";
-import { Analytics } from "./analytics.js";
 import { ServerConfig } from "./config.js";
-import { Genie } from "./genie.js";
-import { Lakebase } from "./lakebase.js";
+import { workbenchServices } from "./databricks-services.js";
 import { Routes } from "./routes.js";
-import { SavedViews } from "./saved-views.js";
-import { Settings } from "./settings.js";
-import { TripComments } from "./trip-comments.js";
-import { Workspace } from "./workspace.js";
 
 const ServerLive = Layer.unwrap(
   Effect.map(ServerConfig, ({ port }) =>
@@ -23,16 +17,7 @@ const ServerLive = Layer.unwrap(
   ),
 );
 
-const Services = Layer.mergeAll(
-  Analytics.layer,
-  Genie.layer,
-  SavedViews.layer,
-  TripComments.layer,
-).pipe(
-  Layer.provideMerge(Lakebase.layer),
-  Layer.provideMerge(Workspace.layer),
-  Layer.provideMerge(Settings.layer),
-);
+const Services = Layer.unwrap(workbenchServices());
 const AppLive = HttpRouter.serve(Routes.pipe(Layer.provide(Services))).pipe(
   Layer.provide(ServerLive),
 );

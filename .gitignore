@@ -5,6 +5,7 @@ coverage/
 .env.*
 !.env.example
 .databricks/
+.alchemy/
 .audit/
 .DS_Store
 *.log
